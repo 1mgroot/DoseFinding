@@ -1,0 +1,214 @@
+get_expected_utility <- function(dose_idx, posterior_summaries, config) {
+  # Get posterior probabilities for the given dose
+  # Note: This assumes the posterior_summaries dataframes are ordered by dose and then by group
+  pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]
+  pi_T_given_I1 <- posterior_summaries$tox$pava_mean[2 * dose_idx]
+  pi_E_given_I0 <- posterior_summaries$eff$pava_mean[2 * dose_idx - 1]
+  pi_E_given_I1 <- posterior_summaries$eff$pava_mean[2 * dose_idx]
+  pi_I <- posterior_summaries$imm$pava_mean[dose_idx]
+
+  # Probabilities of T=0 and T=1 given I
+  p_T_given_I0 <- c(1 - pi_T_given_I0, pi_T_given_I0)
+  p_T_given_I1 <- c(1 - pi_T_given_I1, pi_T_given_I1)
+
+  # Probabilities of E=0 and E=1 given I
+  p_E_given_I0 <- c(1 - pi_E_given_I0, pi_E_given_I0)
+  p_E_given_I1 <- c(1 - pi_E_given_I1, pi_E_given_I1)
+
+  # Expected utility for I=0
+  utility_I0 <- sum(config$utility_table[,,1] * (p_E_given_I0 %o% p_T_given_I0))
+
+  # Expected utility for I=1
+  utility_I1 <- sum(config$utility_table[,,2] * (p_E_given_I1 %o% p_T_given_I1))
+
+  # Total expected utility
+  total_utility <- (1 - pi_I) * utility_I0 + pi_I * utility_I1
+  return(total_utility)
+}
+
+get_expected_utility_detailed <- function(dose_idx, posterior_summaries, config) {
+  # Get posterior probabilities for the given dose
+  pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]
+  pi_T_given_I1 <- posterior_summaries$tox$pava_mean[2 * dose_idx]
+  pi_E_given_I0 <- posterior_summaries$eff$pava_mean[2 * dose_idx - 1]
+  pi_E_given_I1 <- posterior_summaries$eff$pava_mean[2 * dose_idx]
+  pi_I <- posterior_summaries$imm$pava_mean[dose_idx]
+
+  # Probabilities of T=0 and T=1 given I
+  p_T_given_I0 <- c(1 - pi_T_given_I0, pi_T_given_I0)
+  p_T_given_I1 <- c(1 - pi_T_given_I1, pi_T_given_I1)
+
+  # Probabilities of E=0 and E=1 given I
+  p_E_given_I0 <- c(1 - pi_E_given_I0, pi_E_given_I0)
+  p_E_given_I1 <- c(1 - pi_E_given_I1, pi_E_given_I1)
+
+  # Expected utility for I=0
+  utility_I0 <- sum(config$utility_table[,,1] * (p_E_given_I0 %o% p_T_given_I0))
+
+  # Expected utility for I=1
+  utility_I1 <- sum(config$utility_table[,,2] * (p_E_given_I1 %o% p_T_given_I1))
+
+  # Total expected utility
+  total_utility <- (1 - pi_I) * utility_I0 + pi_I * utility_I1
+  
+  # Return detailed breakdown
+  return(list(
+    dose_idx = dose_idx,
+    pi_I = pi_I,
+    pi_T_given_I0 = pi_T_given_I0,
+    pi_T_given_I1 = pi_T_given_I1,
+    pi_E_given_I0 = pi_E_given_I0,
+    pi_E_given_I1 = pi_E_given_I1,
+    p_T_given_I0 = p_T_given_I0,
+    p_T_given_I1 = p_T_given_I1,
+    p_E_given_I0 = p_E_given_I0,
+    p_E_given_I1 = p_E_given_I1,
+    utility_I0 = utility_I0,
+    utility_I1 = utility_I1,
+    total_utility = total_utility
+  ))
+}
+
+get_admissible_set <- function(posterior_summaries, config) {
+  admissible_doses <- c()
+  cat("\n--- Admissibility Check ---\n")
+  
+  # Log summary statistics for transparency
+  cat("Summary: Toxicity marginal means:", round(posterior_summaries$tox_marginal$marginal_prob, 3), "\n")
+  cat("Summary: Efficacy marginal means:", round(posterior_summaries$eff_marginal$marginal_prob, 3), "\n")
+  cat("Summary: Immune response means:", round(posterior_summaries$imm$pava_mean, 3), "\n")
+  
+  for (i in 1:length(config$dose_levels)) {
+    tox_samples <- posterior_summaries$tox_marginal$samples[[i]]
+    eff_samples <- posterior_summaries$eff_marginal$samples[[i]]
+    imm_samples <- posterior_summaries$imm$samples_pava[[i]]
+
+    tox_prob_safe <- mean(tox_samples < config$phi_T)
+    eff_prob_good <- mean(eff_samples > config$phi_E)
+    imm_prob_good <- mean(imm_samples > config$phi_I)
+
+    # Log detailed statistics for each dose
+    cat(paste("Dose", i,":",
+              "P(Tox < ", config$phi_T, ") = ", round(tox_prob_safe, 2),
+              "(Threshold: ", config$c_T, ")",
+              "P(Eff > ", config$phi_E, ") = ", round(eff_prob_good, 2),
+              "(Threshold: ", config$c_E, ")",
+              "P(Imm > ", config$phi_I, ") = ", round(imm_prob_good, 2),
+              "(Threshold: ", config$c_I, ")\n"))
+
+    if (tox_prob_safe > config$c_T && eff_prob_good > config$c_E && imm_prob_good > config$c_I) {
+      admissible_doses <- c(admissible_doses, i)
+    }
+  }
+  cat("--- End Admissibility Check ---\n")
+  return(admissible_doses)
+}
+
+adaptive_randomization <- function(admissible_set, posterior_summaries, config) {
+  n_doses <- length(config$dose_levels)
+  alloc_probs <- numeric(n_doses)
+
+  if (length(admissible_set) > 0) {
+    utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
+    if (sum(utilities) > 0) {
+      alloc_probs[admissible_set] <- utilities / sum(utilities)
+    } else {
+      alloc_probs[admissible_set] <- 1 / length(admissible_set) # Equal probability if all utilities are zero
+    }
+  }
+
+  return(alloc_probs)
+}
+
+select_final_od <- function(admissible_set, posterior_summaries, config) {
+  if (length(admissible_set) == 0) {
+    return(NA)
+  }
+
+  utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
+  return(admissible_set[which.max(utilities)])
+}
+
+# New function to log utility calculations
+log_utility_calculations <- function(posterior_summaries, config) {
+  cat("\n--- Utility Score Calculations ---\n")
+  
+  # Display utility table for reference
+  cat("Utility Table Reference:\n")
+  cat("  I=0 (No Immune Response):\n")
+  cat("    E=0, T=0:", config$utility_table[1,1,1], "  E=1, T=0:", config$utility_table[2,1,1], "\n")
+  cat("    E=0, T=1:", config$utility_table[1,2,1], "  E=1, T=1:", config$utility_table[2,2,1], "\n")
+  cat("  I=1 (Immune Response):\n")
+  cat("    E=0, T=0:", config$utility_table[1,1,2], "  E=1, T=0:", config$utility_table[2,1,2], "\n")
+  cat("    E=0, T=1:", config$utility_table[1,2,2], "  E=1, T=1:", config$utility_table[2,2,2], "\n")
+  cat("\n")
+  
+  # Calculate utilities for all doses
+  utility_summary <- data.frame(
+    Dose = 1:length(config$dose_levels),
+    Immune_Prob = numeric(length(config$dose_levels)),
+    Tox_I0 = numeric(length(config$dose_levels)),
+    Tox_I1 = numeric(length(config$dose_levels)),
+    Eff_I0 = numeric(length(config$dose_levels)),
+    Eff_I1 = numeric(length(config$dose_levels)),
+    Utility_I0 = numeric(length(config$dose_levels)),
+    Utility_I1 = numeric(length(config$dose_levels)),
+    Total_Utility = numeric(length(config$dose_levels))
+  )
+  
+  for (i in 1:length(config$dose_levels)) {
+    utility_details <- get_expected_utility_detailed(i, posterior_summaries, config)
+    
+    # Store summary data
+    utility_summary$Immune_Prob[i] <- utility_details$pi_I
+    utility_summary$Tox_I0[i] <- utility_details$pi_T_given_I0
+    utility_summary$Tox_I1[i] <- utility_details$pi_T_given_I1
+    utility_summary$Eff_I0[i] <- utility_details$pi_E_given_I0
+    utility_summary$Eff_I1[i] <- utility_details$pi_E_given_I1
+    utility_summary$Utility_I0[i] <- utility_details$utility_I0
+    utility_summary$Utility_I1[i] <- utility_details$utility_I1
+    utility_summary$Total_Utility[i] <- utility_details$total_utility
+    
+    cat(paste("Dose", i, "Utility Calculation:\n"))
+    cat(paste("  Immune response probability (π_I):", round(utility_details$pi_I, 3), "\n"))
+    cat(paste("  Toxicity given I=0 (π_T|I=0):", round(utility_details$pi_T_given_I0, 3), "\n"))
+    cat(paste("  Toxicity given I=1 (π_T|I=1):", round(utility_details$pi_T_given_I1, 3), "\n"))
+    cat(paste("  Efficacy given I=0 (π_E|I=0):", round(utility_details$pi_E_given_I0, 3), "\n"))
+    cat(paste("  Efficacy given I=1 (π_E|I=1):", round(utility_details$pi_E_given_I1, 3), "\n"))
+    
+    cat("  Probability distributions:\n")
+    cat(paste("    P(T=0|I=0):", round(utility_details$p_T_given_I0[1], 3), 
+              "P(T=1|I=0):", round(utility_details$p_T_given_I0[2], 3), "\n"))
+    cat(paste("    P(T=0|I=1):", round(utility_details$p_T_given_I1[1], 3), 
+              "P(T=1|I=1):", round(utility_details$p_T_given_I1[2], 3), "\n"))
+    cat(paste("    P(E=0|I=0):", round(utility_details$p_E_given_I0[1], 3), 
+              "P(E=1|I=0):", round(utility_details$p_E_given_I0[2], 3), "\n"))
+    cat(paste("    P(E=0|I=1):", round(utility_details$p_E_given_I1[1], 3), 
+              "P(E=1|I=1):", round(utility_details$p_E_given_I1[2], 3), "\n"))
+    
+    cat(paste("  Expected utility given I=0:", round(utility_details$utility_I0, 2), "\n"))
+    cat(paste("  Expected utility given I=1:", round(utility_details$utility_I1, 2), "\n"))
+    cat(paste("  Total expected utility:", round(utility_details$total_utility, 2), "\n"))
+    cat("\n")
+  }
+  
+  # Display utility summary table
+  cat("Utility Summary Table:\n")
+  cat("Dose | Immune | Tox(I=0) | Tox(I=1) | Eff(I=0) | Eff(I=1) | U(I=0) | U(I=1) | Total U\n")
+  cat("-----|--------|----------|----------|----------|----------|--------|--------|--------\n")
+  for (i in 1:nrow(utility_summary)) {
+    cat(sprintf("%4d | %6.3f | %8.3f | %8.3f | %8.3f | %8.3f | %6.1f | %6.1f | %7.1f\n",
+                utility_summary$Dose[i],
+                utility_summary$Immune_Prob[i],
+                utility_summary$Tox_I0[i],
+                utility_summary$Tox_I1[i],
+                utility_summary$Eff_I0[i],
+                utility_summary$Eff_I1[i],
+                utility_summary$Utility_I0[i],
+                utility_summary$Utility_I1[i],
+                utility_summary$Total_Utility[i]))
+  }
+  cat("\n")
+  
+  cat("--- End Utility Calculations ---\n")
+}

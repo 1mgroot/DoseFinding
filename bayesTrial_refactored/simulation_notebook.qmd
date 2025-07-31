@@ -1,0 +1,129 @@
+---
+title: "Bayesian Dose-Finding Trial Simulation"
+format: html
+editor: visual
+---
+
+## Introduction
+
+This document provides an interactive way to run the Bayesian dose-finding trial simulation. You can modify the simulation parameters in the "Configuration" section and then run the code chunks to see the results.
+
+## Setup
+
+This chunk loads the necessary libraries and source files.
+
+```{r setup}
+library(knitr) # For creating formatted tables
+library(ggplot2)
+source("config.R")
+source("helpers.R")
+source("simulate_data.R")
+source("model_utils.R")
+source("dose_decision.R")
+source("main.R")
+```
+
+## Configuration
+
+Modify the simulation parameters in this section. I have adjusted these values to create a more dynamic scenario where multiple doses are likely to be admissible in the early stages.
+
+```{r config}
+# Trial configuration
+trial_config <- list(
+  dose_levels = c(1, 2, 3, 4, 5),
+  n_stages = 4,
+  cohort_size = 15,
+  phi_T = 0.35, # Toxicity threshold (increased slightly)
+  c_T = 0.5,   
+  phi_E = 0.25, # Efficacy threshold (increased slightly)
+  c_E = 0.5,   
+  phi_I = 0.20, # Immune response threshold
+  c_I = 0.5,   
+  c_POC = 0.9
+)
+
+# Data simulation parameters (designed for a more interesting trial)
+p_YI <- c(0.10, 0.30, 0.50, 0.60, 0.70) # Immune response probability
+
+p_YT_given_I <- matrix(c(
+  # I=0 (No Immune Response)
+  0.05, 0.10, 0.12, 0.18, 0.25,
+  # I=1 (Immune Response)
+  0.08, 0.12, 0.15, 0.25, 0.35
+), nrow = 5, ncol = 2)
+
+p_YE_given_I <- matrix(c(
+  # I=0 (No Immune Response)
+  0.10, 0.20, 0.35, 0.45, 0.50, 
+  # I=1 (Immune Response)
+  0.30, 0.50, 0.70, 0.80, 0.75  
+), nrow = 5, ncol = 2)
+
+rho0 <- 1.5
+rho1 <- 2
+
+# Utility table
+# Rows: Efficacy (0, 1)
+# Columns: Toxicity (0, 1)
+# Slices: Immune Response (0, 1)
+utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
+  E = c(0, 1),
+  T = c(0, 1),
+  I = c(0, 1)
+))
+
+utility_table[1, 1, 1] <- 0   # E=0, T=0, I=0
+utility_table[2, 1, 1] <- 80  # E=1, T=0, I=0
+utility_table[1, 2, 1] <- 0   # E=0, T=1, I=0
+utility_table[2, 2, 1] <- 30  # E=1, T=1, I=0
+
+utility_table[1, 1, 2] <- 10  # E=0, T=0, I=1
+utility_table[2, 1, 2] <- 100 # E=1, T=0, I=1
+utility_table[1, 2, 2] <- 0   # E=0, T=1, I=1
+utility_table[2, 2, 2] <- 40  # E=1, T=1, I=1
+
+trial_config$utility_table <- utility_table
+```
+
+## Simulation
+
+This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function.
+
+```{r simulation}
+results <- run_trial_simulation(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1)
+```
+
+## Results
+
+This chunk prints the final optimal dose and displays the plots.
+
+```{r results}
+# Print final OD
+cat("
+--- Final Results ---
+")
+cat("Final OD:", results$final_od, "
+")
+
+# Plot final results and save them
+plot_posterior_summary(results$posterior_summaries$imm, title = "Immune Response vs Dose (PAVA Adjusted)", file_path = "results/immune_response_refactored.png")
+plot_posterior_summary(results$posterior_summaries$tox, title = "Toxicity Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/toxicity_refactored.png")
+plot_posterior_summary(results$posterior_summaries$eff, title = "Efficacy Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/efficacy_refactored.png")
+
+# Plot allocation probabilities over time
+p_alloc_time <- ggplot(results$all_alloc_probs, aes(x = Stage, y = Prob, color = factor(Dose))) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Allocation Probabilities Over Time", x = "Stage", y = "Allocation Probability", color = "Dose Level") +
+  theme_minimal()
+print(p_alloc_time)
+
+# Visualize participant allocation
+p_alloc <- ggplot(results$all_data, aes(x = factor(d))) +
+  geom_bar(aes(fill = factor(stage)), position = "dodge") +
+  labs(title = "Participant Allocation", x = "Dose Level", y = "Number of Participants") +
+  scale_fill_brewer(palette = "Set2", name = "Stage") +
+  theme_minimal()
+print(p_alloc)
+
+```
