@@ -22,6 +22,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
     cat(paste("
 --- Stage", stage, "---
 "))
+    cat("Workflow: Step 1 - Equal randomization (Stage 1) or Adaptive randomization (Stages 2+)
+")
     
     n_next_stage <- round(alloc_probs * trial_config$cohort_size)
 
@@ -67,13 +69,34 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       tox_marginal = tox_marginal, eff_marginal = eff_marginal
     )
 
+    cat("Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+")
     admissible_set <- get_admissible_set(posterior_summaries, trial_config)
     cat("Admissible set:", admissible_set, "
 ")
 
+    # Step 4: Early Termination Check (CORRECT PLACEMENT - after interim analysis, before adaptive randomization)
+    cat("Workflow: Step 4 - Early Termination Check
+")
+    if (check_early_termination(admissible_set, trial_config)) {
+      termination_info <- handle_trial_termination(admissible_set, stage, trial_config)
+      return(list(
+        final_od = NA,
+        all_data = all_data,
+        all_alloc_probs = all_alloc_probs,
+        posterior_summaries = posterior_summaries,
+        terminated_early = TRUE,
+        termination_stage = stage,
+        termination_reason = termination_info$reason
+      ))
+    }
+
     log_utility_calculations(posterior_summaries, trial_config)
 
+    # Step 3: Adaptive Randomization (only if trial continues)
     if (stage < trial_config$n_stages) {
+      cat("Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+")
       alloc_probs <- adaptive_randomization(admissible_set, posterior_summaries, trial_config)
       cat("Allocation probabilities for next stage:", alloc_probs, "
 ")
@@ -82,13 +105,23 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
     all_alloc_probs <- rbind(all_alloc_probs, data.frame(Stage = stage, Dose = trial_config$dose_levels, Prob = alloc_probs))
   }
 
-  final_od <- select_final_od(admissible_set, posterior_summaries, trial_config)
+  # Step 5: Final Selection with PoC validation (CORRECT PLACEMENT - only at final stage)
+  cat("Workflow: Step 5 - Final Selection with PoC validation
+")
+  final_selection <- select_final_od_with_poc(admissible_set, posterior_summaries, trial_config)
 
   return(list(
-    final_od = final_od,
+    final_od = final_selection$optimal_dose,
+    final_utility = final_selection$optimal_utility,
+    poc_validated = final_selection$poc_validated,
+    poc_probability = final_selection$poc_probability,
+    selection_reason = final_selection$reason,
     all_data = all_data,
     all_alloc_probs = all_alloc_probs,
-    posterior_summaries = posterior_summaries
+    posterior_summaries = posterior_summaries,
+    terminated_early = FALSE,
+    termination_stage = NA,
+    termination_reason = NA
   ))
 }
 
@@ -99,8 +132,26 @@ if (sys.nframe() == 0) {
   cat("
 --- Final Results ---
 ")
-  cat("Final OD:", results$final_od, "
+  
+  if (results$terminated_early) {
+    cat("Trial terminated early at stage:", results$termination_stage, "
 ")
+    cat("Reason:", results$termination_reason, "
+")
+    cat("No Optimal Dose selected
+")
+  } else {
+    cat("Final OD:", results$final_od, "
+")
+    cat("Final utility:", round(results$final_utility, 2), "
+")
+    cat("PoC validated:", results$poc_validated, "
+")
+    cat("PoC probability:", round(results$poc_probability, 3), "
+")
+    cat("Selection reason:", results$selection_reason, "
+")
+  }
 
   plot_posterior_summary(results$posterior_summaries$imm, title = "Immune Response vs Dose (PAVA Adjusted)", file_path = "results/immune_response_refactored.png")
   plot_posterior_summary(results$posterior_summaries$tox, title = "Toxicity Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/toxicity_refactored.png")

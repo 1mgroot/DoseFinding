@@ -1,0 +1,225 @@
+# Cursor Rules for bayesTrial_refactored Project
+
+## Project Overview
+This is a Bayesian dose-finding trial simulation project that implements adaptive randomization and utility-based dose selection. The project simulates multi-stage clinical trials with toxicity, efficacy, and immune response endpoints.
+
+## Project Structure
+- `main.R`: Master script with `run_trial_simulation()` function implementing the complete workflow
+- `config.R`: All configuration parameters, utility table, and PoC/early termination settings
+- `simulate_data.R`: Data generation functions using Gumbel copula
+- `model_utils.R`: Bayesian model utilities and posterior calculations
+- `dose_decision.R`: Decision-making logic, utility calculations, early termination, and PoC validation
+- `helpers.R`: Visualization and helper functions
+- `simulation_notebook.qmd`: Interactive Quarto notebook for running simulations
+- `test_*.R`: Unit tests for various components including workflow verification
+- `TRIAL_DESIGN.md`: Complete mathematical framework and workflow specification
+- `DESIGN_NOTES.md`: Implementation plans and task tracking
+
+## Coding Standards
+
+### R Code Style
+- Use snake_case for function and variable names
+- Use descriptive names that reflect the statistical/clinical context
+- Add comments explaining complex mathematical operations
+- Group related functions together in files
+- Use consistent indentation (2 spaces)
+
+### Function Documentation
+- Document all functions with clear descriptions
+- Include parameter descriptions with types
+- Document return values and their meaning
+- Add examples for complex functions
+
+### Mathematical Operations
+- Use clear variable names for mathematical quantities (π_I, π_T, π_E)
+- Add comments explaining probability calculations
+- Use matrix operations when appropriate for efficiency
+- Validate inputs and outputs for probability distributions
+
+## Key Concepts
+
+### Bayesian Framework
+- Posterior distributions are calculated using Beta priors
+- Isotonic regression (PAVA) is applied to ensure monotonicity
+- Marginal probabilities are computed from joint distributions
+
+### Utility Calculation
+- Utility table defines values for all outcome combinations
+- Expected utilities are calculated using posterior probabilities
+- Total utility combines immune response and non-immune response scenarios
+
+### Trial Design
+- Multi-stage adaptive design following TRIAL_DESIGN.md Section 7.1
+- **Workflow Order**: Stage 1 → Interim Analysis → Early Termination Check → Adaptive Randomization → Final Selection with PoC
+- Adaptive randomization based on utility scores
+- Admissible set identification for safety, efficacy, and immune response
+- Early termination when admissible set becomes empty
+- Final dose selection with PoC validation
+
+### Early Termination Logic
+- Checked after interim analysis but before adaptive randomization
+- Triggers when admissible set A = ∅
+- Provides detailed termination logging and information
+- Configurable through `enable_early_termination` parameter
+
+### Probability of Correct Selection (PoC)
+- Only used for final dose selection (not intermediate stages)
+- Calculates Pr(Πᵢ < δ Πᵢⱼ | Dₙ) for admissible doses
+- Validates against configurable threshold (c_poc)
+- Enhances final dose selection with statistical rigor
+
+## Common Patterns
+
+### Data Simulation
+```r
+# Use Gumbel copula for correlated endpoints
+simulate_data_gumbel(n_patients, dose_levels, probabilities)
+```
+
+### Posterior Calculation
+```r
+# Beta posterior with conjugate prior
+simulate_beta_posterior(prior_alpha, prior_beta, data)
+```
+
+### Utility Calculation
+```r
+# Expected utility for dose level
+get_expected_utility(posterior_probs, utility_table)
+```
+
+### Decision Making
+```r
+# Identify admissible doses
+get_admissible_set(posterior_summaries, config)
+
+# Check early termination
+check_early_termination(admissible_set, config)
+
+# Final dose selection with PoC
+select_final_od_with_poc(admissible_set, posterior_summaries, config)
+```
+
+## File Organization
+
+### Configuration
+- Keep all parameters in `config.R`
+- Use descriptive names for trial parameters
+- Document parameter meanings and ranges
+
+### Core Logic
+- Separate data simulation, model fitting, and decision making
+- Use helper functions for complex calculations
+- Maintain clear interfaces between modules
+
+### Testing
+- Write unit tests for critical functions
+- Test edge cases and boundary conditions
+- Validate mathematical calculations
+
+## Best Practices
+
+### Error Handling
+- Validate input parameters
+- Check for reasonable probability values (0-1)
+- Handle edge cases gracefully
+
+### Performance
+- Use vectorized operations when possible
+- Avoid unnecessary loops in probability calculations
+- Profile code for bottlenecks in simulation
+
+### Reproducibility
+- Set random seeds for reproducible results
+- Document all parameter settings
+- Save intermediate results for debugging
+
+### Visualization
+- Create clear, informative plots
+- Use consistent color schemes
+- Include proper labels and legends
+
+## Common Tasks
+
+### Adding New Endpoints
+1. Update `config.R` with new parameters
+2. Modify `simulate_data.R` for data generation
+3. Update `model_utils.R` for posterior calculations
+4. Adjust `dose_decision.R` for decision logic
+5. Update utility table if needed
+
+### Modifying Trial Design
+1. Update stage configuration in `config.R`
+2. Adjust cohort sizes and allocation rules
+3. Modify stopping criteria if needed
+4. Update visualization functions
+
+### Modifying Early Termination Logic
+1. Update `config.R` with new termination parameters
+2. Modify `check_early_termination()` in `dose_decision.R`
+3. Adjust termination criteria in admissible set logic
+4. Update logging in `handle_trial_termination()`
+
+### Modifying PoC Validation
+1. Update PoC parameters in `config.R` (c_poc, delta_poc)
+2. Modify `calculate_poc_probability()` in `dose_decision.R`
+3. Adjust PoC threshold checking in `check_poc_threshold()`
+4. Update final selection logic in `select_final_od_with_poc()`
+
+### Workflow Modifications
+1. **ALWAYS** follow TRIAL_DESIGN.md Section 7.1 workflow order
+2. Early termination must happen after interim analysis but before adaptive randomization
+3. PoC validation must only occur at final dose selection
+4. Update workflow logging in `main.R` if steps are modified
+
+### Debugging
+1. Use detailed logging in utility calculations
+2. Check intermediate probability values
+3. Validate posterior distributions
+4. Compare with expected mathematical results
+5. Verify workflow order using `test_workflow_order.R`
+6. Check early termination logic with `test_early_termination_poc.R`
+7. Validate PoC calculations and thresholds
+
+## Dependencies
+- R packages: rstan, isotone, ggplot2, dplyr
+- Ensure all required packages are documented
+- Use version control for reproducibility
+
+## Documentation
+- Keep README files updated
+- Document mathematical formulas clearly
+- Include examples and use cases
+- Maintain code maps for complex functions
+
+## Testing Strategy
+- Unit tests for mathematical functions
+- Integration tests for complete workflows
+- Validation against known results
+- Performance testing for large simulations
+- Workflow order verification using `test_workflow_order.R`
+- Early termination and PoC testing using `test_early_termination_poc.R`
+- TRIAL_DESIGN.md compliance verification
+
+## Critical Workflow Requirements
+
+### Workflow Order (TRIAL_DESIGN.md Section 7.1)
+1. **Stage 1**: Equal randomization to all dose levels
+2. **Interim Analysis**: Update admissible set based on posterior probabilities
+3. **Early Termination Check**: Terminate if admissible set is empty
+4. **Adaptive Randomization**: Allocate patients based on utility scores (only if trial continues)
+5. **Final Selection**: Choose OD with highest utility from admissible set + PoC validation
+
+### Key Implementation Rules
+- **Early termination** must happen AFTER interim analysis but BEFORE adaptive randomization
+- **PoC validation** must ONLY occur at final dose selection, never during intermediate stages
+- **Workflow logging** should clearly show each step during execution
+- **Backward compatibility** must be maintained with existing utility-based selection
+
+### Configuration Parameters
+- `enable_early_termination`: Controls early termination feature
+- `log_early_termination`: Controls detailed logging
+- `c_poc`: PoC threshold for final selection
+- `delta_poc`: Threshold for PoC comparison
+
+Remember: This is a clinical trial simulation, so accuracy and reproducibility are critical. Always validate mathematical calculations and ensure results are clinically interpretable. **ALWAYS follow TRIAL_DESIGN.md workflow specifications.**

@@ -74,11 +74,19 @@ apply_biviso_on_matrix <- function(posterior_df, dose_col = "d", group_col = "Y_
   G <- length(group_levels)
 
   sample_matrix <- do.call(cbind, df$samples)
-  wts <- matrix(1 / df$var_post, nrow = J, ncol = G)
+  
+  # Create the weights matrix, ensuring it's filled by row to match the sample data
+  wts_mat <- matrix(1 / df$var_post, nrow = J, ncol = G, byrow = TRUE)
 
   adjusted_matrix <- t(apply(sample_matrix, 1, function(row) {
-    mat <- matrix(row, nrow = J, ncol = G)
-    as.vector(Iso::biviso(y = mat, w = wts))
+    # Reshape the row into a matrix, filled by row
+    mat <- matrix(row, nrow = J, ncol = G, byrow = TRUE)
+    
+    # Apply biviso
+    result_mat <- Iso::biviso(y = mat, w = wts_mat)
+    
+    # Convert the result back to a vector, ensuring the order is preserved
+    as.vector(t(result_mat))
   }))
 
   samples_pava_list <- lapply(1:ncol(adjusted_matrix), function(j) adjusted_matrix[, j])

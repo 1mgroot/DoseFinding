@@ -31,16 +31,22 @@ Modify the simulation parameters in this section. I have adjusted these values t
 # Trial configuration
 trial_config <- list(
   dose_levels = c(1, 2, 3, 4, 5),
-  n_stages = 4,
+  n_stages = 5,
   cohort_size = 15,
   phi_T = 0.35, # Toxicity threshold (increased slightly)
   c_T = 0.5,   
-  phi_E = 0.25, # Efficacy threshold (increased slightly)
+  phi_E = 0.1, # Efficacy threshold (increased slightly)
   c_E = 0.5,   
   phi_I = 0.20, # Immune response threshold
   c_I = 0.5,   
-  c_POC = 0.9
+  # PoC parameters
+  c_poc = 0.9,
+  delta_poc = 0.8,  # Threshold for PoC comparison
+  # Early termination parameters
+  enable_early_termination = TRUE,
+  log_early_termination = TRUE
 )
+#cohort size may vary on diff stage (future work)
 
 # Data simulation parameters (designed for a more interesting trial)
 p_YI <- c(0.10, 0.30, 0.50, 0.60, 0.70) # Immune response probability
@@ -87,7 +93,13 @@ trial_config$utility_table <- utility_table
 
 ## Simulation
 
-This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function.
+This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function. The simulation follows the workflow specified in TRIAL_DESIGN.md:
+
+1. **Stage 1**: Equal randomization to all dose levels
+2. **Interim Analysis**: Update admissible set based on posterior probabilities
+3. **Adaptive Randomization**: Allocate patients based on utility scores
+4. **Early Termination Check**: Terminate if admissible set is empty
+5. **Final Selection**: Choose OD with highest utility from admissible set + PoC validation
 
 ```{r simulation}
 results <- run_trial_simulation(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1)
@@ -98,12 +110,30 @@ results <- run_trial_simulation(trial_config, p_YI, p_YT_given_I, p_YE_given_I, 
 This chunk prints the final optimal dose and displays the plots.
 
 ```{r results}
-# Print final OD
+# Print final results
 cat("
 --- Final Results ---
 ")
-cat("Final OD:", results$final_od, "
+
+if (results$terminated_early) {
+  cat("Trial terminated early at stage:", results$termination_stage, "
 ")
+  cat("Reason:", results$termination_reason, "
+")
+  cat("No Optimal Dose selected
+")
+} else {
+  cat("Final OD:", results$final_od, "
+")
+  cat("Final utility:", round(results$final_utility, 2), "
+")
+  cat("PoC validated:", results$poc_validated, "
+")
+  cat("PoC probability:", round(results$poc_probability, 3), "
+")
+  cat("Selection reason:", results$selection_reason, "
+")
+}
 
 # Plot final results and save them
 plot_posterior_summary(results$posterior_summaries$imm, title = "Immune Response vs Dose (PAVA Adjusted)", file_path = "results/immune_response_refactored.png")
@@ -118,12 +148,55 @@ p_alloc_time <- ggplot(results$all_alloc_probs, aes(x = Stage, y = Prob, color =
   theme_minimal()
 print(p_alloc_time)
 
-# Visualize participant allocation
-p_alloc <- ggplot(results$all_data, aes(x = factor(d))) +
-  geom_bar(aes(fill = factor(stage)), position = "dodge") +
-  labs(title = "Participant Allocation", x = "Dose Level", y = "Number of Participants") +
+# Visualize participant allocation with better formatting
+# Count participants per dose level and stage
+allocation_summary <- results$all_data %>%
+  group_by(d, stage) %>%
+  summarise(n_participants = n(), .groups = 'drop') %>%
+  mutate(d = factor(d), stage = factor(stage, levels = 1:5, labels = paste("Stage", 1:5)))
+
+# Plot 1: Allocation by dose level and stage
+p_alloc <- ggplot(allocation_summary, aes(x = d, y = n_participants, fill = stage)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  labs(title = "Participant Allocation by Dose Level and Stage", 
+       x = "Dose Level", y = "Number of Participants",
+       subtitle = paste("Total participants:", sum(allocation_summary$n_participants))) +
   scale_fill_brewer(palette = "Set2", name = "Stage") +
-  theme_minimal()
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14, face = "bold"),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12))
 print(p_alloc)
+
+# Plot 2: Cumulative allocation over stages
+cumulative_summary <- allocation_summary %>%
+  group_by(d) %>%
+  mutate(cumulative_participants = cumsum(n_participants)) %>%
+  ungroup()
+
+p_cumulative <- ggplot(cumulative_summary, aes(x = stage, y = cumulative_participants, color = d, group = d)) +
+  geom_line(size = 1.5) +
+  geom_point(size = 3) +
+  labs(title = "Cumulative Participant Allocation Over Stages", 
+       x = "Stage", y = "Cumulative Number of Participants",
+       color = "Dose Level",
+       subtitle = paste("Final total participants:", sum(allocation_summary$n_participants))) +
+  scale_color_brewer(palette = "Set1") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14, face = "bold"),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12))
+print(p_cumulative)
+
+# Print summary statistics
+cat("\n=== ALLOCATION SUMMARY ===\n")
+cat("Total participants:", sum(allocation_summary$n_participants), "\n")
+cat("Participants per stage:\n")
+stage_totals <- allocation_summary %>%
+  group_by(stage) %>%
+  summarise(total = sum(n_participants), .groups = 'drop')
+for(i in 1:nrow(stage_totals)) {
+  cat("  Stage", i, ":", stage_totals$total[i], "participants\n")
+}
 
 ```

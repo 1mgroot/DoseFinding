@@ -12,7 +12,12 @@ trial_config <- list(
   phi_T = 0.3, c_T = 0.9,
   phi_E = 0.2, c_E = 0.9,
   phi_I = 0.2, c_I = 0.8,
-  c_POC = 0.9
+  # PoC parameters
+  c_poc = 0.9,
+  delta_poc = 0.8,  # Threshold for PoC comparison
+  # Early termination parameters
+  enable_early_termination = TRUE,
+  log_early_termination = TRUE
 )
 
 p_YT_given_I <- matrix(c(
