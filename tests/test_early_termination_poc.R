@@ -1,12 +1,12 @@
 # Test file for Early Termination and PoC Implementation
 
 # Source the necessary files
-source("config.R")
-source("helpers.R")
-source("simulate_data.R")
-source("model_utils.R")
-source("dose_decision.R")
-source("main.R")
+source("../src/core/config.R")
+source("../src/utils/helpers.R")
+source("../src/core/simulate_data.R")
+source("../src/core/model_utils.R")
+source("../src/decision/dose_decision.R")
+source("../src/core/main.R")
 
 # Test 1: Early Termination Scenario
 cat("=== TEST 1: Early Termination Scenario ===\n")

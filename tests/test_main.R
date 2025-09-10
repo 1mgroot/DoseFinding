@@ -1,6 +1,6 @@
 library(testthat)
 
-source("main.R")
+source("../src/core/main.R")
 
 cat("\n\n==============\nRunning tests for main.R\n==============\n")
 

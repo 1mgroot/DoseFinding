@@ -1,12 +1,12 @@
 # Test file for Workflow Order Verification
 
 # Source the necessary files
-source("config.R")
-source("helpers.R")
-source("simulate_data.R")
-source("model_utils.R")
-source("dose_decision.R")
-source("main.R")
+source("../src/core/config.R")
+source("../src/utils/helpers.R")
+source("../src/core/simulate_data.R")
+source("../src/core/model_utils.R")
+source("../src/decision/dose_decision.R")
+source("../src/core/main.R")
 
 # Test to verify workflow order matches TRIAL_DESIGN.md Section 7.1
 cat("=== WORKFLOW ORDER VERIFICATION ===\n")

@@ -5,11 +5,12 @@ library(purrr)
 library(ggplot2)
 library(Iso)
 
-source("/Users/jz/Development/DoseFinding/bayesTrial_refactored/config.R")
-source("/Users/jz/Development/DoseFinding/bayesTrial_refactored/helpers.R")
-source("/Users/jz/Development/DoseFinding/bayesTrial_refactored/simulate_data.R")
-source("/Users/jz/Development/DoseFinding/bayesTrial_refactored/model_utils.R")
-source("/Users/jz/Development/DoseFinding/bayesTrial_refactored/dose_decision.R")
+# Source files - works from project root
+source("src/core/config.R")
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/utils/helpers.R")
+source("src/decision/dose_decision.R")
 
 run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1) {
   all_data <- data.frame()

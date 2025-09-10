@@ -1,7 +1,7 @@
 library(testthat)
 
-source("dose_decision.R")
-source("config.R")
+source("../src/decision/dose_decision.R")
+source("../src/core/config.R")
 
 cat("\n\n==============\nRunning tests for dose_decision.R\n==============\n")
 

@@ -7,13 +7,13 @@ library(gridExtra)
 library(purrr)
 library(tidyr)
 
-# Source required functions
-source("config.R")
-source("helpers.R")
-source("simulate_data.R")
-source("model_utils.R")
-source("dose_decision.R")
-source("main.R")
+# Source required functions - works from project root
+source("src/core/config.R")
+source("src/utils/helpers.R")
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/decision/dose_decision.R")
+source("src/core/main.R")
 
 # Define parameter grids for optimization
 create_parameter_grids <- function() {
