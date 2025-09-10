@@ -30,10 +30,13 @@ Thumbs.db
 *.log
 *.out
 
-# Results (optional - uncomment if you don't want to track results)
-# results/
-# *.png
-# *.pdf
+# Results - ignore generated outputs
+results/
+*.png
+*.pdf
+*.jpg
+*.jpeg
+*.svg
 
 # IDE
 .vscode/
