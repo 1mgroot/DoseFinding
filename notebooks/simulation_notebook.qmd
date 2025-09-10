@@ -15,12 +15,18 @@ This chunk loads the necessary libraries and source files.
 ```{r setup}
 library(knitr) # For creating formatted tables
 library(ggplot2)
-source("../src/core/config.R")
-source("../src/utils/helpers.R")
-source("../src/core/simulate_data.R")
-source("../src/core/model_utils.R")
-source("../src/decision/dose_decision.R")
-source("../src/core/main.R")
+
+# Set working directory to project root for consistent paths
+if (basename(getwd()) == "notebooks") {
+  setwd("..")
+}
+
+source("src/core/config.R")
+source("src/utils/helpers.R")
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/decision/dose_decision.R")
+source("src/core/main.R")
 ```
 
 ## Configuration
@@ -136,9 +142,9 @@ if (results$terminated_early) {
 }
 
 # Plot final results and save them
-plot_posterior_summary(results$posterior_summaries$imm, title = "Immune Response vs Dose (PAVA Adjusted)", file_path = "results/immune_response_refactored.png")
-plot_posterior_summary(results$posterior_summaries$tox, title = "Toxicity Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/toxicity_refactored.png")
-plot_posterior_summary(results$posterior_summaries$eff, title = "Efficacy Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/efficacy_refactored.png")
+plot_posterior_summary(results$posterior_summaries$imm, title = "Immune Response vs Dose (PAVA Adjusted)", file_path = "results/plots/immune_response_refactored.png")
+plot_posterior_summary(results$posterior_summaries$tox, title = "Toxicity Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/plots/toxicity_refactored.png")
+plot_posterior_summary(results$posterior_summaries$eff, title = "Efficacy Rate by Dose and Immune Status", group_col = "Y_I", file_path = "results/plots/efficacy_refactored.png")
 
 # Plot allocation probabilities over time
 p_alloc_time <- ggplot(results$all_alloc_probs, aes(x = Stage, y = Prob, color = factor(Dose))) +

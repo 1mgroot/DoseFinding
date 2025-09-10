@@ -14,8 +14,9 @@ This is the recommended method for running the simulation, as it provides an int
 **Steps:**
 
 1.  **Open `notebooks/simulation_notebook.qmd`** in RStudio or your preferred R environment.
-2.  **Modify the Configuration:** In the "Configuration" code chunk, you can adjust the `trial_config` list and the data simulation parameters (`p_YI`, `p_YT_given_I`, `p_YE_given_I`, etc.) to match your desired scenario.
-3.  **Run the Simulation:** Run the code chunks in the notebook sequentially. The notebook will automatically source the necessary files from the `src/` directory, run the simulation, and generate plots and summary tables.
+2.  **Set Working Directory:** Make sure your R session is in the project root directory (`DoseFinding/`). The notebook will automatically adjust paths if needed.
+3.  **Modify the Configuration:** In the "Configuration" code chunk, you can adjust the `trial_config` list and the data simulation parameters (`p_YI`, `p_YT_given_I`, `p_YE_given_I`, etc.) to match your desired scenario.
+4.  **Run the Simulation:** Run the code chunks in the notebook sequentially. The notebook will automatically source the necessary files from the `src/` directory, run the simulation, and generate plots and summary tables in the `results/plots/` directory.
 
 ### 2. Running the R Script Directly
 
