@@ -1,22 +1,22 @@
-# 贝叶斯自适应剂量寻找试验仿真
+# Bayesian Adaptive Dose-Finding Trial Simulation
 
-一个全面的R实现，用于贝叶斯自适应剂量寻找试验，具有多阶段设计、基于效用的决策制定和参数优化功能。
+A comprehensive R implementation of Bayesian adaptive dose-finding trials with multi-stage design, utility-based decision making, and parameter optimization capabilities.
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 方法1: 交互式笔记本 (推荐)
+### Option 1: Interactive Notebook (Recommended)
 ```r
-# 打开 notebooks/simulation_notebook.qmd
-# 包含完整的交互式示例和校准框架
+# Open notebooks/simulation_notebook.qmd
+# Contains complete interactive examples and calibration framework
 ```
 
-### 方法2: 直接脚本执行
+### Option 2: Direct Script Execution
 ```r
-# 加载核心函数
+# Load core functions
 source("src/core/config.R")
 source("src/core/main.R")
 
-# 运行试验仿真
+# Run trial simulation
 results <- run_trial_simulation(
   trial_config = trial_config,
   p_YI = p_YI,
@@ -27,129 +27,129 @@ results <- run_trial_simulation(
 )
 ```
 
-### 方法3: 校准演示
+### Option 3: Calibration Demo
 ```r
-# 运行综合校准演示
+# Run comprehensive calibration demo
 source("examples/comprehensive_calibration_demo.R")
 ```
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```
 DoseFinding/
-├── src/                              # 源代码
-│   ├── core/                         # 核心仿真逻辑
-│   │   ├── main.R                    # 主仿真脚本
-│   │   ├── config.R                  # 试验配置参数
-│   │   ├── simulate_data.R           # 数据仿真函数
-│   │   └── model_utils.R             # 贝叶斯模型工具
-│   ├── decision/                     # 决策逻辑
-│   │   └── dose_decision.R           # 剂量选择算法
-│   ├── optimization/                 # 参数优化
-│   │   ├── poc_calibration.R         # PoC校准框架
-│   │   └── early_termination_calibration.R  # 早期终止校准
-│   └── utils/                        # 工具函数
-│       ├── helpers.R                 # 辅助函数和绘图
-│       ├── plotting_extensions.R     # 绘图扩展
-│       └── calibration_plots.R       # 校准可视化
-├── examples/                         # 示例脚本
-│   ├── comprehensive_calibration_demo.R  # 综合校准演示
-│   ├── poc_calibration_demo.R        # PoC校准演示
-│   ├── flat_scenario_demo.R          # 平坦场景演示
-│   └── bayesian_poc_demo.R           # 贝叶斯PoC演示
-├── tests/                            # 测试文件
-│   ├── test_comprehensive_calibration.R  # 综合校准测试
-│   ├── test_poc_calibration.R        # PoC校准测试
-│   └── test_*.R                      # 其他测试文件
-├── docs/                             # 文档
-│   ├── PROJECT_OVERVIEW.md           # 项目概览
-│   ├── TRIAL_DESIGN.md               # 试验设计规范
-│   ├── NEXT_STEP_PLAN.md             # 实施计划
-│   └── CALIBRATION_IMPLEMENTATION_SUMMARY.md  # 校准实施总结
-├── notebooks/                        # 交互式笔记本
-│   └── simulation_notebook.qmd       # 交互式仿真笔记本
-└── results/                          # 生成输出
-    └── plots/                        # 生成的图表
+├── src/                              # Source code
+│   ├── core/                         # Core simulation logic
+│   │   ├── main.R                    # Master simulation script
+│   │   ├── config.R                  # Trial configuration parameters
+│   │   ├── simulate_data.R           # Data simulation functions
+│   │   └── model_utils.R             # Bayesian model utilities
+│   ├── decision/                     # Decision-making logic
+│   │   └── dose_decision.R           # Dose selection algorithms
+│   ├── optimization/                 # Parameter optimization
+│   │   ├── poc_calibration.R         # PoC calibration framework
+│   │   └── early_termination_calibration.R  # Early termination calibration
+│   └── utils/                        # Utility functions
+│       ├── helpers.R                 # Helper functions and plotting
+│       ├── plotting_extensions.R     # Plotting extensions
+│       └── calibration_plots.R       # Calibration visualization
+├── examples/                         # Example scripts
+│   ├── comprehensive_calibration_demo.R  # Comprehensive calibration demo
+│   ├── poc_calibration_demo.R        # PoC calibration demo
+│   ├── flat_scenario_demo.R          # Flat scenario demo
+│   └── bayesian_poc_demo.R           # Bayesian PoC demo
+├── tests/                            # Test files
+│   ├── test_comprehensive_calibration.R  # Comprehensive calibration tests
+│   ├── test_poc_calibration.R        # PoC calibration tests
+│   └── test_*.R                      # Other test files
+├── docs/                             # Documentation
+│   ├── PROJECT_OVERVIEW.md           # Project overview
+│   ├── TRIAL_DESIGN.md               # Trial design specification
+│   ├── NEXT_STEP_PLAN.md             # Implementation plan
+│   └── CALIBRATION_IMPLEMENTATION_SUMMARY.md  # Calibration implementation summary
+├── notebooks/                        # Interactive notebooks
+│   └── simulation_notebook.qmd       # Interactive simulation notebook
+└── results/                          # Generated outputs
+    └── plots/                        # Generated plots
 ```
 
-## ✨ 主要功能
+## ✨ Key Features
 
-### 🎯 试验仿真
-- **多阶段贝叶斯自适应设计** 与中期分析
-- **基于效用的剂量选择** 与可定制效用函数
-- **早期终止标准** 用于安全性和疗效
-- **PoC验证** 正确选择概率验证
-- **自适应随机化** 基于效用分数
+### 🎯 Trial Simulation
+- **Multi-stage Bayesian adaptive design** with interim analyses
+- **Utility-based dose selection** with customizable utility functions
+- **Early termination criteria** for safety and efficacy
+- **PoC validation** probability of correct selection validation
+- **Adaptive randomization** based on utility scores
 
-### 🔧 校准系统
-- **PoC校准** 目标: 10%检测率
-- **早期终止校准** 目标: 80%终止率
-- **性能可视化** 校准曲线和置信区间
-- **参数优化** 系统化参数调优
+### 🔧 Calibration System
+- **PoC calibration** target: 10% detection rate
+- **Early termination calibration** target: 80% termination rate
+- **Performance visualization** calibration curves and confidence intervals
+- **Parameter optimization** systematic parameter tuning
 
-### 📊 可视化
-- **剂量-反应曲线** 毒性、疗效和效用
-- **后验分布图** 现代样式
-- **校准曲线** 阈值vs性能关系
-- **分配分析** 参与者分布
+### 📊 Visualization
+- **Dose-response curves** toxicity, efficacy, and utility
+- **Posterior distribution plots** modern styling
+- **Calibration curves** threshold vs performance relationships
+- **Allocation analysis** participant distribution
 
-## 📚 文档
+## 📚 Documentation
 
-### 快速开始
-- **QUICK_START.md** - 5分钟快速开始指南
-- **PROJECT_OVERVIEW.md** - 完整项目概览和使用方法
+### Quick Start
+- **QUICK_START.md** - 5-minute quick start guide
+- **PROJECT_OVERVIEW.md** - Complete project overview and usage
 
-### 详细文档
-- **TRIAL_DESIGN.md** - 完整试验设计规范
-- **NEXT_STEP_PLAN.md** - 实施计划和状态
-- **CALIBRATION_IMPLEMENTATION_SUMMARY.md** - 校准系统实施总结
+### Detailed Documentation
+- **TRIAL_DESIGN.md** - Complete trial design specification
+- **NEXT_STEP_PLAN.md** - Implementation plan and status
+- **CALIBRATION_IMPLEMENTATION_SUMMARY.md** - Calibration system implementation summary
 
-## 🛠️ 系统要求
+## 🛠️ Requirements
 
 - R (>= 4.0)
-- 必需包: dplyr, tidyr, isotone, purrr, ggplot2, Iso, testthat
+- Required packages: dplyr, tidyr, isotone, purrr, ggplot2, Iso, testthat
 
-## 📋 示例脚本
+## 📋 Example Scripts
 
-| 脚本 | 功能 | 运行时间 |
-|------|------|----------|
-| `examples/plotting_demo.R` | 基本仿真和可视化 | 1分钟 |
-| `examples/poc_calibration_demo.R` | PoC校准演示 | 5分钟 |
-| `examples/comprehensive_calibration_demo.R` | 完整校准系统 | 10分钟 |
-| `notebooks/simulation_notebook.qmd` | 交互式笔记本 | 可变 |
+| Script | Function | Runtime |
+|--------|----------|---------|
+| `examples/plotting_demo.R` | Basic simulation and visualization | 1 minute |
+| `examples/poc_calibration_demo.R` | PoC calibration demo | 5 minutes |
+| `examples/comprehensive_calibration_demo.R` | Complete calibration system | 10 minutes |
+| `notebooks/simulation_notebook.qmd` | Interactive notebook | Variable |
 
-## 🧪 测试
+## 🧪 Testing
 
 ```r
-# 运行所有测试
+# Run all tests
 source("tests/test_comprehensive_calibration.R")
 
-# 运行特定测试
+# Run specific tests
 source("tests/test_poc_calibration.R")
 source("tests/test_early_termination_poc.R")
 ```
 
-## 📈 项目状态
+## 📈 Project Status
 
-### ✅ 完成状态 (100%)
-- ✅ 完整试验仿真工作流程
-- ✅ 贝叶斯后验概率计算
-- ✅ 自适应随机化算法
-- ✅ 早期终止机制
-- ✅ PoC验证系统
-- ✅ 综合校准框架
-- ✅ 性能可视化工具
-- ✅ 完整集成测试
+### ✅ Completion Status (100%)
+- ✅ Complete trial simulation workflow
+- ✅ Bayesian posterior probability calculation
+- ✅ Adaptive randomization algorithm
+- ✅ Early termination mechanism
+- ✅ PoC validation system
+- ✅ Comprehensive calibration framework
+- ✅ Performance visualization tools
+- ✅ Complete integration testing
 
-## 🤝 支持
+## 🤝 Support
 
-如有问题，请查看：
-1. **快速开始**: `QUICK_START.md`
-2. **项目概览**: `docs/PROJECT_OVERVIEW.md`
-3. **示例脚本**: `examples/` 目录
-4. **交互式笔记本**: `notebooks/` 目录
-5. **测试文件**: `tests/` 目录
+For questions, please check:
+1. **Quick Start**: `QUICK_START.md`
+2. **Project Overview**: `docs/PROJECT_OVERVIEW.md`
+3. **Example Scripts**: `examples/` directory
+4. **Interactive Notebook**: `notebooks/` directory
+5. **Test Files**: `tests/` directory
 
-## 📄 许可证
+## 📄 License
 
-本项目用于研究和教育目的。
+This project is for research and educational purposes.
