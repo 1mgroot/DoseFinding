@@ -13,21 +13,21 @@ This document provides an interactive way to run the Bayesian dose-finding trial
 This chunk loads the necessary libraries and source files.
 
 ```{r setup}
-library(knitr) # For creating formatted tables
+library(knitr)
 library(ggplot2)
 
-# Set working directory to project root for consistent paths
-if (basename(getwd()) == "notebooks") {
-  setwd("..")
-}
+# Use absolute paths
+project_root <- "/Users/jz/Development/DoseFinding"
+cat("Project root:", project_root, "\n")
 
-source("src/core/config.R")
-source("src/utils/helpers.R")
-source("src/utils/plotting_extensions.R")
-source("src/core/simulate_data.R")
-source("src/core/model_utils.R")
-source("src/decision/dose_decision.R")
-source("src/core/main.R")
+# Source core files
+source(file.path(project_root, "src/core/config.R"))
+source(file.path(project_root, "src/utils/helpers.R"))
+source(file.path(project_root, "src/utils/plotting_extensions.R"))
+source(file.path(project_root, "src/core/simulate_data.R"))
+source(file.path(project_root, "src/core/model_utils.R"))
+source(file.path(project_root, "src/decision/dose_decision.R"))
+source(file.path(project_root, "src/core/main.R"))
 ```
 
 ## Configuration
@@ -347,16 +347,131 @@ print(multi_scenario_plot)
 cat("✅ Multi-scenario analysis completed!\n")
 ```
 
+## Calibration Framework
+
+This section demonstrates the calibration framework for optimizing trial parameters.
+
+### Setup Calibration
+
+```{r calibration-setup}
+# Use absolute paths for calibration functions
+project_root <- "/Users/jz/Development/DoseFinding"
+
+# Source calibration functions
+source(file.path(project_root, "src/optimization/poc_calibration.R"))
+source(file.path(project_root, "src/optimization/early_termination_calibration.R"))
+source(file.path(project_root, "src/utils/calibration_plots.R"))
+
+# Set up output directory for calibration results
+calibration_output_dir <- "results/notebook_calibration"
+dir.create(calibration_output_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+### PoC Calibration
+
+Calibrate the PoC threshold to achieve target detection rates in null scenarios.
+
+```{r poc-calibration}
+# Run PoC calibration with reduced simulations for notebook
+cat("Running PoC calibration...\n")
+poc_results <- run_quick_calibration(
+  target_rate = 0.10,
+  n_simulations = 100  # Reduced for notebook
+)
+
+# Display results
+cat("PoC Calibration Results:\n")
+cat("Optimal C_poc =", poc_results$optimal_c_poc, "\n")
+cat("Achieved rate =", round(poc_results$optimal_rate, 3), "\n")
+cat("Target rate =", poc_results$target_rate, "\n")
+
+# Create calibration curve
+poc_plot <- plot_poc_calibration_curve(
+  poc_results,
+  target_rate = 0.10,
+  save_path = file.path(calibration_output_dir, "poc_calibration_curve.png")
+)
+print(poc_plot)
+```
+
+### Early Termination Calibration
+
+Calibrate early termination parameters to achieve target termination rates in unfavorable scenarios.
+
+```{r early-termination-calibration}
+# Run early termination calibration with reduced simulations for notebook
+cat("Running early termination calibration...\n")
+early_term_results <- run_quick_early_termination_calibration(
+  target_rate = 0.80,
+  n_simulations = 100  # Reduced for notebook
+)
+
+# Display results
+cat("Early Termination Calibration Results:\n")
+cat("Optimal", early_term_results$threshold_type, "=", early_term_results$optimal_threshold, "\n")
+cat("Achieved rate =", round(early_term_results$optimal_rate, 3), "\n")
+cat("Target rate =", early_term_results$target_rate, "\n")
+
+# Create calibration curve
+early_term_plot <- plot_early_termination_curve(
+  early_term_results,
+  target_rate = 0.80,
+  save_path = file.path(calibration_output_dir, "early_termination_calibration_curve.png")
+)
+print(early_term_plot)
+```
+
+### Combined Performance Curves
+
+Visualize both calibration results together.
+
+```{r combined-calibration}
+# Create combined calibration data
+combined_calibration_data <- list(
+  poc_calibration = poc_results,
+  termination_calibration = early_term_results
+)
+
+# Create combined performance curves
+combined_plot <- plot_threshold_performance_curves(
+  combined_calibration_data,
+  save_path = file.path(calibration_output_dir, "combined_performance_curves.png")
+)
+print(combined_plot)
+```
+
+### Calibration Summary
+
+```{r calibration-summary}
+# Create summary table
+calibration_summary <- data.frame(
+  Parameter = c("C_poc (PoC)", "C_T (Early Termination)", "PoC Target", "PoC Achieved", 
+                "Early Termination Target", "Early Termination Achieved"),
+  Value = c(
+    round(poc_results$optimal_c_poc, 3),
+    round(early_term_results$optimal_threshold, 3),
+    poc_results$target_rate,
+    round(poc_results$optimal_rate, 3),
+    early_term_results$target_rate,
+    round(early_term_results$optimal_rate, 3)
+  )
+)
+
+# Display summary table
+kable(calibration_summary, caption = "Calibration Summary")
+```
+
 ## Summary
 
 This notebook demonstrates the Bayesian dose-finding trial simulation with modern, publication-ready visualizations inspired by the reference code. The plots include:
 
-- **Dose-response curves** with toxicity, efficacy, and utility
-- **Posterior summaries** with modern styling
-- **Allocation analysis** showing participant distribution
-- **Method comparisons** for performance evaluation
-- **Multi-scenario analysis** for parameter sensitivity
+-   **Dose-response curves** with toxicity, efficacy, and utility
+-   **Posterior summaries** with modern styling
+-   **Allocation analysis** showing participant distribution
+-   **Method comparisons** for performance evaluation
+-   **Multi-scenario analysis** for parameter sensitivity
+-   **Calibration framework** for optimizing trial parameters
 
 All plots use consistent color schemes and professional styling suitable for academic publications and regulatory submissions.
 
-```
+\`\`\`

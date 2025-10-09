@@ -271,8 +271,38 @@ handle_trial_termination <- function(admissible_set, stage, config) {
 
 # Probability of Correct Selection (PoC) Functions
 
+calculate_pi_parameters <- function(dose_idx, posterior_summaries) {
+  # Calculate Πᵢ parameters (combined efficacy measure) for a given dose.
+  #
+  # Args:
+  #   dose_idx: Dose index
+  #   posterior_summaries: Posterior probability summaries
+  #
+  # Returns:
+  #   list: Πᵢ samples and summary statistics
+  
+  # Get posterior samples for this dose
+  pi_I_samples <- posterior_summaries$imm$samples_pava[[dose_idx]]
+  pi_E_given_I0_samples <- posterior_summaries$eff$samples[[2 * dose_idx - 1]]
+  pi_E_given_I1_samples <- posterior_summaries$eff$samples[[2 * dose_idx]]
+  
+  # Calculate Πᵢ samples (combined efficacy measure)
+  # Πᵢ = P(E|I=0) * P(I=0) + P(E|I=1) * P(I=1)
+  pi_combined_samples <- pi_I_samples * pi_E_given_I1_samples + 
+                        (1 - pi_I_samples) * pi_E_given_I0_samples
+  
+  return(list(
+    pi_I_samples = pi_I_samples,
+    pi_E_given_I0_samples = pi_E_given_I0_samples,
+    pi_E_given_I1_samples = pi_E_given_I1_samples,
+    pi_combined_samples = pi_combined_samples,
+    pi_combined_mean = mean(pi_combined_samples),
+    pi_combined_sd = sd(pi_combined_samples)
+  ))
+}
+
 calculate_poc_probability <- function(admissible_set, posterior_summaries, config) {
-  # Calculate Probability of Correct Selection (PoC) for admissible doses.
+  # Calculate Probability of Correct Selection (PoC) for admissible doses using proper Bayesian approach.
   #
   # Args:
   #   admissible_set: Vector of admissible dose indices
@@ -287,36 +317,34 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
   
   poc_probabilities <- numeric(length(admissible_set))
   
+  # Calculate utilities to determine the best dose (reference)
+  utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
+  best_dose_idx <- admissible_set[which.max(utilities)]
+  
+  # Calculate Πᵢⱼ parameters for the best dose (reference)
+  best_dose_params <- calculate_pi_parameters(best_dose_idx, posterior_summaries)
+  
   for (i in seq_along(admissible_set)) {
     dose_idx <- admissible_set[i]
     
-    # Get posterior probabilities for this dose
-    pi_I <- posterior_summaries$imm$pava_mean[dose_idx]
-    pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]
-    pi_T_given_I1 <- posterior_summaries$tox$pava_mean[2 * dose_idx]
-    pi_E_given_I0 <- posterior_summaries$eff$pava_mean[2 * dose_idx - 1]
-    pi_E_given_I1 <- posterior_summaries$eff$pava_mean[2 * dose_idx]
+    # Calculate Πᵢ parameters for this dose
+    dose_params <- calculate_pi_parameters(dose_idx, posterior_summaries)
     
-    # Calculate combined efficacy measure (Π_I)
-    # This represents the overall efficacy considering immune response
-    pi_combined <- pi_I * pi_E_given_I1 + (1 - pi_I) * pi_E_given_I0
-    
-    # Calculate reference efficacy (Π_IJ) - using the best dose as reference
-    # For simplicity, we'll use the dose with highest utility as reference
-    utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
-    best_dose_idx <- admissible_set[which.max(utilities)]
-    
-    pi_I_ref <- posterior_summaries$imm$pava_mean[best_dose_idx]
-    pi_E_given_I0_ref <- posterior_summaries$eff$pava_mean[2 * best_dose_idx - 1]
-    pi_E_given_I1_ref <- posterior_summaries$eff$pava_mean[2 * best_dose_idx]
-    pi_combined_ref <- pi_I_ref * pi_E_given_I1_ref + (1 - pi_I_ref) * pi_E_given_I0_ref
-    
-    # Calculate PoC probability: Pr(Π_I < δ Π_IJ | D_n)
+    # Calculate PoC probability: Pr(Πᵢ < δ Πᵢⱼ | Dₙ)
     # This represents the probability that this dose is significantly worse than the best dose
-    poc_prob <- 1 - pnorm(pi_combined_ref * config$delta_poc - pi_combined, 
-                          mean = 0, sd = 0.1)  # Using normal approximation
+    # Using proper Bayesian calculation with posterior samples
+    poc_prob <- mean(dose_params$pi_combined_samples < config$delta_poc * best_dose_params$pi_combined_samples)
     
     poc_probabilities[i] <- poc_prob
+    
+    # Log detailed PoC calculation if enabled
+    if (config$log_early_termination) {
+      cat(sprintf("PoC calculation for dose %d: Πᵢ=%.3f±%.3f, Πᵢⱼ=%.3f±%.3f, PoC=%.3f\n",
+                  dose_idx, 
+                  dose_params$pi_combined_mean, dose_params$pi_combined_sd,
+                  best_dose_params$pi_combined_mean, best_dose_params$pi_combined_sd,
+                  poc_prob))
+    }
   }
   
   max_poc <- max(poc_probabilities, na.rm = TRUE)

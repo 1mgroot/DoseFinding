@@ -58,3 +58,68 @@ utility_table[2, 2, 2] <- 40  # E=1, T=1, I=1
 
 # Add utility table to trial_config
 trial_config$utility_table <- utility_table
+
+# Add correlation parameters to trial_config
+trial_config$rho0 <- rho0
+trial_config$rho1 <- rho1
+
+# Flat Scenario Parameters for Calibration
+# These parameters define the null scenario for PoC calibration
+flat_scenario_config <- list(
+  # Scenario type
+  scenario_type = "flat_null",
+  
+  # Lower bound parameters (from meeting requirements)
+  phi_I_lower = 0.20,  # Immune response rate for all doses
+  phi_E_lower = 0.25,  # Marginal efficacy rate for all doses
+  toxicity_low = 0.05,  # Low toxicity rate for all doses
+  
+  # Trial configuration (inherited from main config)
+  dose_levels = trial_config$dose_levels,
+  n_stages = trial_config$n_stages,
+  cohort_size = trial_config$cohort_size,
+  
+  # Thresholds (to be calibrated)
+  phi_T = trial_config$phi_T,
+  c_T = trial_config$c_T,
+  phi_E = trial_config$phi_E,
+  c_E = trial_config$c_E,
+  phi_I = trial_config$phi_I,
+  c_I = trial_config$c_I,
+  
+  # PoC parameters (to be calibrated)
+  c_poc = trial_config$c_poc,
+  delta_poc = trial_config$delta_poc,
+  
+  # Early termination parameters
+  enable_early_termination = trial_config$enable_early_termination,
+  log_early_termination = trial_config$log_early_termination,
+  
+  # Correlation parameters
+  rho0 = trial_config$rho0,
+  rho1 = trial_config$rho1,
+  
+  # Utility table
+  utility_table = trial_config$utility_table
+)
+
+# Calibration Parameters
+calibration_config <- list(
+  # PoC calibration targets
+  poc_target_rate = 0.10,  # Target 10% PoC detection rate
+  poc_tolerance = 0.02,     # ±2% tolerance
+  
+  # Early termination calibration targets
+  early_termination_target_rate = 0.80,  # Target 80% early termination rate
+  early_termination_tolerance = 0.05,    # ±5% tolerance
+  
+  # Simulation parameters
+  n_calibration_simulations = 10000,  # Number of simulations for calibration
+  n_validation_simulations = 5000,    # Number of simulations for validation
+  
+  # Parameter search ranges
+  c_poc_range = seq(0.5, 0.99, by = 0.01),
+  c_T_range = seq(0.7, 0.99, by = 0.01),
+  c_E_range = seq(0.7, 0.99, by = 0.01),
+  c_I_range = seq(0.6, 0.99, by = 0.01)
+)
