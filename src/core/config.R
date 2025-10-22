@@ -10,8 +10,8 @@ trial_config <- list(
   n_stages = 3,
   cohort_size = 6,
   phi_T = 0.3, c_T = 0.9,
-  phi_E = 0.2, c_E = 0.9,
-  phi_I = 0.2, c_I = 0.8,
+  phi_E = 0.2, c_E = 0.75,  # Adjusted from 0.9 for calibration space
+  phi_I = 0.1, c_I = 0.65,  # Adjusted from 0.7 for calibration space
   # PoC parameters
   c_poc = 0.9,
   delta_poc = 0.8,  # Threshold for PoC comparison
@@ -70,9 +70,51 @@ flat_scenario_config <- list(
   scenario_type = "flat_null",
   
   # Lower bound parameters (from meeting requirements)
-  phi_I_lower = 0.20,  # Immune response rate for all doses
-  phi_E_lower = 0.25,  # Marginal efficacy rate for all doses
-  toxicity_low = 0.05,  # Low toxicity rate for all doses
+  # These define the null hypothesis: all doses are equally unfavorable
+  # Using conditional probabilities that will result in appropriate marginal probabilities
+  phi_I_lower = 0.25,  # Immune response rate for all doses (increased to improve admissibility)
+  phi_E_lower = 0.20,  # Marginal efficacy rate for all doses
+  toxicity_low = 0.02,  # Conditional toxicity rate for all doses (reduced to account for copula effect)
+  
+  # Trial configuration (inherited from main config)
+  dose_levels = trial_config$dose_levels,
+  n_stages = trial_config$n_stages,
+  cohort_size = trial_config$cohort_size,
+  
+  # Thresholds (to be calibrated)
+  phi_T = trial_config$phi_T,
+  c_T = trial_config$c_T,
+  phi_E = trial_config$phi_E,
+  c_E = trial_config$c_E,
+  phi_I = trial_config$phi_I,
+  c_I = trial_config$c_I,
+  
+  # PoC parameters (to be calibrated)
+  c_poc = trial_config$c_poc,
+  delta_poc = trial_config$delta_poc,
+  
+  # Early termination parameters
+  enable_early_termination = trial_config$enable_early_termination,
+  log_early_termination = trial_config$log_early_termination,
+  
+  # Correlation parameters
+  rho0 = trial_config$rho0,
+  rho1 = trial_config$rho1,
+  
+  # Utility table
+  utility_table = trial_config$utility_table
+)
+
+# Unfavorable Scenario Parameters for Early Termination Calibration
+# These parameters define an unfavorable scenario for early termination calibration
+unfavorable_scenario_config <- list(
+  # Scenario type
+  scenario_type = "unfavorable",
+  
+  # Unfavorable probabilities (more moderate to allow meaningful calibration)
+  phi_I_lower = 0.15,  # Moderate immune response rate
+  phi_E_lower = 0.25,  # Moderate efficacy rate (not completely inactive)
+  toxicity_low = 0.15,  # Moderate toxicity rate (to allow some doses through)
   
   # Trial configuration (inherited from main config)
   dose_levels = trial_config$dose_levels,

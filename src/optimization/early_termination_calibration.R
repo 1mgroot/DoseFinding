@@ -274,7 +274,7 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   scenario_type <- calibration_results$scenario_type
   
   # Create config with optimal threshold
-  config <- get("flat_scenario_config", envir = .GlobalEnv)  # Use flat scenario config as base
+  config <- get("unfavorable_scenario_config", envir = .GlobalEnv)  # Use unfavorable scenario config as base
   config[[threshold_type]] <- optimal_threshold
   
   # Run validation simulations
@@ -307,6 +307,10 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
 run_quick_early_termination_calibration <- function(target_rate = 0.80, n_simulations = 100) {
   # Run a quick early termination calibration with reduced simulations for testing.
   #
+  # NOTE: Since achieving 80% early termination with only c_T calibration is mathematically
+  # challenging in highly unfavorable scenarios, we calibrate BOTH c_T and c_E together
+  # to find a feasible parameter combination.
+  #
   # Args:
   #   target_rate: Target early termination rate
   #   n_simulations: Number of simulations per threshold value
@@ -314,21 +318,63 @@ run_quick_early_termination_calibration <- function(target_rate = 0.80, n_simula
   # Returns:
   #   list: Quick calibration results
   
-  cat("Running quick early termination calibration (reduced simulations for testing)...\n")
+  cat("Running quick early termination calibration (optimizing c_T and c_E jointly)...\n")
   
-  # Use a smaller range for quick calibration
-  threshold_range <- seq(0.8, 0.95, by = 0.05)
+  # For practical calibration, we test a grid of (c_T, c_E) combinations
+  # to find which achieves closest to 80% termination rate
+  c_T_range <- seq(0.60, 0.90, by = 0.10)
+  c_E_range <- seq(0.60, 0.85, by = 0.10)
   
-  results <- calibrate_early_termination(
+  calibration_results_grid <- expand.grid(c_T = c_T_range, c_E = c_E_range)
+  calibration_results_grid$termination_rate <- NA
+  
+  for (i in seq_len(nrow(calibration_results_grid))) {
+    c_T_val <- calibration_results_grid$c_T[i]
+    c_E_val <- calibration_results_grid$c_E[i]
+    
+    cat(sprintf("Testing c_T=%.2f, c_E=%.2f\n", c_T_val, c_E_val))
+    
+    # Update config with both thresholds
+    config <- get("unfavorable_scenario_config", envir = .GlobalEnv)
+    config$c_T <- c_T_val
+    config$c_E <- c_E_val
+    
+    # Run simulations
+    termination_results <- replicate(n_simulations, {
+      seed <- sample.int(1000000, 1)
+      return(run_early_termination_simulation(config, "unfavorable", 1, seed))
+    })
+    
+    termination_rate <- mean(termination_results)
+    calibration_results_grid$termination_rate[i] <- termination_rate
+    cat(sprintf("  → Termination rate = %.3f\n", termination_rate))
+  }
+  
+  # Find the combination closest to target
+  differences <- abs(calibration_results_grid$termination_rate - target_rate)
+  best_idx <- which.min(differences)
+  
+  best_c_T <- calibration_results_grid$c_T[best_idx]
+  best_c_E <- calibration_results_grid$c_E[best_idx]
+  best_rate <- calibration_results_grid$termination_rate[best_idx]
+  
+  cat("\n=== EARLY TERMINATION CALIBRATION COMPLETE ===\n")
+  cat(sprintf("Optimal c_T = %.2f, c_E = %.2f\n", best_c_T, best_c_E))
+  cat(sprintf("Achieved termination rate = %.3f (target: %.3f)\n", best_rate, target_rate))
+  cat(sprintf("Difference from target = %.3f\n", abs(best_rate - target_rate)))
+  cat("==============================================\n\n")
+  
+  return(list(
+    calibration_results = calibration_results_grid,
+    optimal_c_T = best_c_T,
+    optimal_c_E = best_c_E,
+    optimal_threshold = best_c_T,  # Keep for backwards compatibility
+    threshold_type = "c_T & c_E",
+    optimal_rate = best_rate,
     target_rate = target_rate,
-    scenario_config = get("flat_scenario_config", envir = .GlobalEnv),
-    n_simulations = n_simulations,
     scenario_type = "unfavorable",
-    threshold_range = threshold_range,
-    threshold_type = "c_T"
-  )
-  
-  return(results)
+    n_simulations = n_simulations
+  ))
 }
 
 save_early_termination_results <- function(calibration_results, file_path = "results/early_termination_calibration_results.RData") {
