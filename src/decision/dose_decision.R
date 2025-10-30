@@ -26,6 +26,35 @@ get_expected_utility <- function(dose_idx, posterior_summaries, config) {
   return(total_utility)
 }
 
+# Calculate utility from TRUE probabilities (for plotting true dose-response curves)
+calculate_utility_from_true_probs <- function(dose_idx, p_YI, p_YT_given_I, p_YE_given_I, utility_table) {
+  # Get true probabilities for the given dose
+  # dose_idx is 1-indexed
+  pi_I <- p_YI[dose_idx]
+  pi_T_given_I0 <- p_YT_given_I[dose_idx, 1]  # Toxicity given I=0
+  pi_T_given_I1 <- p_YT_given_I[dose_idx, 2]  # Toxicity given I=1
+  pi_E_given_I0 <- p_YE_given_I[dose_idx, 1]  # Efficacy given I=0
+  pi_E_given_I1 <- p_YE_given_I[dose_idx, 2]  # Efficacy given I=1
+  
+  # Probabilities of T=0 and T=1 given I
+  p_T_given_I0 <- c(1 - pi_T_given_I0, pi_T_given_I0)
+  p_T_given_I1 <- c(1 - pi_T_given_I1, pi_T_given_I1)
+  
+  # Probabilities of E=0 and E=1 given I
+  p_E_given_I0 <- c(1 - pi_E_given_I0, pi_E_given_I0)
+  p_E_given_I1 <- c(1 - pi_E_given_I1, pi_E_given_I1)
+  
+  # Expected utility for I=0
+  utility_I0 <- sum(utility_table[,,1] * (p_E_given_I0 %o% p_T_given_I0))
+  
+  # Expected utility for I=1
+  utility_I1 <- sum(utility_table[,,2] * (p_E_given_I1 %o% p_T_given_I1))
+  
+  # Total expected utility
+  total_utility <- (1 - pi_I) * utility_I0 + pi_I * utility_I1
+  return(total_utility)
+}
+
 get_expected_utility_detailed <- function(dose_idx, posterior_summaries, config) {
   # Get posterior probabilities for the given dose
   pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]

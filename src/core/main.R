@@ -27,11 +27,29 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       cat(paste("
 --- Stage", stage, "---
 "))
-      cat("Workflow: Step 1 - Equal randomization (Stage 1) or Adaptive randomization (Stages 2+)
+      if (stage == 1) {
+        cat("Workflow: Step 1 - Equal randomization to all dose levels
 ")
+      } else {
+        cat("Workflow: Step 1 - Adaptive randomization (using probabilities from previous stage)
+")
+      }
     }
     
-    n_next_stage <- round(alloc_probs * trial_config$cohort_size)
+    # Stage 1: Explicitly ensure equal allocation across all dose levels
+    # Stages 2+: Use adaptive randomization probabilities
+    if (stage == 1) {
+      # Equal allocation: divide cohort_size evenly across all dose levels
+      n_per_dose <- floor(trial_config$cohort_size / length(trial_config$dose_levels))
+      remainder <- trial_config$cohort_size - (n_per_dose * length(trial_config$dose_levels))
+      n_next_stage <- rep(n_per_dose, length(trial_config$dose_levels))
+      # Distribute remainder across first few doses
+      if (remainder > 0) {
+        n_next_stage[1:remainder] <- n_next_stage[1:remainder] + 1
+      }
+    } else {
+      n_next_stage <- round(alloc_probs * trial_config$cohort_size)
+    }
 
     # Generate stage-specific seed if base seed is provided
     stage_seed <- if (!is.null(seed)) seed + stage else NULL
