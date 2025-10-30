@@ -6,28 +6,36 @@ library(ggplot2)
 library(Iso)
 
 # Source files - works from project root
-source("src/core/config.R")
+# NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script)
 source("src/core/simulate_data.R")
 source("src/core/model_utils.R")
 source("src/utils/helpers.R")
 source("src/decision/dose_decision.R")
 
-run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1) {
+run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed = NULL) {
   all_data <- data.frame()
   all_alloc_probs <- data.frame()
+  
+  # Get verbose logging flag (default TRUE for backward compatibility)
+  verbose <- if (is.null(trial_config$verbose_logging)) TRUE else trial_config$verbose_logging
   
   # Initial allocation is uniform
   alloc_probs <- rep(1/length(trial_config$dose_levels), length(trial_config$dose_levels))
 
   for (stage in 1:trial_config$n_stages) {
-    cat(paste("
+    if (verbose) {
+      cat(paste("
 --- Stage", stage, "---
 "))
-    cat("Workflow: Step 1 - Equal randomization (Stage 1) or Adaptive randomization (Stages 2+)
+      cat("Workflow: Step 1 - Equal randomization (Stage 1) or Adaptive randomization (Stages 2+)
 ")
+    }
     
     n_next_stage <- round(alloc_probs * trial_config$cohort_size)
 
+    # Generate stage-specific seed if base seed is provided
+    stage_seed <- if (!is.null(seed)) seed + stage else NULL
+    
     stage_data <- simulate_data_gumbel(
       n_per_dose_vector = n_next_stage,
       dose_levels = trial_config$dose_levels,
@@ -35,7 +43,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       p_YT_given_I = p_YT_given_I,
       p_YE_given_I = p_YE_given_I,
       rho0 = rho0,
-      rho1 = rho1
+      rho1 = rho1,
+      seed = stage_seed
     )
     stage_data$stage <- stage
     all_data <- rbind(all_data, stage_data)
@@ -70,15 +79,21 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       tox_marginal = tox_marginal, eff_marginal = eff_marginal
     )
 
-    cat("Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+    if (verbose) {
+      cat("Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
 ")
-    admissible_set <- get_admissible_set(posterior_summaries, trial_config)
-    cat("Admissible set:", admissible_set, "
+    }
+    admissible_set <- get_admissible_set(posterior_summaries, trial_config, verbose)
+    if (verbose) {
+      cat("Admissible set:", admissible_set, "
 ")
+    }
 
     # Step 4: Early Termination Check (CORRECT PLACEMENT - after interim analysis, before adaptive randomization)
-    cat("Workflow: Step 4 - Early Termination Check
+    if (verbose) {
+      cat("Workflow: Step 4 - Early Termination Check
 ")
+    }
     if (check_early_termination(admissible_set, trial_config)) {
       termination_info <- handle_trial_termination(admissible_set, stage, trial_config)
       return(list(
@@ -92,24 +107,32 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       ))
     }
 
-    log_utility_calculations(posterior_summaries, trial_config)
+    if (verbose) {
+      log_utility_calculations(posterior_summaries, trial_config)
+    }
 
     # Step 3: Adaptive Randomization (only if trial continues)
     if (stage < trial_config$n_stages) {
-      cat("Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+      if (verbose) {
+        cat("Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
 ")
+      }
       alloc_probs <- adaptive_randomization(admissible_set, posterior_summaries, trial_config)
-      cat("Allocation probabilities for next stage:", alloc_probs, "
+      if (verbose) {
+        cat("Allocation probabilities for next stage:", alloc_probs, "
 ")
+      }
     }
     
     all_alloc_probs <- rbind(all_alloc_probs, data.frame(Stage = stage, Dose = trial_config$dose_levels, Prob = alloc_probs))
   }
 
   # Step 5: Final Selection with PoC validation (CORRECT PLACEMENT - only at final stage)
-  cat("Workflow: Step 5 - Final Selection with PoC validation
+  if (verbose) {
+    cat("Workflow: Step 5 - Final Selection with PoC validation
 ")
-  final_selection <- select_final_od_with_poc(admissible_set, posterior_summaries, trial_config)
+  }
+  final_selection <- select_final_od_with_poc(admissible_set, posterior_summaries, trial_config, verbose)
 
   return(list(
     final_od = final_selection$optimal_dose,

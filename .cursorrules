@@ -166,6 +166,14 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 3. Adjust PoC threshold checking in `check_poc_threshold()`
 4. Update final selection logic in `select_final_od_with_poc()`
 
+### PoC Calibration (New Methodology)
+1. Use `src/optimization/poc_calibration_new.R` for null/flat scenario calibration
+2. Run `run_full_calibration()` for comprehensive calibration workflow
+3. Use `src/utils/validation_helpers.R` for diagnostic checks
+4. Follow `docs/POC_CALIBRATION_GUIDE.md` for detailed instructions
+5. Target ~10% Type I error rate in null/flat scenarios
+6. Validate ≥50% true optimal selection in signal scenarios
+
 ### Workflow Modifications
 1. **ALWAYS** follow TRIAL_DESIGN.md Section 7.1 workflow order
 2. Early termination must happen after interim analysis but before adaptive randomization
@@ -200,6 +208,7 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 - Workflow order verification using `test_workflow_order.R`
 - Early termination and PoC testing using `test_early_termination_poc.R`
 - TRIAL_DESIGN.md compliance verification
+- PoC calibration validation using diagnostic tools
 
 ## Critical Workflow Requirements
 
@@ -219,7 +228,9 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 ### Configuration Parameters
 - `enable_early_termination`: Controls early termination feature
 - `log_early_termination`: Controls detailed logging
-- `c_poc`: PoC threshold for final selection
+- `c_poc`: PoC threshold for final selection (should be calibrated)
 - `delta_poc`: Threshold for PoC comparison
+- `c_poc_calibrated`: Flag indicating if C_poc has been calibrated
+- `calibration_date`: Date when calibration was performed
 
 Remember: This is a clinical trial simulation, so accuracy and reproducibility are critical. Always validate mathematical calculations and ensure results are clinically interpretable. **ALWAYS follow TRIAL_DESIGN.md workflow specifications.**

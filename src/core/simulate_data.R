@@ -16,7 +16,10 @@ simulate_data_gumbel <- function(
     rho1 = 1, # correlation under I=1
     seed = 123,
     debug = FALSE) {
-  set.seed(seed)
+  # Only set seed if provided (not NULL)
+  if (!is.null(seed)) {
+    set.seed(seed)
+  }
   J <- length(dose_levels)
   d_vec <- rep(dose_levels, times = n_per_dose_vector)
   n_total <- length(d_vec)

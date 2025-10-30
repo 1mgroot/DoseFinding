@@ -8,7 +8,7 @@ library(purrr)
 library(tidyr)
 
 # Source required functions - works from project root
-source("src/core/config.R")
+# NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script)
 source("src/utils/helpers.R")
 source("src/core/simulate_data.R")
 source("src/core/model_utils.R")

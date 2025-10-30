@@ -16,9 +16,11 @@ DoseFinding/
 │   │   └── dose_decision.R           # Dose selection algorithms
 │   ├── optimization/                 # Parameter optimization
 │   │   ├── parameter_optimization.R  # Optimization algorithms
-│   │   └── run_optimization.R       # Optimization runner
+│   │   ├── run_optimization.R       # Optimization runner
+│   │   └── poc_calibration_new.R    # PoC calibration functions
 │   └── utils/                        # Utility functions
-│       └── helpers.R                 # Helper functions and plotting
+│       ├── helpers.R                 # Helper functions and plotting
+│       └── plotting_extensions.R    # Extended plotting functions
 ├── tests/                            # Test files
 │   ├── test_main.R                   # Main script tests
 │   ├── test_dose_decision.R          # Decision logic tests
@@ -33,7 +35,8 @@ DoseFinding/
 │   ├── CODE_MAP.md                   # Code structure overview
 │   └── HOW_TO_RUN.md                 # Usage instructions
 ├── notebooks/                        # Interactive notebooks
-│   └── simulation_notebook.qmd      # Interactive simulation notebook
+│   ├── simulation_notebook.qmd      # Interactive simulation notebook
+│   └── poc_calibration_notebook.qmd # PoC calibration notebook
 └── results/                          # Generated outputs
     ├── plots/                        # Generated plots
     └── Rplots.pdf                    # Additional plots
@@ -50,14 +53,20 @@ DoseFinding/
 1. Open `src/core/main.R` in RStudio
 2. Source the script: `source("src/core/main.R")`
 
+### Option 3: PoC Calibration Workflow
+1. Open `notebooks/poc_calibration_notebook.qmd` in RStudio
+2. Run the calibration workflow to find optimal C_poc threshold
+3. Use calibrated parameters in your trial simulations
+
 ## Key Features
 
 - **Multi-stage Bayesian adaptive design** with interim analyses
 - **Utility-based dose selection** with customizable utility functions
 - **Early termination criteria** for safety and efficacy
+- **PoC calibration system** using null/flat scenarios for Type I error control
 - **Parameter optimization** for trial design tuning
 - **Comprehensive testing suite** with unit tests
-- **Interactive simulation notebook** for easy exploration
+- **Interactive simulation notebooks** for easy exploration
 - **Extensive documentation** with design specifications
 
 ## Documentation
@@ -68,6 +77,7 @@ See the `docs/` directory for comprehensive documentation:
 - `HOW_TO_RUN.md` - Detailed usage instructions
 - `PARAMETER_OPTIMIZATION_GUIDE.md` - Optimization guide
 - `UTILITY_CALCULATION_GUIDE.md` - Utility function guide
+- `POC_CALIBRATION_GUIDE.md` - PoC calibration methodology guide
 
 ## Requirements
 

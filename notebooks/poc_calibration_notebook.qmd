@@ -1,0 +1,260 @@
+---
+title: "PoC Calibration Notebook - New Methodology"
+format: html
+editor: visual
+---
+
+## Introduction
+
+This notebook implements the new PoC calibration methodology based on the email specification. The calibration uses null/flat scenarios to control Type I error rates.
+
+### Key Features
+
+-   **Null/Flat Scenario Construction**: Uses total probability formula for marginal efficacy calculation
+-   **C_poc Calibration**: Finds optimal threshold to achieve \~10% Type I error rate
+
+## Setup
+
+```{r setup}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+
+# Set working directory to project root
+if (basename(getwd()) == "notebooks") {
+  setwd("..")
+}
+
+# Source required functions
+source("src/utils/helpers.R")
+source("src/utils/plotting_extensions.R")
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/decision/dose_decision.R")
+source("src/core/main.R")
+source("src/optimization/poc_calibration_new.R")
+```
+
+## Configuration
+
+### Important: Parameter Naming Convention
+
+**Two different types of parameters with clear naming:**
+
+1.  **`null_p_*`** = True probability values in the NULL scenario (used to generate data)
+    -   `null_p_I` = True immune response rate (e.g., 0.25)
+    -   `null_p_E` = True efficacy rate (e.g., 0.30)
+    -   `null_p_T` = True toxicity rate (e.g., 0.05)
+2.  **`phi_*`** = Admissibility thresholds (used for decision making)
+    -   `phi_I` = Immune response threshold for admissibility (e.g., 0.20)
+    -   `phi_E` = Efficacy threshold for admissibility (e.g., 0.25)
+    -   `phi_T` = Toxicity threshold for admissibility (e.g., 0.30)
+
+**Example**: We set `null_p_I = 0.25` (true value) \> `phi_I = 0.20` (threshold) to compensate for PAVA bias.
+
+| Parameter Type | Immune | Efficacy | Toxicity | Purpose |
+|---------------|---------------|---------------|---------------|---------------|
+| **Null Scenario** | null_p_I = 0.25 | null_p_E = 0.30 | null_p_T = 0.05 | Generate data |
+| **Thresholds** | phi_I = 0.20 | phi_E = 0.25 | phi_T = 0.30 | Make decisions |
+| **Relationship** | null_p_I \> phi_I | null_p_E \> phi_E | null_p_T \< phi_T | By design |
+
+```{r config}
+# Calibration parameters per email specification
+# Adjusted: null scenario true values set ABOVE thresholds to compensate for PAVA bias
+calibration_params <- list(
+  null_p_I = 0.2,       # NULL SCENARIO: True immune response rate (set ABOVE threshold phi_I=0.20)
+  null_p_E = 0.30,       # NULL SCENARIO: True efficacy rate (set ABOVE threshold phi_E=0.25)
+  null_p_T = 0.05,       # NULL SCENARIO: True toxicity rate (flat, safe level)
+  tox_upper = 0.30,      # Toxicity upper bound for scenario construction
+  n_simulations = 1000   # Number of simulations for calibration
+)
+
+# Trial configuration for calibration
+# These phi_* values are THRESHOLDS for admissibility checks (not true data values!)
+trial_config <- list(
+  dose_levels = c(1, 2, 3, 4, 5),
+  n_stages = 5,          # 5 total stages (1 equal + 4 adaptive)
+  cohort_size = 15,
+  phi_T = 0.30,          # THRESHOLD: Toxicity upper limit for admissibility
+  c_T = 0.3,             # PROBABILITY: P(Tox < phi_T) must exceed this
+  phi_E = 0.25,          # THRESHOLD: Efficacy lower limit for admissibility
+  c_E = 0.3,             # PROBABILITY: P(Eff > phi_E) must exceed this
+  phi_I = 0.20,          # THRESHOLD: Immune response lower limit for admissibility
+  c_I = 0.2,             # PROBABILITY: P(Imm > phi_I) must exceed this
+  delta_poc = 0.8,
+  enable_early_termination = TRUE,
+  log_early_termination = FALSE,
+  verbose_logging = FALSE  # Disable verbose logs in notebook
+)
+
+# Utility table
+utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
+  E = c(0, 1),
+  T = c(0, 1),
+  I = c(0, 1)
+))
+
+utility_table[1, 1, 1] <- 0   # E=0, T=0, I=0
+utility_table[2, 1, 1] <- 80  # E=1, T=0, I=0
+utility_table[1, 2, 1] <- 0   # E=0, T=1, I=0
+utility_table[2, 2, 1] <- 30  # E=1, T=1, I=0
+
+utility_table[1, 1, 2] <- 10  # E=0, T=0, I=1
+utility_table[2, 1, 2] <- 100 # E=1, T=0, I=1
+utility_table[1, 2, 2] <- 0   # E=0, T=1, I=1
+utility_table[2, 2, 2] <- 40  # E=1, T=1, I=1
+
+trial_config$utility_table <- utility_table
+
+cat("Configuration loaded successfully!\n")
+cat("\nNull Scenario True Values (for data generation):\n")
+cat("  null_p_I (immune) =", calibration_params$null_p_I, "\n")
+cat("  null_p_E (efficacy) =", calibration_params$null_p_E, "\n")
+cat("  null_p_T (toxicity) =", calibration_params$null_p_T, "\n")
+cat("\nAdmissibility Thresholds (for decision making):\n")
+cat("  phi_I (immune threshold) =", trial_config$phi_I, "\n")
+cat("  phi_E (efficacy threshold) =", trial_config$phi_E, "\n")
+cat("  phi_T (toxicity threshold) =", trial_config$phi_T, "\n")
+cat("\nOther parameters:\n")
+cat("  Simulations =", calibration_params$n_simulations, "\n")
+```
+
+## Null/Flat Scenario Construction
+
+This section demonstrates the construction of the null/flat scenario using the total probability formula.
+
+```{r null_scenario}
+# Create null/flat scenario
+# Note: Using null_p_* (true values for data generation), NOT phi_* (thresholds)
+null_scenario <- create_null_flat_scenario(
+  n_doses = 5,
+  phi_I = calibration_params$null_p_I,   # True immune response rate in null scenario
+  phi_E = calibration_params$null_p_E,   # True efficacy rate in null scenario
+  tox_upper = calibration_params$tox_upper,
+  tox_flat = calibration_params$null_p_T  # True toxicity rate in null scenario
+)
+
+cat("Null/Flat Scenario Parameters:\n")
+cat("Description:", null_scenario$description, "\n")
+cat("\nImmune Response Probabilities (P_I):\n")
+print(round(null_scenario$p_YI, 3))
+
+cat("\nToxicity Probabilities (P_T|I):\n")
+print(round(null_scenario$p_YT_given_I, 3))
+
+cat("\nEfficacy Probabilities (P_E|I):\n")
+print(round(null_scenario$p_YE_given_I, 3))
+
+# Verify marginal efficacy calculation
+cat("\nMarginal Efficacy Verification:\n")
+for (dose in 1:5) {
+  marginal_eff <- null_scenario$p_YE_given_I[dose, 1] * (1 - null_scenario$p_YI[dose]) + 
+                  null_scenario$p_YE_given_I[dose, 2] * null_scenario$p_YI[dose]
+  cat("Dose", dose, "marginal efficacy:", round(marginal_eff, 3), "\n")
+}
+
+# Create visualization of null scenario
+null_plot_data <- data.frame(
+  Dose = 1:5,
+  Immune_Response = null_scenario$p_YI,
+  Toxicity_I0 = null_scenario$p_YT_given_I[, 1],
+  Toxicity_I1 = null_scenario$p_YT_given_I[, 2],
+  Efficacy_I0 = null_scenario$p_YE_given_I[, 1],
+  Efficacy_I1 = null_scenario$p_YE_given_I[, 2]
+)
+
+# Plot null scenario parameters
+p_null <- ggplot(null_plot_data, aes(x = Dose)) +
+  geom_line(aes(y = Immune_Response, color = "Immune Response"), size = 1.2) +
+  geom_line(aes(y = Toxicity_I0, color = "Toxicity (I=0)"), size = 1.2) +
+  geom_line(aes(y = Toxicity_I1, color = "Toxicity (I=1)"), size = 1.2) +
+  geom_line(aes(y = Efficacy_I0, color = "Efficacy (I=0)"), size = 1.2) +
+  geom_line(aes(y = Efficacy_I1, color = "Efficacy (I=1)"), size = 1.2) +
+  labs(title = "Null/Flat Scenario Parameters",
+       subtitle = "All doses have identical response probabilities",
+       x = "Dose Level", y = "Probability") +
+  theme_bw(base_size = 14) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_manual(values = c("Immune Response" = "#2E86AB", 
+                               "Toxicity (I=0)" = "#A23B72",
+                               "Toxicity (I=1)" = "#F18F01",
+                               "Efficacy (I=0)" = "#C73E1D",
+                               "Efficacy (I=1)" = "#7209B7")) +
+  ylim(0, 0.3)
+
+print(p_null)
+```
+
+## C_poc Calibration Process
+
+This section runs the calibration process to find the optimal C_poc threshold.
+
+```{r calibration}
+# Run C_poc calibration
+cat("Starting C_poc calibration...\n")
+cat("This may take several minutes...\n")
+start_time <- Sys.time()
+
+calibration_results <- calibrate_c_poc(
+  null_scenario = null_scenario,
+  c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
+  n_simulations = calibration_params$n_simulations,
+  base_config = trial_config
+)
+
+end_time <- Sys.time()
+calibration_duration <- difftime(end_time, start_time, units = "mins")
+cat("\nC_poc Calibration Complete!\n")
+cat("Duration:", round(calibration_duration, 2), "minutes\n")
+cat("\nCalibration Results:\n")
+cat("Optimal C_poc:", calibration_results$optimal_c_poc, "\n")
+cat("Target PoC detection rate: 10%\n")
+cat("Achieved PoC detection rate:", round(calibration_results$achieved_rate, 3), "\n")
+
+# Display calibration curve
+calibration_plot <- plot_calibration_curve(calibration_results)
+print(calibration_plot)
+
+# Create detailed results table
+calibration_table <- data.frame(
+  C_poc = sapply(calibration_results$calibration_results, function(x) x$c_poc),
+  PoC_Detection_Rate = sapply(calibration_results$calibration_results, function(x) x$poc_detection_rate),
+  Early_Termination_Rate = sapply(calibration_results$calibration_results, function(x) x$early_termination_rate)
+)
+
+calibration_table$Optimal <- calibration_table$C_poc == calibration_results$optimal_c_poc
+
+cat("\nCalibration Results Table:\n")
+print(calibration_table)
+
+# Generate detailed report file
+cat("\n--- Generating Detailed Report ---\n")
+# Use relative path from notebooks/ directory (where notebook runs)
+report_path <- "results/notebook_calibration/calibration_detailed_report.txt"
+generate_calibration_report(
+  calibration_results = calibration_results,
+  null_scenario = null_scenario,
+  base_config = trial_config,
+  file_path = report_path
+)
+cat("Report generated successfully!\n")
+cat("View the full report at:", report_path, "\n")
+```
+
+## View Report Summary
+
+After generating the report, you can view key sections here or open the full text file.
+
+```{r report_summary}
+# Read and display key sections of the report
+if (file.exists(report_path)) {
+  report_lines <- readLines(report_path)
+  
+  # Display first 1000 lines (header + configuration + summary)
+  cat("=== REPORT PREVIEW (First 1000 lines) ===\n\n")
+  cat(paste(head(report_lines, 1000), collapse = "\n"))
+  cat("\n\n... (see full report file for complete details) ...\n")
+} else {
+  cat("Report file not found. Please run the calibration chunk first.\n")
+}
+```

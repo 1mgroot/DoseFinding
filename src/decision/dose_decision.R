@@ -69,14 +69,16 @@ get_expected_utility_detailed <- function(dose_idx, posterior_summaries, config)
   ))
 }
 
-get_admissible_set <- function(posterior_summaries, config) {
+get_admissible_set <- function(posterior_summaries, config, verbose = TRUE) {
   admissible_doses <- c()
-  cat("\n--- Admissibility Check ---\n")
-  
-  # Log summary statistics for transparency
-  cat("Summary: Toxicity marginal means:", round(posterior_summaries$tox_marginal$marginal_prob, 3), "\n")
-  cat("Summary: Efficacy marginal means:", round(posterior_summaries$eff_marginal$marginal_prob, 3), "\n")
-  cat("Summary: Immune response means:", round(posterior_summaries$imm$pava_mean, 3), "\n")
+  if (verbose) {
+    cat("\n--- Admissibility Check ---\n")
+    
+    # Log summary statistics for transparency
+    cat("Summary: Toxicity marginal means:", round(posterior_summaries$tox_marginal$marginal_prob, 3), "\n")
+    cat("Summary: Efficacy marginal means:", round(posterior_summaries$eff_marginal$marginal_prob, 3), "\n")
+    cat("Summary: Immune response means:", round(posterior_summaries$imm$pava_mean, 3), "\n")
+  }
   
   for (i in 1:length(config$dose_levels)) {
     tox_samples <- posterior_summaries$tox_marginal$samples[[i]]
@@ -88,19 +90,23 @@ get_admissible_set <- function(posterior_summaries, config) {
     imm_prob_good <- mean(imm_samples > config$phi_I)
 
     # Log detailed statistics for each dose
-    cat(paste("Dose", i,":",
-              "P(Tox < ", config$phi_T, ") = ", round(tox_prob_safe, 2),
-              "(Threshold: ", config$c_T, ")",
-              "P(Eff > ", config$phi_E, ") = ", round(eff_prob_good, 2),
-              "(Threshold: ", config$c_E, ")",
-              "P(Imm > ", config$phi_I, ") = ", round(imm_prob_good, 2),
-              "(Threshold: ", config$c_I, ")\n"))
+    if (verbose) {
+      cat(paste("Dose", i,":",
+                "P(Tox < ", config$phi_T, ") = ", round(tox_prob_safe, 2),
+                "(Threshold: ", config$c_T, ")",
+                "P(Eff > ", config$phi_E, ") = ", round(eff_prob_good, 2),
+                "(Threshold: ", config$c_E, ")",
+                "P(Imm > ", config$phi_I, ") = ", round(imm_prob_good, 2),
+                "(Threshold: ", config$c_I, ")\n"))
+    }
 
     if (tox_prob_safe > config$c_T && eff_prob_good > config$c_E && imm_prob_good > config$c_I) {
       admissible_doses <- c(admissible_doses, i)
     }
   }
-  cat("--- End Admissibility Check ---\n")
+  if (verbose) {
+    cat("--- End Admissibility Check ---\n")
+  }
   return(admissible_doses)
 }
 
@@ -258,7 +264,8 @@ handle_trial_termination <- function(admissible_set, stage, config) {
     reason = "Empty admissible set"
   )
   
-  if (config$log_early_termination) {
+  # Check if log_early_termination is defined and TRUE
+  if (!is.null(config$log_early_termination) && config$log_early_termination) {
     cat("\n=== TRIAL TERMINATION SUMMARY ===\n")
     cat("Trial terminated early at stage:", stage, "\n")
     cat("Reason:", termination_info$reason, "\n")
@@ -345,7 +352,8 @@ check_poc_threshold <- function(poc_results, config) {
   # We want the probability of correct selection to be high
   poc_met <- poc_results$max_poc >= config$c_poc
   
-  if (config$log_early_termination) {
+  # Check if log_early_termination is defined and TRUE
+  if (!is.null(config$log_early_termination) && config$log_early_termination) {
     cat("\n--- PoC THRESHOLD CHECK ---\n")
     cat("Maximum PoC probability:", round(poc_results$max_poc, 3), "\n")
     cat("PoC threshold:", config$c_poc, "\n")
@@ -357,13 +365,14 @@ check_poc_threshold <- function(poc_results, config) {
 }
 
 # Enhanced Final Dose Selection with PoC
-select_final_od_with_poc <- function(admissible_set, posterior_summaries, config) {
+select_final_od_with_poc <- function(admissible_set, posterior_summaries, config, verbose = TRUE) {
   # Select final Optimal Dose with PoC validation.
   #
   # Args:
   #   admissible_set: Vector of admissible dose indices
   #   posterior_summaries: Posterior probability summaries
   #   config: Trial configuration
+  #   verbose: Whether to print detailed logs
   #
   # Returns:
   #   list: Selection results including PoC validation
@@ -408,7 +417,7 @@ select_final_od_with_poc <- function(admissible_set, posterior_summaries, config
   )
   
   # Log selection results
-  if (config$log_early_termination) {
+  if (verbose && config$log_early_termination) {
     cat("\n--- FINAL DOSE SELECTION WITH PoC ---\n")
     cat("Admissible doses:", admissible_set, "\n")
     cat("Utilities:", round(utilities, 2), "\n")
