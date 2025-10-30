@@ -30,7 +30,7 @@ DoseFinding/
 │   ├── DESIGN_NOTES.md               # Design implementation notes
 │   ├── TRIAL_DESIGN.md               # Trial design specification
 │   ├── TRIAL_DESIGN.html             # HTML version of design doc
-│   ├── PARAMETER_OPTIMIZATION_GUIDE.md # Optimization guide
+│   ├── OPTIMIZATION_AND_CALIBRATION_GUIDE.md # Complete optimization & calibration guide
 │   ├── UTILITY_CALCULATION_GUIDE.md  # Utility calculation guide
 │   ├── CODE_MAP.md                   # Code structure overview
 │   └── HOW_TO_RUN.md                 # Usage instructions
@@ -72,12 +72,12 @@ DoseFinding/
 ## Documentation
 
 See the `docs/` directory for comprehensive documentation:
-- `TRIAL_DESIGN.md` - Complete trial design specification
-- `DESIGN_NOTES.md` - Implementation details and notes
-- `HOW_TO_RUN.md` - Detailed usage instructions
-- `PARAMETER_OPTIMIZATION_GUIDE.md` - Optimization guide
-- `UTILITY_CALCULATION_GUIDE.md` - Utility function guide
-- `POC_CALIBRATION_GUIDE.md` - PoC calibration methodology guide
+- `HOW_TO_RUN.md` - Detailed usage instructions and quick start guide
+- `OPTIMIZATION_AND_CALIBRATION_GUIDE.md` - Complete parameter optimization and PoC calibration guide
+- `TRIAL_DESIGN.md` - Complete trial design specification and mathematical framework
+- `DESIGN_NOTES.md` - Implementation details and development notes
+- `UTILITY_CALCULATION_GUIDE.md` - Utility function guide and examples
+- `CODE_MAP.md` - Code structure overview
 
 ## Requirements
 
