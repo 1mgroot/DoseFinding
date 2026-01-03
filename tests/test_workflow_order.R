@@ -14,6 +14,7 @@ source("src/core/main.R")
 
 test_that("workflow produces equal allocation in stage 1 and valid probabilities thereafter", {
   test_config <- trial_config
+  test_config$dose_levels <- c(1, 2, 3)  # Use 3 doses for this test
   test_config$n_stages <- 2
   test_config$cohort_size <- 6
   # Use relaxed thresholds to ensure trial continues

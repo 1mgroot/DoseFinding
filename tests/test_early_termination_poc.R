@@ -14,6 +14,7 @@ source("src/core/main.R")
 
 test_that("early termination triggers when admissible set is empty", {
   test_config <- trial_config
+  test_config$dose_levels <- c(1, 2, 3)  # Use 3 doses for this test
   test_config$phi_T <- 0.1
   test_config$phi_E <- 0.8
   test_config$phi_I <- 0.8
@@ -39,6 +40,7 @@ test_that("early termination triggers when admissible set is empty", {
 
 test_that("PoC scenario returns structured outputs and valid allocation probabilities", {
   test_config <- trial_config
+  test_config$dose_levels <- c(1, 2, 3)  # Use 3 doses for this test
   test_config$c_poc <- 0.8
   test_config$delta_poc <- 0.7
 

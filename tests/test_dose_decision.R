@@ -20,6 +20,10 @@ test_that("get_expected_utility returns a single numeric value", {
 })
 
 test_that("get_admissible_set returns numeric indices with expected structure", {
+  # Create test config with 3 doses to match test data
+  test_config <- trial_config
+  test_config$dose_levels <- c(1, 2, 3)
+  
   posterior_summaries <- list(
     tox_marginal = data.frame(
       marginal_prob = c(0.1, 0.15, 0.2),
@@ -34,9 +38,9 @@ test_that("get_admissible_set returns numeric indices with expected structure", 
       samples_pava = I(list(rep(0.5, 20), rep(0.55, 20), rep(0.6, 20)))
     )
   )
-  admissible_set <- get_admissible_set(posterior_summaries, trial_config, verbose = FALSE)
+  admissible_set <- get_admissible_set(posterior_summaries, test_config, verbose = FALSE)
   expect_true(is.numeric(admissible_set))
-  expect_true(all(admissible_set %in% seq_along(trial_config$dose_levels) | length(admissible_set) == 0))
+  expect_true(all(admissible_set %in% seq_along(test_config$dose_levels) | length(admissible_set) == 0))
 })
 
 test_that("adaptive_randomization returns probabilities that sum to 1 over admissible doses", {
