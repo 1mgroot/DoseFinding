@@ -92,18 +92,19 @@ Let $C_1,\ldots,C_S$ be the pre-specified sample size of the ``$S$'' stages.
   \item For $s=2,\ldots,S$ stages, based on interim data, update the admissible set $A$
         (safety, activity, and efficacy), and adaptively randomize $C_s$ patients to $d_j\in A$.
         If $A$ is empty, early terminate the trial; no OD selected.
-  \item When trial stops with no early stopping, identify the final OD:
+  \item If the trial completes without early stopping, construct the PoC-eligible set:
   \begin{align}
-    OD=\arg\max_{j\in A}\ \hat{U}(d_j).
+    \mathcal{P}
+    = \left\{ j\in A:\ Pr(\pi_{I1}<\delta\,\pi_{Ij}\mid D_n) > C_{\text{PoC}} \right\}.
+    \label{eq:PoCset}
+  \end{align}
+  If $\mathcal{P}=\emptyset$, conclude no PoC and no OD is selected. Otherwise, select the final OD:
+  \begin{align}
+    OD=\arg\max_{j\in \mathcal{P}}\ \hat{U}(d_j).
     \label{eq:OD}
   \end{align}
-  First construct PoC:
-  \begin{align}
-    Pr(\pi_{I1}<\delta\,\pi_{Ij}\mid D_n) > C_{\text{PoC}}.
-    \label{eq:PoC}
-  \end{align}
-  pass $\Rightarrow$ select final OD.
 \end{enumerate}
+
 
 \subsection*{Notes}
 
