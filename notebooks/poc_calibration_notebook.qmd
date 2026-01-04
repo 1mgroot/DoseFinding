@@ -62,8 +62,8 @@ source("src/optimization/poc_calibration_new.R")
 # Calibration parameters per email specification
 # Adjusted: null scenario true values set ABOVE thresholds to compensate for PAVA bias
 calibration_params <- list(
-  null_p_I = 0.20,      # NULL SCENARIO: True immune response rate (set ABOVE threshold phi_I=0.20)
-  null_p_E = 0.25,      # NULL SCENARIO: True efficacy rate (set ABOVE threshold phi_E=0.25)
+  null_p_I = 0.25,      # NULL SCENARIO: True immune response rate (set ABOVE threshold phi_I=0.20)
+  null_p_E = 0.30,      # NULL SCENARIO: True efficacy rate (set ABOVE threshold phi_E=0.25)
   null_p_T = 0.05,      # NULL SCENARIO: True toxicity rate (flat, safe level)
   tox_upper = 0.30,     # Toxicity upper bound for scenario construction
   n_simulations = 1000  # Number of simulations for calibration
