@@ -4,16 +4,37 @@
 This is a Bayesian dose-finding trial simulation project that implements adaptive randomization and utility-based dose selection. The project simulates multi-stage clinical trials with toxicity, efficacy, and immune response endpoints.
 
 ## Project Structure
+
+### Core Files (`src/core/`)
 - `main.R`: Master script with `run_trial_simulation()` function implementing the complete workflow
-- `config.R`: All configuration parameters, utility table, and PoC/early termination settings
+- `config.R`: All configuration parameters, utility table, and PoC/early termination settings (5-dose, 5-stage default)
 - `simulate_data.R`: Data generation functions using Gumbel copula
-- `model_utils.R`: Bayesian model utilities and posterior calculations
-- `dose_decision.R`: Decision-making logic, utility calculations, early termination, and PoC validation
+- `model_utils.R`: Bayesian model utilities, posterior calculations, PAVA/BIVISO isotonic regression
+
+### Decision Logic (`src/decision/`)
+- `dose_decision.R`: Decision-making logic, utility calculations, early termination, and PoC validation using posterior samples
+
+### Optimization (`src/optimization/`)
+- `poc_calibration_new.R`: PoC calibration system using null/flat scenarios to control Type I error at ~10%
+- `parameter_optimization.R`: Systematic parameter search framework for threshold and credibility tuning
+- `run_optimization.R`: Convenience wrappers for running parameter optimization
+
+### Utilities (`src/utils/`)
 - `helpers.R`: Visualization and helper functions
-- `simulation_notebook.qmd`: Interactive Quarto notebook for running simulations
-- `test_*.R`: Unit tests for various components including workflow verification
-- `TRIAL_DESIGN.md`: Complete mathematical framework and workflow specification
-- `DESIGN_NOTES.md`: Implementation plans and task tracking
+- `plotting_extensions.R`: Publication-ready plotting functions
+
+### Notebooks (`notebooks/`)
+- `simulation_notebook.qmd`: Interactive Quarto notebook for running trial simulations with visualization
+- `poc_calibration_notebook.qmd`: Interactive PoC calibration with null/flat scenarios, calibration curves, and detailed reports
+
+### Tests (`tests/`)
+- `test_*.R`: Unit tests for various components including workflow verification, early termination, and PoC
+
+### Documentation (`docs/`)
+- `STATUS_AS_BUILT.md`: Current implementation status and capabilities (code-first documentation)
+- `STAT_METHODS_AS_BUILT.md`: Statistical methods as implemented (bilingual, code-first)
+- `CODE_MAP.md`: File structure and organization
+- `HOW_TO_RUN.md`: Usage instructions and examples
 
 ## Coding Standards
 
@@ -64,9 +85,11 @@ This is a Bayesian dose-finding trial simulation project that implements adaptiv
 
 ### Probability of Correct Selection (PoC)
 - Only used for final dose selection (not intermediate stages)
-- Calculates Pr(Πᵢ < δ Πᵢⱼ | Dₙ) for admissible doses
-- Validates against configurable threshold (c_poc)
-- Enhances final dose selection with statistical rigor
+- **Implementation**: Uses posterior samples to calculate pairwise comparison probabilities Pr(π_best > δ × π_competitor | D_n)
+- PoC = min{pairwise probabilities} across all competing doses
+- **Gating**: If PoC < c_poc threshold, can return NA (no optimal dose selected)
+- Validates against configurable threshold (c_poc) which should be calibrated
+- Fully Bayesian approach using marginal efficacy posterior samples (no normal approximation)
 
 ## Common Patterns
 
@@ -141,6 +164,27 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 
 ## Common Tasks
 
+### Running Simulations
+1. **Interactive**: Use `notebooks/simulation_notebook.qmd` for single trial with visualization
+2. **Programmatic**: Source `src/core/main.R` and call `run_trial_simulation(config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed)`
+3. **Batch**: Set `verbose_logging = FALSE` in config to reduce output
+
+### PoC Calibration
+1. Open `notebooks/poc_calibration_notebook.qmd`
+2. Configure null scenario parameters (null_p_I, null_p_E, null_p_T)
+3. Set calibration-specific thresholds (stricter than default for Type I error control)
+4. Run `calibrate_c_poc()` with c_poc candidates (e.g., 0.5, 0.6, ..., 0.95)
+5. Review calibration curve and detailed report
+6. Select c_poc closest to 10% PoC detection rate
+7. Validate in signal scenarios
+
+### Parameter Optimization
+1. Use `src/optimization/parameter_optimization.R` for systematic parameter search
+2. Call `run_parameter_optimization(n_combinations, n_simulations)` 
+3. Or use convenience wrappers in `run_optimization.R`: `quick_optimization()`, `comprehensive_optimization()`
+4. Evaluate metrics: completion_rate, correct_selection_rate, mean_final_utility, allocation_efficiency
+5. Visualize results with `create_optimization_plots()`
+
 ### Adding New Endpoints
 1. Update `config.R` with new parameters
 2. Modify `simulate_data.R` for data generation
@@ -162,17 +206,19 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 
 ### Modifying PoC Validation
 1. Update PoC parameters in `config.R` (c_poc, delta_poc)
-2. Modify `calculate_poc_probability()` in `dose_decision.R`
+2. Modify `calculate_poc_probability()` in `dose_decision.R` (uses posterior samples for pairwise comparisons)
 3. Adjust PoC threshold checking in `check_poc_threshold()`
-4. Update final selection logic in `select_final_od_with_poc()`
+4. Update final selection logic in `select_final_od_with_poc()` (can return NA if PoC not met)
+5. **Important**: PoC uses marginal efficacy posterior samples, not normal approximation
 
-### PoC Calibration (New Methodology)
+### PoC Calibration (Current Methodology)
 1. Use `src/optimization/poc_calibration_new.R` for null/flat scenario calibration
-2. Run `run_full_calibration()` for comprehensive calibration workflow
-3. Use `src/utils/validation_helpers.R` for diagnostic checks
-4. Follow `docs/POC_CALIBRATION_GUIDE.md` for detailed instructions
-5. Target ~10% Type I error rate in null/flat scenarios
-6. Validate ≥50% true optimal selection in signal scenarios
+2. Run `calibrate_c_poc()` to test multiple c_poc candidate values
+3. Use `notebooks/poc_calibration_notebook.qmd` for interactive calibration with visualization
+4. **Null/flat scenario**: All doses have identical response probabilities (P_I = φ_I, P_E = φ_E, P_T = flat)
+5. Target ~10% Type I error rate (PoC detection rate in null scenario)
+6. Outputs: Calibration curves, detailed reports with early termination analysis, optimal c_poc recommendation
+7. **Validation step**: Test calibrated c_poc in signal scenarios to ensure ≥50% true optimal selection (power)
 
 ### Workflow Modifications
 1. **ALWAYS** follow TRIAL_DESIGN.md Section 7.1 workflow order
@@ -189,8 +235,40 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 6. Check early termination logic with `test_early_termination_poc.R`
 7. Validate PoC calculations and thresholds
 
+## Current Implementation Status (As-Built)
+
+### ✅ Implemented Features
+- **Multi-stage Bayesian adaptive design**: 5 doses, 5 stages, utility-based allocation
+- **Three endpoints**: Immune response (I), Toxicity (T), Efficacy (E) using Gumbel copula
+- **Isotonic regression**: PAVA for univariate (immune), BIVISO for bivariate (T|I, E|I)
+- **Admissible set screening**: Posterior probability thresholds (phi_T, phi_E, phi_I with c_T, c_E, c_I)
+- **Early termination**: Triggers when admissible set empty (after interim, before adaptive)
+- **PoC validation**: Posterior sample-based pairwise comparisons (no normal approximation)
+- **PoC calibration system**: Null/flat scenario methodology targeting ~10% Type I error
+- **Parameter optimization**: Systematic search across threshold and credibility parameter space
+- **Seed management**: Stage-specific seeds (base_seed + stage) for reproducibility
+
+### 📊 Configuration Status
+- **Default config**: 5 doses, 5 stages, cohort=15, relaxed thresholds (c_T=c_E=c_I=0.5)
+- **Simulation notebook**: Aligned with default config
+- **Calibration config**: Stricter thresholds (c_T=c_E=0.3) appropriate for Type I error control
+- **All configs use 5-dose design**: Configuration drift resolved
+
+### ⚠️ Known Limitations
+- No control arm or γ_j logic implemented (marked as OUT-OF-SCOPE)
+- No multiple comparison adjustment in admissibility screening
+- No parallel computation support
+- Calibration requires manual validation in signal scenarios for power assessment
+
+### 🔄 Recent Updates
+- PoC changed from normal approximation to posterior sample-based method
+- Configuration alignment: default now matches simulation notebook (5-dose)
+- Added verbose_logging control for batch runs
+- PoC can now gate selection (return NA if threshold not met)
+
 ## Dependencies
-- R packages: rstan, isotone, ggplot2, dplyr
+- R packages: dplyr, tidyr, isotone, purrr, ggplot2, Iso
+- Optional: knitr (for notebooks), gridExtra (for optimization plots)
 - Ensure all required packages are documented
 - Use version control for reproducibility
 
@@ -226,11 +304,69 @@ select_final_od_with_poc(admissible_set, posterior_summaries, config)
 - **Backward compatibility** must be maintained with existing utility-based selection
 
 ### Configuration Parameters
-- `enable_early_termination`: Controls early termination feature
-- `log_early_termination`: Controls detailed logging
-- `c_poc`: PoC threshold for final selection (should be calibrated)
-- `delta_poc`: Threshold for PoC comparison
-- `c_poc_calibrated`: Flag indicating if C_poc has been calibrated
-- `calibration_date`: Date when calibration was performed
+- **Trial design**: `dose_levels`, `n_stages`, `cohort_size` (default: 5 doses, 5 stages, 15 per cohort)
+- **Admissibility thresholds**: `phi_T`, `phi_E`, `phi_I` (toxicity, efficacy, immune response probability thresholds)
+- **Credibility cutoffs**: `c_T`, `c_E`, `c_I` (posterior probability thresholds for admissibility)
+- **PoC parameters**: 
+  - `c_poc`: PoC threshold for final selection (should be calibrated via null/flat scenarios)
+  - `delta_poc`: Threshold for PoC pairwise comparison (default: 0.8)
+- **Early termination**: `enable_early_termination`, `log_early_termination`
+- **Logging control**: `verbose_logging` (set FALSE to reduce output during batch calibration runs)
+- **Utility table**: 3D array [E, T, I] defining outcome values
 
-Remember: This is a clinical trial simulation, so accuracy and reproducibility are critical. Always validate mathematical calculations and ensure results are clinically interpretable. **ALWAYS follow TRIAL_DESIGN.md workflow specifications.**
+## Key Implementation Details
+
+### PoC Methodology (Posterior Sample-Based)
+```r
+# For best dose i* vs competitor j:
+# 1. Extract marginal efficacy posterior samples for both doses
+# 2. Calculate Pr(π_i* > δ_poc × π_j | D_n) using sample comparison
+# 3. PoC probability = min across all pairwise comparisons
+# 4. If PoC < c_poc: return NA (no optimal dose)
+# 5. If PoC >= c_poc: return best utility dose
+```
+
+### Calibration Methodology (Null/Flat Scenarios)
+```r
+# 1. Create null scenario where all doses identical:
+#    - P_I(j) = φ_I for all j
+#    - P_E(j) = φ_E for all j (using total probability formula)
+#    - P_T(j) = constant safe level
+# 2. Run 1000+ simulations per c_poc candidate
+# 3. Measure PoC detection rate (false positive rate)
+# 4. Select c_poc achieving closest to 10% detection rate
+# 5. Validate in signal scenarios (target: ≥50% power)
+```
+
+### Seed Strategy
+```r
+# Stage-specific seed prevents RNG conflicts:
+# - Base seed provided to run_trial_simulation()
+# - Each stage uses: stage_seed = base_seed + stage
+# - Ensures reproducibility without global RNG issues
+```
+
+### Workflow Execution Order (CRITICAL)
+```
+Stage Loop:
+  1. Stage 1: Equal allocation across all doses
+  2. Stages 2+: Adaptive allocation from previous stage
+  For each stage:
+    a. Simulate data with stage-specific seed
+    b. Update posteriors (Beta → PAVA/BIVISO)
+    c. Calculate admissible set
+    d. CHECK EARLY TERMINATION ← Must happen here
+    e. If not terminated and not final stage:
+       - Calculate adaptive allocation probabilities
+    f. Record allocation probabilities
+  3. After loop completes:
+    - Final selection with PoC validation
+```
+
+## Reference Documentation
+- **`docs/STATUS_AS_BUILT.md`**: Current implementation status and API contracts
+- **`docs/STAT_METHODS_AS_BUILT.md`**: Statistical methods with code evidence (bilingual)
+- **`docs/CODE_MAP.md`**: File structure and organization
+- **`docs/HOW_TO_RUN.md`**: Usage examples and workflows
+
+Remember: This is a clinical trial simulation, so accuracy and reproducibility are critical. Always validate mathematical calculations and ensure results are clinically interpretable. **The codebase is the source of truth** - documentation follows implementation.
