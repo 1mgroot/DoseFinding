@@ -50,20 +50,20 @@ source("src/optimization/poc_calibration_new.R")
     -   `phi_E` = Efficacy threshold for admissibility (e.g., 0.25)
     -   `phi_T` = Toxicity threshold for admissibility (e.g., 0.30)
 
-**Example**: We set `null_p_I = 0.25` (true value) \> `phi_I = 0.20` (threshold) to compensate for PAVA bias.
+**Example**: We set `null_p_I = 0.20` (true value) = `phi_I = 0.20` (threshold) for a true null scenario.
 
 | Parameter Type | Immune | Efficacy | Toxicity | Purpose |
 |---------------|---------------|---------------|---------------|---------------|
-| **Null Scenario** | null_p_I = 0.25 | null_p_E = 0.30 | null_p_T = 0.05 | Generate data |
+| **Null Scenario** | null_p_I = 0.20 | null_p_E = 0.25 | null_p_T = 0.05 | Generate data |
 | **Thresholds** | phi_I = 0.20 | phi_E = 0.25 | phi_T = 0.30 | Make decisions |
-| **Relationship** | null_p_I \> phi_I | null_p_E \> phi_E | null_p_T \< phi_T | By design |
+| **Relationship** | null_p_I = phi_I | null_p_E = phi_E | null_p_T \< phi_T | Null scenario |
 
 ```{r config}
 # Calibration parameters per email specification
-# Adjusted: null scenario true values set ABOVE thresholds to compensate for PAVA bias
+# Null scenario: true values equal thresholds for a true null scenario
 calibration_params <- list(
-  null_p_I = 0.25,      # NULL SCENARIO: True immune response rate (set ABOVE threshold phi_I=0.20)
-  null_p_E = 0.30,      # NULL SCENARIO: True efficacy rate (set ABOVE threshold phi_E=0.25)
+  null_p_I = 0.20,      # NULL SCENARIO: True immune response rate (equals threshold phi_I=0.20)
+  null_p_E = 0.25,      # NULL SCENARIO: True efficacy rate (equals threshold phi_E=0.25)
   null_p_T = 0.05,      # NULL SCENARIO: True toxicity rate (flat, safe level)
   tox_upper = 0.30,     # Toxicity upper bound for scenario construction
   n_simulations = 1000  # Number of simulations for calibration
