@@ -182,8 +182,8 @@ calibrate_c_poc <- function(
   c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
   n_simulations = 1000,
   base_config = NULL,
-  debug_early_termination = TRUE,
-  max_debug_cases_per_candidate = 3
+  debug_early_termination = FALSE,  # Changed default to FALSE to reduce console output
+  max_debug_cases_per_candidate = 2  # Reduced from 3 to 2
 ) {
   cat("Starting C_poc calibration...\n")
   cat("Testing", length(c_poc_candidates), "C_poc values\n")
@@ -275,9 +275,32 @@ calibrate_c_poc <- function(
       result <- run_single_calibration_simulation(config, null_scenario, seed = base_seed + sim)
       simulation_results[[sim]] <- result
       
-      # Count PoC detection (when trial completes and PoC is validated)
+      # Count PoC detection: ONLY when trial completes AND P_final is non-empty
+      # Early terminated trials MUST have poc_validated = FALSE
       if (!result$metrics$terminated_early && result$metrics$poc_validated) {
         poc_detection_count <- poc_detection_count + 1
+      }
+      
+      # Debug output for first 3 reps of first c_poc candidate (reduced from 10 to avoid console overflow)
+      if (i == 1 && sim <= 3) {
+        cat("\n[DEBUG] c_poc =", c_poc, ", sim =", sim, "\n")
+        cat("  Early terminated:", result$metrics$terminated_early, "\n")
+        if (!result$metrics$terminated_early) {
+          cat("  Final OD:", result$metrics$final_od, "\n")
+          cat("  PoC validated:", result$metrics$poc_validated, "\n")
+          cat("  PoC probability:", round(result$metrics$poc_probability, 3), "\n")
+          # Show A_final, pairwise_probs, P_final from debug_info
+          ps <- result$debug_info$posterior_summaries
+          if (!is.null(ps)) {
+            adm <- get_admissible_set(ps, config, verbose = FALSE)
+            cat("  A_final:", adm, "\n")
+            # We need to extract P_final info - this requires running the calculation again
+            # For now, just show if PoC was validated (which means P_final was non-empty)
+            cat("  P_final non-empty:", result$metrics$poc_validated, "\n")
+          }
+        } else {
+          cat("  Termination stage:", result$metrics$termination_stage, "\n")
+        }
       } else if (result$metrics$terminated_early && debug_early_termination && debug_count < max_debug_cases_per_candidate) {
         cat("\n[DEBUG] Early termination example (C_poc =", c_poc, ", sim =", sim, ")\n")
         log_early_termination_context(result$debug_info, config)
@@ -286,36 +309,145 @@ calibrate_c_poc <- function(
     }
     
     # Calculate metrics
+    # PoC detection rate across ALL simulations (including early terminated = FALSE)
     poc_detection_rate <- poc_detection_count / n_simulations
     early_termination_rate <- mean(sapply(simulation_results, function(x) x$metrics$terminated_early))
+    completion_rate <- 1 - early_termination_rate
+    
+    # Among completed trials, what fraction had PoC validated?
+    n_completed <- sum(!sapply(simulation_results, function(x) x$metrics$terminated_early))
+    poc_rate_among_completed <- if (n_completed > 0) poc_detection_count / n_completed else 0
+    
+    # Monte Carlo standard error for PoC detection rate
+    # SE = sqrt(p * (1-p) / N)
+    poc_se <- sqrt(poc_detection_rate * (1 - poc_detection_rate) / n_simulations)
+    poc_ci_lower <- max(0, poc_detection_rate - 1.96 * poc_se)
+    poc_ci_upper <- min(1, poc_detection_rate + 1.96 * poc_se)
     
     calibration_results[[i]] <- list(
       c_poc = c_poc,
       poc_detection_rate = poc_detection_rate,
+      poc_se = poc_se,
+      poc_ci_lower = poc_ci_lower,
+      poc_ci_upper = poc_ci_upper,
       early_termination_rate = early_termination_rate,
+      completion_rate = completion_rate,
+      poc_rate_among_completed = poc_rate_among_completed,
       simulation_results = simulation_results
     )
     
-    cat("  PoC detection rate:", round(poc_detection_rate, 3), "\n")
+    cat("  PoC detection rate:", round(poc_detection_rate, 3), 
+        "(SE:", round(poc_se, 4), ", 95% CI: [", 
+        round(poc_ci_lower, 3), ",", round(poc_ci_upper, 3), "])\n")
     cat("  Early termination rate:", round(early_termination_rate, 3), "\n")
+    cat("  Completion rate:", round(completion_rate, 3), "\n")
+    cat("  PoC rate among completed trials:", round(poc_rate_among_completed, 3), "\n")
+    
+    # Sanity check: PoC rate should not exceed completion rate
+    if (poc_detection_rate > completion_rate + 1e-6) {
+      cat("  [WARNING] PoC rate (", round(poc_detection_rate, 3), 
+          ") exceeds completion rate (", round(completion_rate, 3), ") - this should not happen!\n")
+    }
   }
   
-  # Find optimal C_poc (closest to 10% PoC detection rate)
+  # Find optimal C_poc using proper Type I error control criterion
+  # RULE: Choose smallest C_poc such that PoC detection rate ≤ target
+  # If none satisfy, choose largest C_poc and report control not achieved
   poc_rates <- sapply(calibration_results, function(x) x$poc_detection_rate)
+  completion_rates <- sapply(calibration_results, function(x) x$completion_rate)
   target_rate <- 0.10
-  optimal_idx <- which.min(abs(poc_rates - target_rate))
-  optimal_c_poc <- c_poc_candidates[optimal_idx]
   
-  cat("\nCalibration Results:\n")
-  cat("Target PoC detection rate: 10%\n")
-  cat("Optimal C_poc:", optimal_c_poc, "\n")
-  cat("Achieved PoC detection rate:", round(poc_rates[optimal_idx], 3), "\n")
+  # Find all C_poc values that achieve Type I error control
+  controlled_indices <- which(poc_rates <= target_rate)
+  
+  if (length(controlled_indices) > 0) {
+    # Choose smallest C_poc that achieves control (most conservative)
+    optimal_idx <- controlled_indices[1]
+    optimal_c_poc <- c_poc_candidates[optimal_idx]
+    control_achieved <- TRUE
+  } else {
+    # No C_poc achieves control → choose largest (most stringent)
+    optimal_idx <- length(c_poc_candidates)
+    optimal_c_poc <- c_poc_candidates[optimal_idx]
+    control_achieved <- FALSE
+  }
+  
+  cat("\n=== CALIBRATION RESULTS SUMMARY ===\n")
+  cat("Target Type I error (PoC detection rate): ≤", target_rate * 100, "%\n")
+  
+  if (control_achieved) {
+    cat("✓ TYPE I ERROR CONTROL ACHIEVED\n")
+    cat("Optimal C_poc:", optimal_c_poc, 
+        "(smallest C_poc achieving control)\n")
+  } else {
+    cat("✗ TYPE I ERROR CONTROL NOT ACHIEVED\n")
+    cat("Selected C_poc:", optimal_c_poc, 
+        "(largest tested, but still exceeds target)\n")
+    cat("⚠ WARNING: All tested C_poc values exceed target Type I error!\n")
+    cat("⚠ Consider testing higher C_poc values (e.g., 0.96, 0.97, 0.98)\n")
+  }
+  
+  cat("Achieved PoC detection rate:", round(poc_rates[optimal_idx], 3), 
+      "(SE:", round(calibration_results[[optimal_idx]]$poc_se, 4), ")\n")
+  cat("Achieved completion rate:", round(completion_rates[optimal_idx], 3), "\n")
+  
+  # Sanity checks and detailed results
+  cat("\n=== TYPE I ERROR CONTROL TABLE ===\n")
+  cat(sprintf("%-10s | %-20s | %-25s | %-15s\n", 
+              "C_poc", "PoC Rate (95% CI)", "Control Achieved?", "Status"))
+  cat("--------------------------------------------------------------------------------\n")
+  
+  for (i in seq_along(calibration_results)) {
+    res <- calibration_results[[i]]
+    ci_str <- sprintf("[%.3f, %.3f]", res$poc_ci_lower, res$poc_ci_upper)
+    control_ok <- res$poc_detection_rate <= target_rate
+    control_str <- if (control_ok) "✓ Yes" else "✗ No"
+    
+    status_str <- ""
+    if (i == optimal_idx) {
+      status_str <- if (control_achieved) "← OPTIMAL" else "← SELECTED*"
+    }
+    
+    cat(sprintf("%-10.2f | %-7.3f %-12s | %-25s | %-15s\n", 
+                res$c_poc, 
+                res$poc_detection_rate,
+                ci_str,
+                control_str,
+                status_str))
+  }
+  cat("--------------------------------------------------------------------------------\n")
+  if (!control_achieved) {
+    cat("* Selected despite exceeding target (no C_poc achieved control)\n")
+  }
+  
+  cat("\n=== SANITY CHECKS ===\n")
+  cat("1. PoC rate <= completion rate for all c_poc values?\n")
+  for (i in seq_along(calibration_results)) {
+    res <- calibration_results[[i]]
+    check_passed <- res$poc_detection_rate <= res$completion_rate + 1e-6
+    status <- if (check_passed) "✓ PASS" else "✗ FAIL"
+    cat("   c_poc =", res$c_poc, ":", status, 
+        "(PoC:", round(res$poc_detection_rate, 3), 
+        ", Completion:", round(res$completion_rate, 3), ")\n")
+  }
+  
+  cat("\n2. Monotonicity check (higher c_poc should generally decrease PoC rate):\n")
+  for (i in 2:length(calibration_results)) {
+    prev_rate <- calibration_results[[i-1]]$poc_detection_rate
+    curr_rate <- calibration_results[[i]]$poc_detection_rate
+    change <- curr_rate - prev_rate
+    direction <- if (change <= 0) "✓ Non-increasing" else "⚠ Increased"
+    cat("   c_poc:", calibration_results[[i-1]]$c_poc, "→", calibration_results[[i]]$c_poc,
+        ":", direction, "(Δ =", round(change, 4), ")\n")
+  }
+  cat("\n=== END SANITY CHECKS ===\n")
   
   return(list(
     calibration_results = calibration_results,
     optimal_c_poc = optimal_c_poc,
     target_rate = target_rate,
     achieved_rate = poc_rates[optimal_idx],
+    control_achieved = control_achieved,
     c_poc_candidates = c_poc_candidates,
     poc_detection_rates = poc_rates
   ))
@@ -326,36 +458,64 @@ plot_calibration_curve <- function(calibration_results, file_path = NULL) {
   # Extract data for plotting
   c_poc_values <- sapply(calibration_results$calibration_results, function(x) x$c_poc)
   poc_rates <- sapply(calibration_results$calibration_results, function(x) x$poc_detection_rate)
+  poc_se <- sapply(calibration_results$calibration_results, function(x) x$poc_se)
+  completion_rates <- sapply(calibration_results$calibration_results, function(x) x$completion_rate)
   
   plot_data <- data.frame(
     c_poc = c_poc_values,
-    poc_detection_rate = poc_rates
+    poc_detection_rate = poc_rates,
+    poc_se = poc_se,
+    completion_rate = completion_rates,
+    poc_ci_lower = pmax(0, poc_rates - 1.96 * poc_se),
+    poc_ci_upper = pmin(1, poc_rates + 1.96 * poc_se)
   )
   
   p <- ggplot(plot_data, aes(x = c_poc, y = poc_detection_rate)) +
-    geom_line(size = 1.2, color = "#2E86AB") +
-    geom_point(size = 3, color = "#A23B72") +
+    geom_ribbon(aes(ymin = poc_ci_lower, ymax = poc_ci_upper), 
+                fill = "#2E86AB", alpha = 0.2) +
+    geom_line(aes(y = completion_rate, color = "Completion Rate"), 
+              size = 1, linetype = "dotted") +
+    geom_line(aes(color = "PoC Detection Rate"), size = 1.2) +
+    geom_point(aes(color = "PoC Detection Rate"), size = 3) +
     geom_hline(yintercept = 0.10, linetype = "dashed", color = "red", size = 1) +
-    geom_vline(xintercept = calibration_results$optimal_c_poc, linetype = "dashed", color = "blue", size = 1) +
+    geom_vline(xintercept = calibration_results$optimal_c_poc, 
+               linetype = "dashed", color = "blue", size = 1) +
+    scale_color_manual(values = c("PoC Detection Rate" = "#2E86AB", 
+                                  "Completion Rate" = "#7209B7")) +
     labs(
-      title = "PoC Calibration Curve",
-      subtitle = paste0("Optimal C_poc = ", calibration_results$optimal_c_poc, 
-                       " (Target: 10% PoC detection rate)"),
+      title = "PoC Calibration Curve (Null/Flat Scenario)",
+      subtitle = paste0(
+        if (calibration_results$control_achieved) {
+          paste0("✓ Optimal C_poc = ", calibration_results$optimal_c_poc, 
+                 " (smallest achieving ≤10% Type I error)")
+        } else {
+          paste0("⚠ Selected C_poc = ", calibration_results$optimal_c_poc, 
+                 " (control NOT achieved - consider higher values)")
+        },
+        "\nAchieved: ", round(calibration_results$achieved_rate * 100, 1), 
+        "% (SE: ", round(calibration_results$calibration_results[[which(
+          sapply(calibration_results$calibration_results, function(x) x$c_poc) == 
+            calibration_results$optimal_c_poc
+        )]]$poc_se * 100, 1), "%)"
+      ),
       x = "C_poc Threshold",
-      y = "PoC Detection Rate",
-      caption = "Red line: Target 10% Type I error rate\nBlue line: Optimal C_poc"
+      y = "Rate",
+      color = "",
+      caption = "Red line: Target 10% Type I error rate | Blue line: Selected C_poc\nShaded area: 95% CI (Monte Carlo SE) | Dotted line: Trial completion rate"
     ) +
     theme_bw(base_size = 14) +
     theme(
       plot.title = element_text(hjust = 0.5, face = "bold"),
-      plot.subtitle = element_text(hjust = 0.5),
-      panel.grid.minor = element_blank()
+      plot.subtitle = element_text(hjust = 0.5, size = 11),
+      panel.grid.minor = element_blank(),
+      legend.position = "top"
     ) +
-    scale_y_continuous(labels = scales::percent_format(), limits = c(0, max(poc_rates) * 1.1)) +
+    scale_y_continuous(labels = scales::percent_format(), 
+                      limits = c(0, max(c(poc_rates + 2*poc_se, completion_rates)) * 1.1)) +
     scale_x_continuous(breaks = c_poc_values)
   
   if (!is.null(file_path)) {
-    ggsave(file_path, p, width = 10, height = 6, dpi = 300)
+    ggsave(file_path, p, width = 10, height = 7, dpi = 300)
     cat("Calibration curve saved to:", file_path, "\n")
   }
   
@@ -417,20 +577,33 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
   
   # Results table
   cat("Detailed Results by C_poc:\n")
-  cat("--------------------------------------------------------------------------------\n")
-  cat(sprintf("%-10s | %-20s | %-25s | %-15s\n", "C_poc", "PoC Detection Rate", "Early Termination Rate", "Status"))
-  cat("--------------------------------------------------------------------------------\n")
+  cat("--------------------------------------------------------------------------------------------------------\n")
+  cat(sprintf("%-8s | %-22s | %-20s | %-20s | %-12s\n", 
+              "C_poc", "PoC Detection Rate", "Completion Rate", "PoC | Completed", "Status"))
+  cat("--------------------------------------------------------------------------------------------------------\n")
   
   for (i in seq_along(calibration_results$calibration_results)) {
     res <- calibration_results$calibration_results[[i]]
     status <- if (res$c_poc == calibration_results$optimal_c_poc) "OPTIMAL" else ""
-    cat(sprintf("%-10.2f | %-20s | %-25s | %-15s\n", 
+    
+    # Format with MC standard error
+    poc_str <- sprintf("%.1f%% ± %.1f%%", 
+                       res$poc_detection_rate * 100, 
+                       res$poc_se * 100)
+    completion_str <- sprintf("%.1f%%", res$completion_rate * 100)
+    poc_completed_str <- sprintf("%.1f%%", res$poc_rate_among_completed * 100)
+    
+    cat(sprintf("%-8.2f | %-22s | %-20s | %-20s | %-12s\n", 
                 res$c_poc, 
-                paste0(sprintf("%.1f%%", res$poc_detection_rate * 100), " (n=", sum(!sapply(res$simulation_results, function(x) x$metrics$terminated_early)), ")"),
-                sprintf("%.1f%%", res$early_termination_rate * 100),
+                poc_str,
+                completion_str,
+                poc_completed_str,
                 status))
   }
-  cat("--------------------------------------------------------------------------------\n\n")
+  cat("--------------------------------------------------------------------------------------------------------\n")
+  cat("Note: PoC Detection Rate = Pr(PoC detected) across ALL trials (including early terminated)\n")
+  cat("      PoC | Completed = Pr(PoC detected | trial completed without early termination)\n")
+  cat("      Standard errors are Monte Carlo SE = sqrt(p*(1-p)/N)\n\n")
   
   # Section 3: Early Termination Analysis
   cat("================================================================================\n")
@@ -555,10 +728,21 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
   )]]
   
   cat("Based on the calibration results:\n\n")
-  cat("1. Optimal C_poc Threshold:\n")
-  cat("   Use C_poc =", calibration_results$optimal_c_poc, "for future trials\n")
-  cat("   This achieves a", sprintf("%.1f%%", calibration_results$achieved_rate * 100), 
-      "Type I error rate (target: 10%)\n\n")
+  
+  if (calibration_results$control_achieved) {
+    cat("1. ✓ Type I Error Control Status: ACHIEVED\n")
+    cat("   Selected C_poc =", calibration_results$optimal_c_poc, "\n")
+    cat("   Selection criterion: Smallest C_poc achieving ≤10% Type I error\n")
+    cat("   Achieved Type I error rate:", sprintf("%.1f%%", calibration_results$achieved_rate * 100), 
+        "(target: ≤10%)\n\n")
+  } else {
+    cat("1. ✗ Type I Error Control Status: NOT ACHIEVED\n")
+    cat("   Selected C_poc =", calibration_results$optimal_c_poc, "(largest tested)\n")
+    cat("   ⚠ WARNING: This still exceeds the 10% target!\n")
+    cat("   Achieved Type I error rate:", sprintf("%.1f%%", calibration_results$achieved_rate * 100), 
+        "(target: ≤10%)\n")
+    cat("   RECOMMENDATION: Test higher C_poc values (e.g., 0.96, 0.97, 0.98, 0.99)\n\n")
+  }
   
   cat("2. Expected Trial Characteristics:\n")
   cat("   - Early termination rate:", sprintf("%.1f%%", optimal_result$early_termination_rate * 100), "\n")

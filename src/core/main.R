@@ -48,7 +48,24 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
         n_next_stage[1:remainder] <- n_next_stage[1:remainder] + 1
       }
     } else {
-      n_next_stage <- round(alloc_probs * trial_config$cohort_size)
+      # Adaptive allocation: ensure sum equals cohort_size exactly
+      # Use floor + distribute remainder to avoid rounding errors
+      n_exact <- alloc_probs * trial_config$cohort_size
+      n_next_stage <- floor(n_exact)
+      remainder <- trial_config$cohort_size - sum(n_next_stage)
+      
+      # Distribute remainder to doses with largest fractional parts
+      if (remainder > 0) {
+        fractional <- n_exact - n_next_stage
+        top_indices <- order(fractional, decreasing = TRUE)[1:remainder]
+        n_next_stage[top_indices] <- n_next_stage[top_indices] + 1
+      }
+    }
+    
+    # INVARIANT CHECK: Ensure cohort size sums correctly
+    if (sum(n_next_stage) != trial_config$cohort_size) {
+      stop(paste("Internal error: Stage", stage, "allocation sums to", sum(n_next_stage),
+                 "but cohort_size is", trial_config$cohort_size))
     }
 
     # Generate stage-specific seed if base seed is provided
@@ -108,12 +125,24 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
     }
 
     # Step 4: Early Termination Check (CORRECT PLACEMENT - after interim analysis, before adaptive randomization)
+    # GROUP-SEQUENTIAL DESIGN: Check if A is empty after interim analysis of stage k
+    # If A is empty, stop BEFORE enrolling stage k+1
+    # Sample size at termination = stage * cohort_size (already enrolled through current stage)
     if (verbose) {
       cat("Workflow: Step 4 - Early Termination Check
 ")
     }
     if (check_early_termination(admissible_set, trial_config)) {
       termination_info <- handle_trial_termination(admissible_set, stage, trial_config)
+      
+      # INVARIANT VALIDATION: Check sample size at termination
+      N_enrolled <- nrow(all_data)
+      expected_N <- stage * trial_config$cohort_size
+      if (N_enrolled != expected_N) {
+        warning(paste("Sample size mismatch at early termination:",
+                     "Expected", expected_N, "but enrolled", N_enrolled))
+      }
+      
       return(list(
         final_od = NA,
         all_data = all_data,
@@ -151,6 +180,14 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
 ")
   }
   final_selection <- select_final_od_with_poc(admissible_set, posterior_summaries, trial_config, verbose)
+
+  # INVARIANT VALIDATION: Check sample size for completed trial
+  N_enrolled <- nrow(all_data)
+  expected_N <- trial_config$n_stages * trial_config$cohort_size
+  if (N_enrolled != expected_N) {
+    warning(paste("Sample size mismatch for completed trial:",
+                 "Expected", expected_N, "but enrolled", N_enrolled))
+  }
 
   return(list(
     final_od = final_selection$optimal_dose,

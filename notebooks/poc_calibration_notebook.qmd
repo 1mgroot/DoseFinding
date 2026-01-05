@@ -189,6 +189,11 @@ print(p_null)
 
 This section runs the calibration process to find the optimal C_poc threshold.
 
+**Note on Output Verbosity:**
+- Debug output is minimal by default to avoid console overflow in RStudio
+- Only shows first 3 simulations for the first c_poc candidate
+- Set `debug_early_termination = TRUE` in the function call below for more detailed examples
+
 ```{r calibration}
 # Run C_poc calibration
 cat("Starting C_poc calibration...\n")
@@ -199,7 +204,9 @@ calibration_results <- calibrate_c_poc(
   null_scenario = null_scenario,
   c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
   n_simulations = calibration_params$n_simulations,
-  base_config = trial_config
+  base_config = trial_config,
+  debug_early_termination = FALSE,  # Set to TRUE for detailed early termination examples
+  max_debug_cases_per_candidate = 2  # Number of debug examples per c_poc (if debug enabled)
 )
 
 end_time <- Sys.time()
