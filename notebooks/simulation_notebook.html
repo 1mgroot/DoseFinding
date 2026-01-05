@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.39">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Bayesian Dose-Finding Trial Simulation</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="simulation_notebook_files/libs/clipboard/clipboard.min.js"></script>
+<script src="simulation_notebook_files/libs/quarto-html/quarto.js"></script>
+<script src="simulation_notebook_files/libs/quarto-html/popper.min.js"></script>
+<script src="simulation_notebook_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="simulation_notebook_files/libs/quarto-html/anchor.min.js"></script>
+<link href="simulation_notebook_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="simulation_notebook_files/libs/quarto-html/quarto-syntax-highlighting-e26003cea8cd680ca0c55a263523d882.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="simulation_notebook_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="simulation_notebook_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="simulation_notebook_files/libs/bootstrap/bootstrap-973236bd072d72a04ee9cd82dcc9cb29.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Bayesian Dose-Finding Trial Simulation</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This document provides an interactive way to run the Bayesian dose-finding trial simulation. You can modify the simulation parameters in the “Configuration” section and then run the code chunks to see the results.</p>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<p>This chunk loads the necessary libraries and source files.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(knitr) <span class="co"># For creating formatted tables</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Set working directory to project root for consistent paths</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">basename</span>(<span class="fu">getwd</span>()) <span class="sc">==</span> <span class="st">"notebooks"</span>) {</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setwd</span>(<span class="st">".."</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/config.R"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'dplyr'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    filter, lag</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Iso 0.0-21</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+     An "infelicity" in the function ufit() (whereby 
+     it was all too easy to conflate the location of 
+     the mode with its index in the entries of the 
+     "x" argument) has been corrected.  To this end, 
+     ufit() now has arguments "lmode" (the location 
+     of the mode), and "imode" (its index).  At most 
+     one of these arguments should be specified.  See 
+     the help for ufit().</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/utils/helpers.R"</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/utils/plotting_extensions.R"</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/simulate_data.R"</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/model_utils.R"</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/decision/dose_decision.R"</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/main.R"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="configuration" class="level2">
+<h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
+<p>Modify the simulation parameters in this section. I have adjusted these values to create a more dynamic scenario where multiple doses are likely to be admissible in the early stages.</p>
+<p><strong>Calibration Note</strong>: The <code>c_poc</code> parameter has been calibrated using null/flat scenarios to control Type I error at approximately 10%. The optimal value of <code>c_poc = 0.95</code> achieves a 7.8% false positive rate. For stricter Type I error control matching the calibration conditions, consider using the threshold configuration from <code>poc_calibration_notebook.qmd</code> (phi_T=0.3, c_T=0.3, phi_E=0.25, c_E=0.3).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Trial configuration</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Note: These parameters allow for interactive exploration with different scenarios.</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># For calibrated Type I error control (~10%), use the stricter thresholds from </span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># poc_calibration_notebook.qmd: phi_T=0.3, c_T=0.3, phi_E=0.25, c_E=0.3, phi_I=0.2, c_I=0.2</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>trial_config <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">dose_levels =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>),</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_stages =</span> <span class="dv">5</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">cohort_size =</span> <span class="dv">15</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_T =</span> <span class="fl">0.35</span>, <span class="co"># Toxicity threshold (relaxed for exploration)</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_T =</span> <span class="fl">0.5</span>,   </span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_E =</span> <span class="fl">0.1</span>, <span class="co"># Efficacy threshold (relaxed for exploration)</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_E =</span> <span class="fl">0.5</span>,   </span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_I =</span> <span class="fl">0.20</span>, <span class="co"># Immune response threshold</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_I =</span> <span class="fl">0.5</span>,   </span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  <span class="co"># PoC parameters (calibrated value from null/flat scenario testing)</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_poc =</span> <span class="fl">0.95</span>,  <span class="co"># Calibrated to achieve ~7.8% Type I error (target ≤10%)</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">delta_poc =</span> <span class="fl">0.8</span>,  <span class="co"># Threshold for PoC pairwise comparison</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Early termination parameters</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">enable_early_termination =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">log_early_termination =</span> <span class="cn">TRUE</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="co">#cohort size may vary on diff stage (future work)</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Data simulation parameters (designed for a more interesting trial)</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>p_YI <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fl">0.10</span>, <span class="fl">0.30</span>, <span class="fl">0.50</span>, <span class="fl">0.60</span>, <span class="fl">0.70</span>) <span class="co"># Immune response probability</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>p_YT_given_I <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>  <span class="co"># I=0 (No Immune Response)</span></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>  <span class="fl">0.05</span>, <span class="fl">0.10</span>, <span class="fl">0.12</span>, <span class="fl">0.18</span>, <span class="fl">0.25</span>,</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>  <span class="co"># I=1 (Immune Response)</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>  <span class="fl">0.08</span>, <span class="fl">0.12</span>, <span class="fl">0.15</span>, <span class="fl">0.25</span>, <span class="fl">0.35</span></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>), <span class="at">nrow =</span> <span class="dv">5</span>, <span class="at">ncol =</span> <span class="dv">2</span>)</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>p_YE_given_I <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>  <span class="co"># I=0 (No Immune Response)</span></span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>  <span class="fl">0.10</span>, <span class="fl">0.20</span>, <span class="fl">0.35</span>, <span class="fl">0.45</span>, <span class="fl">0.50</span>, </span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>  <span class="co"># I=1 (Immune Response)</span></span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>  <span class="fl">0.30</span>, <span class="fl">0.50</span>, <span class="fl">0.70</span>, <span class="fl">0.80</span>, <span class="fl">0.75</span>  </span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>), <span class="at">nrow =</span> <span class="dv">5</span>, <span class="at">ncol =</span> <span class="dv">2</span>)</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a>rho0 <span class="ot">&lt;-</span> <span class="fl">1.5</span></span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>rho1 <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a><span class="co"># Utility table</span></span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a><span class="co"># Rows: Efficacy (0, 1)</span></span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a><span class="co"># Columns: Toxicity (0, 1)</span></span>
+<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a><span class="co"># Slices: Immune Response (0, 1)</span></span>
+<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>utility_table <span class="ot">&lt;-</span> <span class="fu">array</span>(<span class="dv">0</span>, <span class="at">dim =</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>), <span class="at">dimnames =</span> <span class="fu">list</span>(</span>
+<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>  <span class="at">E =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>),</span>
+<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>  <span class="at">T =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>),</span>
+<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>  <span class="at">I =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">0</span>   <span class="co"># E=0, T=0, I=0</span></span>
+<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">80</span>  <span class="co"># E=1, T=0, I=0</span></span>
+<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">0</span>   <span class="co"># E=0, T=1, I=0</span></span>
+<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">30</span>  <span class="co"># E=1, T=1, I=0</span></span>
+<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">10</span>  <span class="co"># E=0, T=0, I=1</span></span>
+<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">100</span> <span class="co"># E=1, T=0, I=1</span></span>
+<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">0</span>   <span class="co"># E=0, T=1, I=1</span></span>
+<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">40</span>  <span class="co"># E=1, T=1, I=1</span></span>
+<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a>trial_config<span class="sc">$</span>utility_table <span class="ot">&lt;-</span> utility_table</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="simulation" class="level2">
+<h2 class="anchored" data-anchor-id="simulation">Simulation</h2>
+<p>This chunk runs the multi-stage trial simulation by calling the <code>run_trial_simulation</code> function. The simulation follows the workflow specified in TRIAL_DESIGN.md Section 7.1:</p>
+<ol type="1">
+<li><strong>Stage 1</strong>: Equal randomization to all dose levels</li>
+<li><strong>Interim Analysis</strong>: Update admissible set based on posterior probabilities</li>
+<li><strong>Early Termination Check</strong>: Terminate if admissible set is empty (checked after interim analysis, before adaptive randomization)</li>
+<li><strong>Adaptive Randomization</strong>: Allocate patients based on utility scores (Stages 2+ only, only if trial continues)</li>
+<li><strong>Final Selection</strong>: Choose OD with highest utility from admissible set + PoC validation</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>results <span class="ot">&lt;-</span> <span class="fu">run_trial_simulation</span>(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+--- Stage 1 ---
+Workflow: Step 1 - Equal randomization to all dose levels
+Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+
+--- Admissibility Check ---
+Summary: Toxicity marginal means: 0.252 0.286 0.371 0.551 0.644 
+Summary: Efficacy marginal means: 0.171 0.256 0.358 0.522 0.687 
+Summary: Immune response means: 0.158 0.239 0.531 0.604 0.684 
+Dose 1 : P(Tox &lt;  0.35 ) =  0.84 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.76 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.31 (Threshold:  0.5 )
+Dose 2 : P(Tox &lt;  0.35 ) =  0.75 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.96 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.55 (Threshold:  0.5 )
+Dose 3 : P(Tox &lt;  0.35 ) =  0.44 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.99 (Threshold:  0.5 )
+Dose 4 : P(Tox &lt;  0.35 ) =  0.04 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 5 : P(Tox &lt;  0.35 ) =  0 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+--- End Admissibility Check ---
+Admissible set: 2 
+Workflow: Step 4 - Early Termination Check
+
+--- Utility Score Calculations ---
+Utility Table Reference:
+  I=0 (No Immune Response):
+    E=0, T=0: 0   E=1, T=0: 80 
+    E=0, T=1: 0   E=1, T=1: 30 
+  I=1 (Immune Response):
+    E=0, T=0: 10   E=1, T=0: 100 
+    E=0, T=1: 0   E=1, T=1: 40 
+
+Dose 1 Utility Calculation:
+  Immune response probability (π_I): 0.158 
+  Toxicity given I=0 (π_T|I=0): 0.233 
+  Toxicity given I=1 (π_T|I=1): 0.356 
+  Efficacy given I=0 (π_E|I=0): 0.141 
+  Efficacy given I=1 (π_E|I=1): 0.332 
+  Probability distributions:
+    P(T=0|I=0): 0.767 P(T=1|I=0): 0.233 
+    P(T=0|I=1): 0.644 P(T=1|I=1): 0.356 
+    P(E=0|I=0): 0.859 P(E=1|I=0): 0.141 
+    P(E=0|I=1): 0.668 P(E=1|I=1): 0.332 
+  Expected utility given I=0: 9.61 
+  Expected utility given I=1: 30.43 
+  Total expected utility: 12.89 
+
+Dose 2 Utility Calculation:
+  Immune response probability (π_I): 0.239 
+  Toxicity given I=0 (π_T|I=0): 0.252 
+  Toxicity given I=1 (π_T|I=1): 0.393 
+  Efficacy given I=0 (π_E|I=0): 0.214 
+  Efficacy given I=1 (π_E|I=1): 0.387 
+  Probability distributions:
+    P(T=0|I=0): 0.748 P(T=1|I=0): 0.252 
+    P(T=0|I=1): 0.607 P(T=1|I=1): 0.393 
+    P(E=0|I=0): 0.786 P(E=1|I=0): 0.214 
+    P(E=0|I=1): 0.613 P(E=1|I=1): 0.387 
+  Expected utility given I=0: 14.41 
+  Expected utility given I=1: 33.29 
+  Total expected utility: 18.93 
+
+Dose 3 Utility Calculation:
+  Immune response probability (π_I): 0.531 
+  Toxicity given I=0 (π_T|I=0): 0.326 
+  Toxicity given I=1 (π_T|I=1): 0.411 
+  Efficacy given I=0 (π_E|I=0): 0.302 
+  Efficacy given I=1 (π_E|I=1): 0.405 
+  Probability distributions:
+    P(T=0|I=0): 0.674 P(T=1|I=0): 0.326 
+    P(T=0|I=1): 0.589 P(T=1|I=1): 0.411 
+    P(E=0|I=0): 0.698 P(E=1|I=0): 0.302 
+    P(E=0|I=1): 0.595 P(E=1|I=1): 0.405 
+  Expected utility given I=0: 19.25 
+  Expected utility given I=1: 34.05 
+  Total expected utility: 27.11 
+
+Dose 4 Utility Calculation:
+  Immune response probability (π_I): 0.604 
+  Toxicity given I=0 (π_T|I=0): 0.52 
+  Toxicity given I=1 (π_T|I=1): 0.571 
+  Efficacy given I=0 (π_E|I=0): 0.46 
+  Efficacy given I=1 (π_E|I=1): 0.562 
+  Probability distributions:
+    P(T=0|I=0): 0.48 P(T=1|I=0): 0.52 
+    P(T=0|I=1): 0.429 P(T=1|I=1): 0.571 
+    P(E=0|I=0): 0.54 P(E=1|I=0): 0.46 
+    P(E=0|I=1): 0.438 P(E=1|I=1): 0.562 
+  Expected utility given I=0: 24.83 
+  Expected utility given I=1: 38.8 
+  Total expected utility: 33.28 
+
+Dose 5 Utility Calculation:
+  Immune response probability (π_I): 0.684 
+  Toxicity given I=0 (π_T|I=0): 0.611 
+  Toxicity given I=1 (π_T|I=1): 0.659 
+  Efficacy given I=0 (π_E|I=0): 0.492 
+  Efficacy given I=1 (π_E|I=1): 0.778 
+  Probability distributions:
+    P(T=0|I=0): 0.389 P(T=1|I=0): 0.611 
+    P(T=0|I=1): 0.341 P(T=1|I=1): 0.659 
+    P(E=0|I=0): 0.508 P(E=1|I=0): 0.492 
+    P(E=0|I=1): 0.222 P(E=1|I=1): 0.778 
+  Expected utility given I=0: 24.33 
+  Expected utility given I=1: 47.78 
+  Total expected utility: 40.37 
+
+Utility Summary Table:
+Dose | Immune | Tox(I=0) | Tox(I=1) | Eff(I=0) | Eff(I=1) | U(I=0) | U(I=1) | Total U
+-----|--------|----------|----------|----------|----------|--------|--------|--------
+   1 |  0.158 |    0.233 |    0.356 |    0.141 |    0.332 |    9.6 |   30.4 |    12.9
+   2 |  0.239 |    0.252 |    0.393 |    0.214 |    0.387 |   14.4 |   33.3 |    18.9
+   3 |  0.531 |    0.326 |    0.411 |    0.302 |    0.405 |   19.3 |   34.1 |    27.1
+   4 |  0.604 |    0.520 |    0.571 |    0.460 |    0.562 |   24.8 |   38.8 |    33.3
+   5 |  0.684 |    0.611 |    0.659 |    0.492 |    0.778 |   24.3 |   47.8 |    40.4
+
+--- End Utility Calculations ---
+Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+Allocation probabilities for next stage: 0 1 0 0 0 
+
+--- Stage 2 ---
+Workflow: Step 1 - Adaptive randomization (using probabilities from previous stage)
+Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+
+--- Admissibility Check ---
+Summary: Toxicity marginal means: 0.104 0.12 0.302 0.543 0.639 
+Summary: Efficacy marginal means: 0.121 0.158 0.3 0.516 0.68 
+Summary: Immune response means: 0.144 0.216 0.526 0.6 0.68 
+Dose 1 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.59 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.27 (Threshold:  0.5 )
+Dose 2 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.82 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.53 (Threshold:  0.5 )
+Dose 3 : P(Tox &lt;  0.35 ) =  0.67 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.99 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.98 (Threshold:  0.5 )
+Dose 4 : P(Tox &lt;  0.35 ) =  0.07 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 5 : P(Tox &lt;  0.35 ) =  0.01 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+--- End Admissibility Check ---
+Admissible set: 2 3 
+Workflow: Step 4 - Early Termination Check
+
+--- Utility Score Calculations ---
+Utility Table Reference:
+  I=0 (No Immune Response):
+    E=0, T=0: 0   E=1, T=0: 80 
+    E=0, T=1: 0   E=1, T=1: 30 
+  I=1 (Immune Response):
+    E=0, T=0: 10   E=1, T=0: 100 
+    E=0, T=1: 0   E=1, T=1: 40 
+
+Dose 1 Utility Calculation:
+  Immune response probability (π_I): 0.144 
+  Toxicity given I=0 (π_T|I=0): 0.082 
+  Toxicity given I=1 (π_T|I=1): 0.233 
+  Efficacy given I=0 (π_E|I=0): 0.102 
+  Efficacy given I=1 (π_E|I=1): 0.233 
+  Probability distributions:
+    P(T=0|I=0): 0.918 P(T=1|I=0): 0.082 
+    P(T=0|I=1): 0.767 P(T=1|I=1): 0.233 
+    P(E=0|I=0): 0.898 P(E=1|I=0): 0.102 
+    P(E=0|I=1): 0.767 P(E=1|I=1): 0.233 
+  Expected utility given I=0: 7.71 
+  Expected utility given I=1: 25.93 
+  Total expected utility: 10.33 
+
+Dose 2 Utility Calculation:
+  Immune response probability (π_I): 0.216 
+  Toxicity given I=0 (π_T|I=0): 0.083 
+  Toxicity given I=1 (π_T|I=1): 0.256 
+  Efficacy given I=0 (π_E|I=0): 0.132 
+  Efficacy given I=1 (π_E|I=1): 0.255 
+  Probability distributions:
+    P(T=0|I=0): 0.917 P(T=1|I=0): 0.083 
+    P(T=0|I=1): 0.744 P(T=1|I=1): 0.256 
+    P(E=0|I=0): 0.868 P(E=1|I=0): 0.132 
+    P(E=0|I=1): 0.745 P(E=1|I=1): 0.255 
+  Expected utility given I=0: 9.99 
+  Expected utility given I=1: 27.15 
+  Total expected utility: 13.7 
+
+Dose 3 Utility Calculation:
+  Immune response probability (π_I): 0.526 
+  Toxicity given I=0 (π_T|I=0): 0.251 
+  Toxicity given I=1 (π_T|I=1): 0.348 
+  Efficacy given I=0 (π_E|I=0): 0.257 
+  Efficacy given I=1 (π_E|I=1): 0.34 
+  Probability distributions:
+    P(T=0|I=0): 0.749 P(T=1|I=0): 0.251 
+    P(T=0|I=1): 0.652 P(T=1|I=1): 0.348 
+    P(E=0|I=0): 0.743 P(E=1|I=0): 0.257 
+    P(E=0|I=1): 0.66 P(E=1|I=1): 0.34 
+  Expected utility given I=0: 17.32 
+  Expected utility given I=1: 31.2 
+  Total expected utility: 24.62 
+
+Dose 4 Utility Calculation:
+  Immune response probability (π_I): 0.6 
+  Toxicity given I=0 (π_T|I=0): 0.509 
+  Toxicity given I=1 (π_T|I=1): 0.566 
+  Efficacy given I=0 (π_E|I=0): 0.451 
+  Efficacy given I=1 (π_E|I=1): 0.557 
+  Probability distributions:
+    P(T=0|I=0): 0.491 P(T=1|I=0): 0.509 
+    P(T=0|I=1): 0.434 P(T=1|I=1): 0.566 
+    P(E=0|I=0): 0.549 P(E=1|I=0): 0.451 
+    P(E=0|I=1): 0.443 P(E=1|I=1): 0.557 
+  Expected utility given I=0: 24.6 
+  Expected utility given I=1: 38.74 
+  Total expected utility: 33.09 
+
+Dose 5 Utility Calculation:
+  Immune response probability (π_I): 0.68 
+  Toxicity given I=0 (π_T|I=0): 0.607 
+  Toxicity given I=1 (π_T|I=1): 0.654 
+  Efficacy given I=0 (π_E|I=0): 0.491 
+  Efficacy given I=1 (π_E|I=1): 0.768 
+  Probability distributions:
+    P(T=0|I=0): 0.393 P(T=1|I=0): 0.607 
+    P(T=0|I=1): 0.346 P(T=1|I=1): 0.654 
+    P(E=0|I=0): 0.509 P(E=1|I=0): 0.491 
+    P(E=0|I=1): 0.232 P(E=1|I=1): 0.768 
+  Expected utility given I=0: 24.38 
+  Expected utility given I=1: 47.46 
+  Total expected utility: 40.07 
+
+Utility Summary Table:
+Dose | Immune | Tox(I=0) | Tox(I=1) | Eff(I=0) | Eff(I=1) | U(I=0) | U(I=1) | Total U
+-----|--------|----------|----------|----------|----------|--------|--------|--------
+   1 |  0.144 |    0.082 |    0.233 |    0.102 |    0.233 |    7.7 |   25.9 |    10.3
+   2 |  0.216 |    0.083 |    0.256 |    0.132 |    0.255 |   10.0 |   27.2 |    13.7
+   3 |  0.526 |    0.251 |    0.348 |    0.257 |    0.340 |   17.3 |   31.2 |    24.6
+   4 |  0.600 |    0.509 |    0.566 |    0.451 |    0.557 |   24.6 |   38.7 |    33.1
+   5 |  0.680 |    0.607 |    0.654 |    0.491 |    0.768 |   24.4 |   47.5 |    40.1
+
+--- End Utility Calculations ---
+Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+Allocation probabilities for next stage: 0 0.3575546 0.6424454 0 0 
+
+--- Stage 3 ---
+Workflow: Step 1 - Adaptive randomization (using probabilities from previous stage)
+Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+
+--- Admissibility Check ---
+Summary: Toxicity marginal means: 0.082 0.097 0.242 0.531 0.638 
+Summary: Efficacy marginal means: 0.153 0.212 0.441 0.544 0.697 
+Summary: Immune response means: 0.17 0.295 0.557 0.618 0.683 
+Dose 1 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.74 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.4 (Threshold:  0.5 )
+Dose 2 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.97 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.88 (Threshold:  0.5 )
+Dose 3 : P(Tox &lt;  0.35 ) =  0.88 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 4 : P(Tox &lt;  0.35 ) =  0.08 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 5 : P(Tox &lt;  0.35 ) =  0.01 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+--- End Admissibility Check ---
+Admissible set: 2 3 
+Workflow: Step 4 - Early Termination Check
+
+--- Utility Score Calculations ---
+Utility Table Reference:
+  I=0 (No Immune Response):
+    E=0, T=0: 0   E=1, T=0: 80 
+    E=0, T=1: 0   E=1, T=1: 30 
+  I=1 (Immune Response):
+    E=0, T=0: 10   E=1, T=0: 100 
+    E=0, T=1: 0   E=1, T=1: 40 
+
+Dose 1 Utility Calculation:
+  Immune response probability (π_I): 0.17 
+  Toxicity given I=0 (π_T|I=0): 0.067 
+  Toxicity given I=1 (π_T|I=1): 0.155 
+  Efficacy given I=0 (π_E|I=0): 0.127 
+  Efficacy given I=1 (π_E|I=1): 0.277 
+  Probability distributions:
+    P(T=0|I=0): 0.933 P(T=1|I=0): 0.067 
+    P(T=0|I=1): 0.845 P(T=1|I=1): 0.155 
+    P(E=0|I=0): 0.873 P(E=1|I=0): 0.127 
+    P(E=0|I=1): 0.723 P(E=1|I=1): 0.277 
+  Expected utility given I=0: 9.71 
+  Expected utility given I=1: 31.24 
+  Total expected utility: 13.38 
+
+Dose 2 Utility Calculation:
+  Immune response probability (π_I): 0.295 
+  Toxicity given I=0 (π_T|I=0): 0.068 
+  Toxicity given I=1 (π_T|I=1): 0.165 
+  Efficacy given I=0 (π_E|I=0): 0.171 
+  Efficacy given I=1 (π_E|I=1): 0.311 
+  Probability distributions:
+    P(T=0|I=0): 0.932 P(T=1|I=0): 0.068 
+    P(T=0|I=1): 0.835 P(T=1|I=1): 0.165 
+    P(E=0|I=0): 0.829 P(E=1|I=0): 0.171 
+    P(E=0|I=1): 0.689 P(E=1|I=1): 0.311 
+  Expected utility given I=0: 13.07 
+  Expected utility given I=1: 33.79 
+  Total expected utility: 19.18 
+
+Dose 3 Utility Calculation:
+  Immune response probability (π_I): 0.557 
+  Toxicity given I=0 (π_T|I=0): 0.218 
+  Toxicity given I=1 (π_T|I=1): 0.259 
+  Efficacy given I=0 (π_E|I=0): 0.374 
+  Efficacy given I=1 (π_E|I=1): 0.494 
+  Probability distributions:
+    P(T=0|I=0): 0.782 P(T=1|I=0): 0.218 
+    P(T=0|I=1): 0.741 P(T=1|I=1): 0.259 
+    P(E=0|I=0): 0.626 P(E=1|I=0): 0.374 
+    P(E=0|I=1): 0.506 P(E=1|I=1): 0.494 
+  Expected utility given I=0: 25.82 
+  Expected utility given I=1: 45.46 
+  Total expected utility: 36.77 
+
+Dose 4 Utility Calculation:
+  Immune response probability (π_I): 0.618 
+  Toxicity given I=0 (π_T|I=0): 0.5 
+  Toxicity given I=1 (π_T|I=1): 0.55 
+  Efficacy given I=0 (π_E|I=0): 0.481 
+  Efficacy given I=1 (π_E|I=1): 0.583 
+  Probability distributions:
+    P(T=0|I=0): 0.5 P(T=1|I=0): 0.5 
+    P(T=0|I=1): 0.45 P(T=1|I=1): 0.55 
+    P(E=0|I=0): 0.519 P(E=1|I=0): 0.481 
+    P(E=0|I=1): 0.417 P(E=1|I=1): 0.583 
+  Expected utility given I=0: 26.45 
+  Expected utility given I=1: 40.96 
+  Total expected utility: 35.42 
+
+Dose 5 Utility Calculation:
+  Immune response probability (π_I): 0.683 
+  Toxicity given I=0 (π_T|I=0): 0.606 
+  Toxicity given I=1 (π_T|I=1): 0.653 
+  Efficacy given I=0 (π_E|I=0): 0.513 
+  Efficacy given I=1 (π_E|I=1): 0.782 
+  Probability distributions:
+    P(T=0|I=0): 0.394 P(T=1|I=0): 0.606 
+    P(T=0|I=1): 0.347 P(T=1|I=1): 0.653 
+    P(E=0|I=0): 0.487 P(E=1|I=0): 0.513 
+    P(E=0|I=1): 0.218 P(E=1|I=1): 0.782 
+  Expected utility given I=0: 25.49 
+  Expected utility given I=1: 48.32 
+  Total expected utility: 41.08 
+
+Utility Summary Table:
+Dose | Immune | Tox(I=0) | Tox(I=1) | Eff(I=0) | Eff(I=1) | U(I=0) | U(I=1) | Total U
+-----|--------|----------|----------|----------|----------|--------|--------|--------
+   1 |  0.170 |    0.067 |    0.155 |    0.127 |    0.277 |    9.7 |   31.2 |    13.4
+   2 |  0.295 |    0.068 |    0.165 |    0.171 |    0.311 |   13.1 |   33.8 |    19.2
+   3 |  0.557 |    0.218 |    0.259 |    0.374 |    0.494 |   25.8 |   45.5 |    36.8
+   4 |  0.618 |    0.500 |    0.550 |    0.481 |    0.583 |   26.5 |   41.0 |    35.4
+   5 |  0.683 |    0.606 |    0.653 |    0.513 |    0.782 |   25.5 |   48.3 |    41.1
+
+--- End Utility Calculations ---
+Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+Allocation probabilities for next stage: 0 0.3428895 0.6571105 0 0 
+
+--- Stage 4 ---
+Workflow: Step 1 - Adaptive randomization (using probabilities from previous stage)
+Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+
+--- Admissibility Check ---
+Summary: Toxicity marginal means: 0.071 0.083 0.191 0.524 0.632 
+Summary: Efficacy marginal means: 0.156 0.239 0.488 0.579 0.709 
+Summary: Immune response means: 0.173 0.306 0.58 0.628 0.694 
+Dose 1 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.74 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.39 (Threshold:  0.5 )
+Dose 2 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.99 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.9 (Threshold:  0.5 )
+Dose 3 : P(Tox &lt;  0.35 ) =  0.98 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 4 : P(Tox &lt;  0.35 ) =  0.11 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 5 : P(Tox &lt;  0.35 ) =  0.02 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+--- End Admissibility Check ---
+Admissible set: 2 3 
+Workflow: Step 4 - Early Termination Check
+
+--- Utility Score Calculations ---
+Utility Table Reference:
+  I=0 (No Immune Response):
+    E=0, T=0: 0   E=1, T=0: 80 
+    E=0, T=1: 0   E=1, T=1: 30 
+  I=1 (Immune Response):
+    E=0, T=0: 10   E=1, T=0: 100 
+    E=0, T=1: 0   E=1, T=1: 40 
+
+Dose 1 Utility Calculation:
+  Immune response probability (π_I): 0.173 
+  Toxicity given I=0 (π_T|I=0): 0.06 
+  Toxicity given I=1 (π_T|I=1): 0.125 
+  Efficacy given I=0 (π_E|I=0): 0.113 
+  Efficacy given I=1 (π_E|I=1): 0.357 
+  Probability distributions:
+    P(T=0|I=0): 0.94 P(T=1|I=0): 0.06 
+    P(T=0|I=1): 0.875 P(T=1|I=1): 0.125 
+    P(E=0|I=0): 0.887 P(E=1|I=0): 0.113 
+    P(E=0|I=1): 0.643 P(E=1|I=1): 0.357 
+  Expected utility given I=0: 8.73 
+  Expected utility given I=1: 38.67 
+  Total expected utility: 13.9 
+
+Dose 2 Utility Calculation:
+  Immune response probability (π_I): 0.306 
+  Toxicity given I=0 (π_T|I=0): 0.061 
+  Toxicity given I=1 (π_T|I=1): 0.132 
+  Efficacy given I=0 (π_E|I=0): 0.155 
+  Efficacy given I=1 (π_E|I=1): 0.43 
+  Probability distributions:
+    P(T=0|I=0): 0.939 P(T=1|I=0): 0.061 
+    P(T=0|I=1): 0.868 P(T=1|I=1): 0.132 
+    P(E=0|I=0): 0.845 P(E=1|I=0): 0.155 
+    P(E=0|I=1): 0.57 P(E=1|I=1): 0.43 
+  Expected utility given I=0: 11.89 
+  Expected utility given I=1: 44.49 
+  Total expected utility: 21.88 
+
+Dose 3 Utility Calculation:
+  Immune response probability (π_I): 0.58 
+  Toxicity given I=0 (π_T|I=0): 0.151 
+  Toxicity given I=1 (π_T|I=1): 0.22 
+  Efficacy given I=0 (π_E|I=0): 0.346 
+  Efficacy given I=1 (π_E|I=1): 0.593 
+  Probability distributions:
+    P(T=0|I=0): 0.849 P(T=1|I=0): 0.151 
+    P(T=0|I=1): 0.78 P(T=1|I=1): 0.22 
+    P(E=0|I=0): 0.654 P(E=1|I=0): 0.346 
+    P(E=0|I=1): 0.407 P(E=1|I=1): 0.593 
+  Expected utility given I=0: 25.05 
+  Expected utility given I=1: 54.65 
+  Total expected utility: 42.2 
+
+Dose 4 Utility Calculation:
+  Immune response probability (π_I): 0.628 
+  Toxicity given I=0 (π_T|I=0): 0.49 
+  Toxicity given I=1 (π_T|I=1): 0.544 
+  Efficacy given I=0 (π_E|I=0): 0.488 
+  Efficacy given I=1 (π_E|I=1): 0.634 
+  Probability distributions:
+    P(T=0|I=0): 0.51 P(T=1|I=0): 0.49 
+    P(T=0|I=1): 0.456 P(T=1|I=1): 0.544 
+    P(E=0|I=0): 0.512 P(E=1|I=0): 0.488 
+    P(E=0|I=1): 0.366 P(E=1|I=1): 0.634 
+  Expected utility given I=0: 27.08 
+  Expected utility given I=1: 44.37 
+  Total expected utility: 37.95 
+
+Dose 5 Utility Calculation:
+  Immune response probability (π_I): 0.694 
+  Toxicity given I=0 (π_T|I=0): 0.598 
+  Toxicity given I=1 (π_T|I=1): 0.646 
+  Efficacy given I=0 (π_E|I=0): 0.521 
+  Efficacy given I=1 (π_E|I=1): 0.793 
+  Probability distributions:
+    P(T=0|I=0): 0.402 P(T=1|I=0): 0.598 
+    P(T=0|I=1): 0.354 P(T=1|I=1): 0.646 
+    P(E=0|I=0): 0.479 P(E=1|I=0): 0.521 
+    P(E=0|I=1): 0.207 P(E=1|I=1): 0.793 
+  Expected utility given I=0: 26.08 
+  Expected utility given I=1: 49.26 
+  Total expected utility: 42.17 
+
+Utility Summary Table:
+Dose | Immune | Tox(I=0) | Tox(I=1) | Eff(I=0) | Eff(I=1) | U(I=0) | U(I=1) | Total U
+-----|--------|----------|----------|----------|----------|--------|--------|--------
+   1 |  0.173 |    0.060 |    0.125 |    0.113 |    0.357 |    8.7 |   38.7 |    13.9
+   2 |  0.306 |    0.061 |    0.132 |    0.155 |    0.430 |   11.9 |   44.5 |    21.9
+   3 |  0.580 |    0.151 |    0.220 |    0.346 |    0.593 |   25.1 |   54.6 |    42.2
+   4 |  0.628 |    0.490 |    0.544 |    0.488 |    0.634 |   27.1 |   44.4 |    37.9
+   5 |  0.694 |    0.598 |    0.646 |    0.521 |    0.793 |   26.1 |   49.3 |    42.2
+
+--- End Utility Calculations ---
+Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+Allocation probabilities for next stage: 0 0.3414691 0.6585309 0 0 
+
+--- Stage 5 ---
+Workflow: Step 1 - Adaptive randomization (using probabilities from previous stage)
+Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+
+--- Admissibility Check ---
+Summary: Toxicity marginal means: 0.061 0.072 0.22 0.536 0.635 
+Summary: Efficacy marginal means: 0.152 0.254 0.498 0.593 0.712 
+Summary: Immune response means: 0.168 0.321 0.581 0.635 0.699 
+Dose 1 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  0.74 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.38 (Threshold:  0.5 )
+Dose 2 : P(Tox &lt;  0.35 ) =  1 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  0.95 (Threshold:  0.5 )
+Dose 3 : P(Tox &lt;  0.35 ) =  0.97 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 4 : P(Tox &lt;  0.35 ) =  0.09 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+Dose 5 : P(Tox &lt;  0.35 ) =  0.01 (Threshold:  0.5 ) P(Eff &gt;  0.1 ) =  1 (Threshold:  0.5 ) P(Imm &gt;  0.2 ) =  1 (Threshold:  0.5 )
+--- End Admissibility Check ---
+Admissible set: 2 3 
+Workflow: Step 4 - Early Termination Check
+
+--- Utility Score Calculations ---
+Utility Table Reference:
+  I=0 (No Immune Response):
+    E=0, T=0: 0   E=1, T=0: 80 
+    E=0, T=1: 0   E=1, T=1: 30 
+  I=1 (Immune Response):
+    E=0, T=0: 10   E=1, T=0: 100 
+    E=0, T=1: 0   E=1, T=1: 40 
+
+Dose 1 Utility Calculation:
+  Immune response probability (π_I): 0.168 
+  Toxicity given I=0 (π_T|I=0): 0.05 
+  Toxicity given I=1 (π_T|I=1): 0.113 
+  Efficacy given I=0 (π_E|I=0): 0.104 
+  Efficacy given I=1 (π_E|I=1): 0.396 
+  Probability distributions:
+    P(T=0|I=0): 0.95 P(T=1|I=0): 0.05 
+    P(T=0|I=1): 0.887 P(T=1|I=1): 0.113 
+    P(E=0|I=0): 0.896 P(E=1|I=0): 0.104 
+    P(E=0|I=1): 0.604 P(E=1|I=1): 0.396 
+  Expected utility given I=0: 8.03 
+  Expected utility given I=1: 42.29 
+  Total expected utility: 13.79 
+
+Dose 2 Utility Calculation:
+  Immune response probability (π_I): 0.321 
+  Toxicity given I=0 (π_T|I=0): 0.051 
+  Toxicity given I=1 (π_T|I=1): 0.118 
+  Efficacy given I=0 (π_E|I=0): 0.134 
+  Efficacy given I=1 (π_E|I=1): 0.508 
+  Probability distributions:
+    P(T=0|I=0): 0.949 P(T=1|I=0): 0.051 
+    P(T=0|I=1): 0.882 P(T=1|I=1): 0.118 
+    P(E=0|I=0): 0.866 P(E=1|I=0): 0.134 
+    P(E=0|I=1): 0.492 P(E=1|I=1): 0.508 
+  Expected utility given I=0: 10.38 
+  Expected utility given I=1: 51.52 
+  Total expected utility: 23.6 
+
+Dose 3 Utility Calculation:
+  Immune response probability (π_I): 0.581 
+  Toxicity given I=0 (π_T|I=0): 0.181 
+  Toxicity given I=1 (π_T|I=1): 0.248 
+  Efficacy given I=0 (π_E|I=0): 0.332 
+  Efficacy given I=1 (π_E|I=1): 0.617 
+  Probability distributions:
+    P(T=0|I=0): 0.819 P(T=1|I=0): 0.181 
+    P(T=0|I=1): 0.752 P(T=1|I=1): 0.248 
+    P(E=0|I=0): 0.668 P(E=1|I=0): 0.332 
+    P(E=0|I=1): 0.383 P(E=1|I=1): 0.617 
+  Expected utility given I=0: 23.55 
+  Expected utility given I=1: 55.43 
+  Total expected utility: 42.06 
+
+Dose 4 Utility Calculation:
+  Immune response probability (π_I): 0.635 
+  Toxicity given I=0 (π_T|I=0): 0.5 
+  Toxicity given I=1 (π_T|I=1): 0.555 
+  Efficacy given I=0 (π_E|I=0): 0.485 
+  Efficacy given I=1 (π_E|I=1): 0.654 
+  Probability distributions:
+    P(T=0|I=0): 0.5 P(T=1|I=0): 0.5 
+    P(T=0|I=1): 0.445 P(T=1|I=1): 0.555 
+    P(E=0|I=0): 0.515 P(E=1|I=0): 0.485 
+    P(E=0|I=1): 0.346 P(E=1|I=1): 0.654 
+  Expected utility given I=0: 26.69 
+  Expected utility given I=1: 45.15 
+  Total expected utility: 38.4 
+
+Dose 5 Utility Calculation:
+  Immune response probability (π_I): 0.699 
+  Toxicity given I=0 (π_T|I=0): 0.601 
+  Toxicity given I=1 (π_T|I=1): 0.65 
+  Efficacy given I=0 (π_E|I=0): 0.518 
+  Efficacy given I=1 (π_E|I=1): 0.795 
+  Probability distributions:
+    P(T=0|I=0): 0.399 P(T=1|I=0): 0.601 
+    P(T=0|I=1): 0.35 P(T=1|I=1): 0.65 
+    P(E=0|I=0): 0.482 P(E=1|I=0): 0.518 
+    P(E=0|I=1): 0.205 P(E=1|I=1): 0.795 
+  Expected utility given I=0: 25.89 
+  Expected utility given I=1: 49.21 
+  Total expected utility: 42.2 
+
+Utility Summary Table:
+Dose | Immune | Tox(I=0) | Tox(I=1) | Eff(I=0) | Eff(I=1) | U(I=0) | U(I=1) | Total U
+-----|--------|----------|----------|----------|----------|--------|--------|--------
+   1 |  0.168 |    0.050 |    0.113 |    0.104 |    0.396 |    8.0 |   42.3 |    13.8
+   2 |  0.321 |    0.051 |    0.118 |    0.134 |    0.508 |   10.4 |   51.5 |    23.6
+   3 |  0.581 |    0.181 |    0.248 |    0.332 |    0.617 |   23.6 |   55.4 |    42.1
+   4 |  0.635 |    0.500 |    0.555 |    0.485 |    0.654 |   26.7 |   45.1 |    38.4
+   5 |  0.699 |    0.601 |    0.650 |    0.518 |    0.795 |   25.9 |   49.2 |    42.2
+
+--- End Utility Calculations ---
+Workflow: Step 5 - Final Selection with PoC validation
+
+--- PoC THRESHOLD CHECK ---
+Admissible doses: 2 3 
+Pairwise probabilities Pr(π_I1 &lt; delta_poc * π_Ij | D_n): 0.703 0.986 
+c_poc threshold: 0.95 
+P_final (doses passing PoC): 3 
+PoC detected (length(P_final) &gt; 0): TRUE 
+--- END PoC CHECK ---
+
+
+--- FINAL DOSE SELECTION WITH PoC ---
+Admissible doses A: 2 3 
+Utilities: 23.6 42.06 
+Pairwise probabilities Pr(π_I1 &lt; delta*π_Ij): 0.703 0.986 
+c_poc threshold: 0.95 
+P_final (PoC-eligible doses): 3 
+PoC detected: TRUE 
+Selected dose: 3 
+Selected utility: 42.06 
+Selection reason: PoC detected (P_final non-empty) 
+--- END FINAL SELECTION ---</code></pre>
+</div>
+</div>
+</section>
+<section id="results" class="level2">
+<h2 class="anchored" data-anchor-id="results">Results</h2>
+<p>This chunk prints the final optimal dose and displays the plots.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print final results</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="st">--- Final Results ---</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+--- Final Results ---</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (results<span class="sc">$</span>terminated_early) {</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Trial terminated early at stage:"</span>, results<span class="sc">$</span>termination_stage, <span class="st">"</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Reason:"</span>, results<span class="sc">$</span>termination_reason, <span class="st">"</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"No Optimal Dose selected</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Final OD:"</span>, results<span class="sc">$</span>final_od, <span class="st">"</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Final utility:"</span>, <span class="fu">round</span>(results<span class="sc">$</span>final_utility, <span class="dv">2</span>), <span class="st">"</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"PoC validated:"</span>, results<span class="sc">$</span>poc_validated, <span class="st">"</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"PoC probability:"</span>, <span class="fu">round</span>(results<span class="sc">$</span>poc_probability, <span class="dv">3</span>), <span class="st">"</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Selection reason:"</span>, results<span class="sc">$</span>selection_reason, <span class="st">"</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a><span class="st">"</span>)</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Final OD: 3 
+Final utility: 42.06 
+PoC validated: TRUE 
+PoC probability: 0.703 
+Selection reason: PoC detected (P_final non-empty) </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot final results and save them with modern styling</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_posterior_summary</span>(results<span class="sc">$</span>posterior_summaries<span class="sc">$</span>imm, <span class="at">title =</span> <span class="st">"Immune Response vs Dose (PAVA Adjusted)"</span>, <span class="at">file_path =</span> <span class="st">"results/plots/immune_response_refactored.png"</span>, <span class="at">style =</span> <span class="st">"modern"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_posterior_summary</span>(results<span class="sc">$</span>posterior_summaries<span class="sc">$</span>tox, <span class="at">title =</span> <span class="st">"Toxicity Rate by Dose and Immune Status"</span>, <span class="at">group_col =</span> <span class="st">"Y_I"</span>, <span class="at">file_path =</span> <span class="st">"results/plots/toxicity_refactored.png"</span>, <span class="at">style =</span> <span class="st">"modern"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_posterior_summary</span>(results<span class="sc">$</span>posterior_summaries<span class="sc">$</span>eff, <span class="at">title =</span> <span class="st">"Efficacy Rate by Dose and Immune Status"</span>, <span class="at">group_col =</span> <span class="st">"Y_I"</span>, <span class="at">file_path =</span> <span class="st">"results/plots/efficacy_refactored.png"</span>, <span class="at">style =</span> <span class="st">"modern"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-3.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create dose-response curves similar to reference code</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">=== Creating Dose-Response Curves ===</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== Creating Dose-Response Curves ===</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract true probabilities for dose-response curves</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>true_toxicity <span class="ot">&lt;-</span> p_YT_given_I[,<span class="dv">1</span>] <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> p_YI) <span class="sc">+</span> p_YT_given_I[,<span class="dv">2</span>] <span class="sc">*</span> p_YI</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>true_efficacy <span class="ot">&lt;-</span> p_YE_given_I[,<span class="dv">1</span>] <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> p_YI) <span class="sc">+</span> p_YE_given_I[,<span class="dv">2</span>] <span class="sc">*</span> p_YI</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate true utilities for all dose levels using true probabilities</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>true_utility <span class="ot">&lt;-</span> <span class="fu">sapply</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(trial_config<span class="sc">$</span>dose_levels), </span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>                       calculate_utility_from_true_probs, </span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>                       <span class="at">p_YI =</span> p_YI, </span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>                       <span class="at">p_YT_given_I =</span> p_YT_given_I, </span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>                       <span class="at">p_YE_given_I =</span> p_YE_given_I,</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>                       <span class="at">utility_table =</span> utility_table)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Create dose-response curves plot</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>dose_response_plot <span class="ot">&lt;-</span> <span class="fu">plot_dose_response_curves</span>(</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">toxicity_data =</span> true_toxicity,</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">efficacy_data =</span> true_efficacy,</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">utility_data =</span> true_utility,</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"True Dose-Response Curves"</span>,</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_path =</span> <span class="st">"results/plots/dose_response_curves.png"</span></span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(dose_response_plot)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-4.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot allocation probabilities over time with modern styling</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>p_alloc_time <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(results<span class="sc">$</span>all_alloc_probs, <span class="fu">aes</span>(<span class="at">x =</span> Stage, <span class="at">y =</span> Prob, <span class="at">color =</span> <span class="fu">factor</span>(Dose))) <span class="sc">+</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Allocation Probabilities Over Time"</span>, </span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Stage"</span>, <span class="at">y =</span> <span class="st">"Allocation Probability"</span>, </span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>       <span class="at">color =</span> <span class="st">"Dose Level"</span>) <span class="sc">+</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#999999"</span>, <span class="st">"#E69F00"</span>, <span class="st">"#56B4E9"</span>, <span class="st">"#009E73"</span>, <span class="st">"#CC79A7"</span>)) <span class="sc">+</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">panel.grid =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">hjust =</span> <span class="fl">0.5</span>),</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.line =</span> <span class="fu">element_line</span>(<span class="at">color =</span> <span class="st">"black"</span>))</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_alloc_time)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-5.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Visualize participant allocation with better formatting</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Count participants per dose level and stage</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>allocation_summary <span class="ot">&lt;-</span> results<span class="sc">$</span>all_data <span class="sc">%&gt;%</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(d, stage) <span class="sc">%&gt;%</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n_participants =</span> <span class="fu">n</span>(), <span class="at">.groups =</span> <span class="st">'drop'</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">d =</span> <span class="fu">factor</span>(d), <span class="at">stage =</span> <span class="fu">factor</span>(stage, <span class="at">levels =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>, <span class="at">labels =</span> <span class="fu">paste</span>(<span class="st">"Stage"</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>)))</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot 1: Allocation by dose level and stage with modern styling</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>p_alloc <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(allocation_summary, <span class="fu">aes</span>(<span class="at">x =</span> d, <span class="at">y =</span> n_participants, <span class="at">fill =</span> stage)) <span class="sc">+</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_bar</span>(<span class="at">stat =</span> <span class="st">"identity"</span>, <span class="at">position =</span> <span class="st">"dodge"</span>, <span class="at">width =</span> <span class="fl">0.7</span>, <span class="at">color =</span> <span class="st">"black"</span>) <span class="sc">+</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Participant Allocation by Dose Level and Stage"</span>, </span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Dose Level"</span>, <span class="at">y =</span> <span class="st">"Number of Participants"</span>,</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="fu">paste</span>(<span class="st">"Total participants:"</span>, <span class="fu">sum</span>(allocation_summary<span class="sc">$</span>n_participants))) <span class="sc">+</span></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">name =</span> <span class="st">"Stage"</span>, <span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#999999"</span>, <span class="st">"#E69F00"</span>, <span class="st">"#56B4E9"</span>, <span class="st">"#009E73"</span>, <span class="st">"#CC79A7"</span>)) <span class="sc">+</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">panel.grid =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">14</span>, <span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">hjust =</span> <span class="fl">0.5</span>),</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.line =</span> <span class="fu">element_line</span>(<span class="at">color =</span> <span class="st">"black"</span>))</span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_alloc)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-6.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot 2: Cumulative allocation over stages</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>cumulative_summary <span class="ot">&lt;-</span> allocation_summary <span class="sc">%&gt;%</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(d) <span class="sc">%&gt;%</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">cumulative_participants =</span> <span class="fu">cumsum</span>(n_participants)) <span class="sc">%&gt;%</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>p_cumulative <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(cumulative_summary, <span class="fu">aes</span>(<span class="at">x =</span> stage, <span class="at">y =</span> cumulative_participants, <span class="at">color =</span> d, <span class="at">group =</span> d)) <span class="sc">+</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">linewidth =</span> <span class="fl">1.5</span>) <span class="sc">+</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Cumulative Participant Allocation Over Stages"</span>, </span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Stage"</span>, <span class="at">y =</span> <span class="st">"Cumulative Number of Participants"</span>,</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>       <span class="at">color =</span> <span class="st">"Dose Level"</span>,</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="fu">paste</span>(<span class="st">"Final total participants:"</span>, <span class="fu">sum</span>(allocation_summary<span class="sc">$</span>n_participants))) <span class="sc">+</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"#999999"</span>, <span class="st">"#E69F00"</span>, <span class="st">"#56B4E9"</span>, <span class="st">"#009E73"</span>, <span class="st">"#CC79A7"</span>)) <span class="sc">+</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">16</span>) <span class="sc">+</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">panel.grid =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>        <span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">14</span>, <span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">hjust =</span> <span class="fl">0.5</span>),</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.line =</span> <span class="fu">element_line</span>(<span class="at">color =</span> <span class="st">"black"</span>))</span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_cumulative)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/results-7.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print summary statistics</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">=== ALLOCATION SUMMARY ===</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== ALLOCATION SUMMARY ===</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Total participants:"</span>, <span class="fu">sum</span>(allocation_summary<span class="sc">$</span>n_participants), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Total participants: 75 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Participants per stage:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Participants per stage:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>stage_totals <span class="ot">&lt;-</span> allocation_summary <span class="sc">%&gt;%</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(stage) <span class="sc">%&gt;%</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">total =</span> <span class="fu">sum</span>(n_participants), <span class="at">.groups =</span> <span class="st">'drop'</span>)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(stage_totals)) {</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"  Stage"</span>, i, <span class="st">":"</span>, stage_totals<span class="sc">$</span>total[i], <span class="st">"participants</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  Stage 1 : 15 participants
+  Stage 2 : 15 participants
+  Stage 3 : 15 participants
+  Stage 4 : 15 participants
+  Stage 5 : 15 participants</code></pre>
+</div>
+</div>
+</section>
+<section id="method-comparison-analysis" class="level2">
+<h2 class="anchored" data-anchor-id="method-comparison-analysis">Method Comparison Analysis</h2>
+<p>This section creates comparison plots similar to the reference code, showing how different methods or parameter settings would perform.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create example data for method comparison (similar to reference code)</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">=== Creating Method Comparison Plots ===</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== Creating Method Comparison Plots ===</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simulate different method performances</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>methods <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Current"</span>, <span class="st">"Proposed"</span>, <span class="st">"Reference"</span>)</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>scenarios <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"Scenario 1"</span>, <span class="st">"Scenario 2"</span>, <span class="st">"Scenario 3"</span>)</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="co"># OBD Selection Rate Comparison</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>obd_data <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">scenario =</span> scenarios,</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">method =</span> methods,</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>obd_data<span class="sc">$</span>obd_rate <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">45</span>, <span class="dv">60</span>, <span class="dv">55</span>, <span class="dv">70</span>, <span class="dv">65</span>, <span class="dv">50</span>, <span class="dv">80</span>, <span class="dv">85</span>, <span class="dv">75</span>)</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Create OBD selection plot</span></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>p_obd <span class="ot">&lt;-</span> <span class="fu">plot_method_comparison_bars</span>(</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>  obd_data,</span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">x_var =</span> <span class="st">"scenario"</span>, <span class="at">y_var =</span> <span class="st">"obd_rate"</span>, <span class="at">fill_var =</span> <span class="st">"method"</span>,</span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"OBD Selection Rate Comparison"</span>,</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">y_label =</span> <span class="st">"OBD Selection (%)"</span>,</span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">100</span>),</span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_path =</span> <span class="st">"results/plots/obd_selection_comparison.png"</span></span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
+ℹ Please use tidy evaluation idioms with `aes()`.
+ℹ See also `vignette("ggplot2-in-packages")` for more information.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_obd)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/method_comparison-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sample Size Comparison</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>sample_data <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">scenario =</span> scenarios,</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">method =</span> methods,</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>sample_data<span class="sc">$</span>avg_n <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">25</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">22</span>, <span class="dv">18</span>, <span class="dv">28</span>, <span class="dv">18</span>, <span class="dv">15</span>, <span class="dv">25</span>)</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Create sample size plot</span></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>p_sample <span class="ot">&lt;-</span> <span class="fu">plot_method_comparison_bars</span>(</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>  sample_data,</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">x_var =</span> <span class="st">"scenario"</span>, <span class="at">y_var =</span> <span class="st">"avg_n"</span>, <span class="at">fill_var =</span> <span class="st">"method"</span>,</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"Average Sample Size Comparison"</span>,</span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">y_label =</span> <span class="st">"Average Sample Size"</span>,</span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">35</span>),</span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_path =</span> <span class="st">"results/plots/sample_size_comparison.png"</span></span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_sample)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/method_comparison-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Safety (Overdose) Comparison</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>safety_data <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">scenario =</span> scenarios,</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">method =</span> methods,</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>safety_data<span class="sc">$</span>overdose_pct <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">15</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">12</span>, <span class="dv">8</span>, <span class="dv">18</span>, <span class="dv">8</span>, <span class="dv">5</span>, <span class="dv">15</span>)</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Create safety plot</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>p_safety <span class="ot">&lt;-</span> <span class="fu">plot_method_comparison_bars</span>(</span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>  safety_data,</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">x_var =</span> <span class="st">"scenario"</span>, <span class="at">y_var =</span> <span class="st">"overdose_pct"</span>, <span class="at">fill_var =</span> <span class="st">"method"</span>,</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"Overdose Patient Percentage"</span>,</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">y_label =</span> <span class="st">"Overdose Pts (%)"</span>,</span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">25</span>),</span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_path =</span> <span class="st">"results/plots/safety_comparison.png"</span></span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_safety)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/method_comparison-3.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"✅ Method comparison plots created successfully!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>✅ Method comparison plots created successfully!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"📁 All plots saved to results/plots/ directory</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>📁 All plots saved to results/plots/ directory</code></pre>
+</div>
+</div>
+</section>
+<section id="multi-scenario-analysis" class="level2">
+<h2 class="anchored" data-anchor-id="multi-scenario-analysis">Multi-Scenario Analysis</h2>
+<p>This section creates multi-scenario dose-response curves similar to the reference code.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create multi-scenario analysis</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">=== Creating Multi-Scenario Analysis ===</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+=== Creating Multi-Scenario Analysis ===</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define different scenarios with varying parameters</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>scenarios_data <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">toxicity =</span> <span class="fu">c</span>(<span class="fl">0.1</span>, <span class="fl">0.18</span>, <span class="fl">0.35</span>, <span class="fl">0.40</span>, <span class="fl">0.50</span>),</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">efficacy =</span> <span class="fu">c</span>(<span class="fl">0.35</span>, <span class="fl">0.35</span>, <span class="fl">0.37</span>, <span class="fl">0.39</span>, <span class="fl">0.39</span>),</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">utility =</span> <span class="fu">c</span>(<span class="fl">0.27</span>, <span class="fl">0.23</span>, <span class="fl">0.10</span>, <span class="fl">0.13</span>, <span class="fl">0.17</span>)</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">toxicity =</span> <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.15</span>, <span class="fl">0.25</span>, <span class="fl">0.35</span>, <span class="fl">0.50</span>),</span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">efficacy =</span> <span class="fu">c</span>(<span class="fl">0.10</span>, <span class="fl">0.35</span>, <span class="fl">0.35</span>, <span class="fl">0.38</span>, <span class="fl">0.39</span>),</span>
+<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">utility =</span> <span class="fu">c</span>(<span class="fl">0.07</span>, <span class="fl">0.22</span>, <span class="fl">0.22</span>, <span class="fl">0.12</span>, <span class="fl">0.06</span>)</span>
+<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">toxicity =</span> <span class="fu">c</span>(<span class="fl">0.02</span>, <span class="fl">0.06</span>, <span class="fl">0.10</span>, <span class="fl">0.20</span>, <span class="fl">0.35</span>),</span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">efficacy =</span> <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.10</span>, <span class="fl">0.35</span>, <span class="fl">0.35</span>, <span class="fl">0.40</span>),</span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">utility =</span> <span class="fu">c</span>(<span class="fl">0.03</span>, <span class="fl">0.07</span>, <span class="fl">0.28</span>, <span class="fl">0.22</span>, <span class="fl">0.13</span>)</span>
+<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Create multi-scenario plot</span></span>
+<span id="cb45-21"><a href="#cb45-21" aria-hidden="true" tabindex="-1"></a>multi_scenario_plot <span class="ot">&lt;-</span> <span class="fu">plot_multi_scenario_curves</span>(</span>
+<span id="cb45-22"><a href="#cb45-22" aria-hidden="true" tabindex="-1"></a>  scenarios_data,</span>
+<span id="cb45-23"><a href="#cb45-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">title =</span> <span class="st">"Dose-Response Curves Across Scenarios"</span>,</span>
+<span id="cb45-24"><a href="#cb45-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_path =</span> <span class="st">"results/plots/multi_scenario_analysis.png"</span></span>
+<span id="cb45-25"><a href="#cb45-25" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Scale for y is already present.
+Adding another scale for y, which will replace the existing scale.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(multi_scenario_plot)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="simulation_notebook_files/figure-html/multi_scenario-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"✅ Multi-scenario analysis completed!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>✅ Multi-scenario analysis completed!</code></pre>
+</div>
+</div>
+</section>
+<section id="summary" class="level2">
+<h2 class="anchored" data-anchor-id="summary">Summary</h2>
+<p>This notebook demonstrates the Bayesian dose-finding trial simulation with modern, publication-ready visualizations inspired by the reference code. The plots include:</p>
+<ul>
+<li><strong>Dose-response curves</strong> with toxicity, efficacy, and utility</li>
+<li><strong>Posterior summaries</strong> with modern styling</li>
+<li><strong>Allocation analysis</strong> showing participant distribution</li>
+<li><strong>Method comparisons</strong> for performance evaluation</li>
+<li><strong>Multi-scenario analysis</strong> for parameter sensitivity</li>
+</ul>
+<p>All plots use consistent color schemes and professional styling suitable for academic publications and regulatory submissions.</p>
+<p>```</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
