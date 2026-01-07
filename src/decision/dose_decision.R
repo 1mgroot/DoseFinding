@@ -307,13 +307,55 @@ handle_trial_termination <- function(admissible_set, stage, config) {
 
 # Probability of Correct Selection (PoC) Functions
 
+calculate_pi_parameters <- function(dose_idx, posterior_summaries) {
+  # Calculate Πᵢ parameters (combined efficacy measure) for a given dose.
+  #
+  # Args:
+  #   dose_idx: Dose index
+  #   posterior_summaries: Posterior probability summaries
+  #
+  # Returns:
+  #   list: Πᵢ samples and summary statistics
+  
+  # Get posterior samples for this dose
+  pi_I_samples <- posterior_summaries$imm$samples_pava[[dose_idx]]
+  pi_E_given_I0_samples <- posterior_summaries$eff$samples[[2 * dose_idx - 1]]
+  pi_E_given_I1_samples <- posterior_summaries$eff$samples[[2 * dose_idx]]
+  
+  # Calculate Πᵢ samples (combined efficacy measure)
+  # Πᵢ = P(E|I=0) * P(I=0) + P(E|I=1) * P(I=1)
+  pi_combined_samples <- pi_I_samples * pi_E_given_I1_samples + 
+                        (1 - pi_I_samples) * pi_E_given_I0_samples
+  
+  return(list(
+    pi_I_samples = pi_I_samples,
+    pi_E_given_I0_samples = pi_E_given_I0_samples,
+    pi_E_given_I1_samples = pi_E_given_I1_samples,
+    pi_combined_samples = pi_combined_samples,
+    pi_combined_mean = mean(pi_combined_samples),
+    pi_combined_sd = sd(pi_combined_samples)
+  ))
+}
+
 calculate_poc_probability <- function(admissible_set, posterior_summaries, config) {
+<<<<<<< HEAD
   # Probability of Correct Selection using posterior samples (no normal approx).
   # Based on Design notes Eq. (9):
   # Construct P_final = { j in A : Pr(π_I1 < delta_poc * π_Ij | D_n) > c_poc }
   # PoC is detected iff P_final is non-empty.
   # Uses IMMUNE RESPONSE (π_I) posterior samples, not efficacy.
   
+=======
+  # Calculate Probability of Correct Selection (PoC) for admissible doses using proper Bayesian approach.
+  #
+  # Args:
+  #   admissible_set: Vector of admissible dose indices
+  #   posterior_summaries: Posterior probability summaries
+  #   config: Trial configuration
+  #
+  # Returns:
+  #   list: PoC probabilities for each admissible dose
+>>>>>>> origin/main
   if (length(admissible_set) == 0) {
     return(list(
       poc_probability = 0, 
@@ -350,6 +392,7 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
   # Construct P_final: doses where pairwise probability > c_poc
   P_final <- admissible_set[pairwise_probs > config$c_poc]
   
+<<<<<<< HEAD
   # PoC probability is the minimum pairwise probability (for reporting)
   # But PoC detection is based on whether P_final is non-empty
   poc_prob <- if (length(admissible_set) == 1) {
@@ -357,6 +400,36 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
     pairwise_probs[1]
   } else {
     min(pairwise_probs)
+=======
+  # Calculate utilities to determine the best dose (reference)
+  utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
+  best_dose_idx <- admissible_set[which.max(utilities)]
+  
+  # Calculate Πᵢⱼ parameters for the best dose (reference)
+  best_dose_params <- calculate_pi_parameters(best_dose_idx, posterior_summaries)
+  
+  for (i in seq_along(admissible_set)) {
+    dose_idx <- admissible_set[i]
+    
+    # Calculate Πᵢ parameters for this dose
+    dose_params <- calculate_pi_parameters(dose_idx, posterior_summaries)
+    
+    # Calculate PoC probability: Pr(Πᵢ < δ Πᵢⱼ | Dₙ)
+    # This represents the probability that this dose is significantly worse than the best dose
+    # Using proper Bayesian calculation with posterior samples
+    poc_prob <- mean(dose_params$pi_combined_samples < config$delta_poc * best_dose_params$pi_combined_samples)
+    
+    poc_probabilities[i] <- poc_prob
+    
+    # Log detailed PoC calculation if enabled
+    if (config$log_early_termination) {
+      cat(sprintf("PoC calculation for dose %d: Πᵢ=%.3f±%.3f, Πᵢⱼ=%.3f±%.3f, PoC=%.3f\n",
+                  dose_idx, 
+                  dose_params$pi_combined_mean, dose_params$pi_combined_sd,
+                  best_dose_params$pi_combined_mean, best_dose_params$pi_combined_sd,
+                  poc_prob))
+    }
+>>>>>>> origin/main
   }
 
   return(list(

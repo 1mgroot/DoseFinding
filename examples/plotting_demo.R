@@ -42,3 +42,4 @@ cat("  y_var = 'success_rate',\n")
 cat("  fill_var = 'method',\n")
 cat("  title = 'My Analysis'\n")
 cat(")\n")
+
