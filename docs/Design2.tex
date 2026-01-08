@@ -1,0 +1,136 @@
+% !TEX program = pdflatex
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, bm}
+\usepackage{booktabs}
+\usepackage{array}
+
+\title{Dose Finding (Part II) Notes}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Risk--Benefit tradeoff / Utility}
+
+\subsection{Example (score table)}
+
+Let $Y_I\in\{0,1\}$ (immune response), $Y_E\in\{0,1\}$ (efficacy), $Y_T\in\{0,1\}$ (toxicity).
+The score is $w(Y_T,Y_E,Y_I)$ as in the table below.
+
+\paragraph{$Y_I=0$:}
+\begin{center}
+\begin{tabular}{@{}c*{2}{>{\centering\arraybackslash}p{3.2cm}}@{}}
+\toprule
+ & $Y_T=0$ & $Y_T=1$ \\
+\midrule
+$Y_E=0$ & $0$  & $0$  \\
+$Y_E=1$ & $80$ & $30$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{$Y_I=1$:}
+\begin{center}
+\begin{tabular}{@{}c*{2}{>{\centering\arraybackslash}p{3.2cm}}@{}}
+\toprule
+ & $Y_T=0$ & $Y_T=1$ \\
+\midrule
+$Y_E=0$ & $10$  & $0$  \\
+$Y_E=1$ & $100$ & $40$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Utility}
+
+\begin{align}
+U(d_j)
+&=\sum_{y_T=0}^1\sum_{y_E=0}^1\sum_{y_I=0}^1
+w(Y_T=y_T,Y_E=y_E,Y_I=y_I)\,
+Pr(Y_T=y_T,Y_E=y_E,Y_I=y_I\mid d_j).
+\label{eq:U}
+\end{align}
+
+A convenient decomposition (as written in the notes) is
+\begin{align}
+Pr(Y_T,Y_E,Y_I\mid d_j)
+&=Pr(Y_T\mid Y_I,d_j)\cdot Pr(Y_E\mid Y_I,d_j)\cdot Pr(Y_I\mid d_j).
+\label{eq:decomp}
+\end{align}
+
+\subsection{Admissible set (marginal probability)}
+
+\paragraph{(1) No control arm: testing increasing dosages of immunotherapy $d_1,\ldots,d_J$.}
+Admissible set using marginal probability:
+\begin{align}
+Safety: Pr(\pi_{Tj}<\phi_T\mid D_n) &> C_T, \label{eq:adm_noc_T}\\
+Activity: Pr(\pi_{Ij}>\phi_I\mid D_n) &> C_I, \label{eq:adm_noc_I}\\
+Efficacy: Pr(\pi_{Ej}>\phi_E\mid D_n) &> C_E. \label{eq:adm_noc_E}
+\end{align}
+
+\paragraph{(2) With control arm: $d_1,\ldots,d_J$ vs $d_0$.}
+Admissible set using marginal probability:
+\begin{align}
+Safety: Pr\!\Big(\pi_{Tj}<\min(\pi_{T0}+\bar{\pi}_T,\ \phi_T)\mid D_n\Big) &> C_T,
+\quad j=1,\ldots,J, \label{eq:adm_ctl_T}\\
+Activity: Pr(\pi_{Ij}>\phi_I\mid D_n) &> C_I,
+\quad j=1,\ldots,J, \label{eq:adm_ctl_I}\\
+Efficacy: Pr\!\Big(\pi_{Ej}>\max(\pi_{E0}+\bar{\pi}_E,\ \phi_E)\mid D_n\Big) &> C_E,
+\quad j=1,\ldots,J. \label{eq:adm_ctl_E}
+\end{align}
+
+\section{Trial design (Group sequential)}
+
+Trial design: Group sequential approach, consists of ``$S$'' stages.
+Let $C_1,\ldots,C_S$ be the pre-specified sample size of the ``$S$'' stages.
+
+\begin{enumerate}
+  \item In the first stage, equally randomize $C_1$ patients to $J$ (or $J+1$) arms.
+  \item For $s=2,\ldots,S$ stages, based on interim data, update the admissible set $A$
+        (safety, activity, and efficacy), and adaptively randomize $C_s$ patients to $d_j\in A$.
+        If $A$ is empty, early terminate the trial; no OD selected.
+  \item If the trial completes without early stopping, construct the PoC-eligible set:
+  \begin{align}
+    \mathcal{P}
+    = \left\{ j\in A:\ Pr(\pi_{I1}<\delta\,\pi_{Ij}\mid D_n) > C_{\text{PoC}} \right\}.
+    \label{eq:PoCset}
+  \end{align}
+  If $\mathcal{P}=\emptyset$, conclude no PoC and no OD is selected. Otherwise, select the final OD:
+  \begin{align}
+    OD=\arg\max_{j\in \mathcal{P}}\ \hat{U}(d_j).
+    \label{eq:OD}
+  \end{align}
+\end{enumerate}
+
+
+\subsection*{Notes}
+
+\begin{enumerate}
+  \item Adaptive randomization: assign $C_s$ patients to $A$ based on posterior probabilities
+  \begin{align}
+    \gamma_j = Pr(OD=d_j\mid D_n),\quad j\in A,
+  \end{align}
+
+  \begin{align}
+    \frac{\hat{U}(d_j)}{\sum_{j\in A}\hat{U}(d_j)}.
+  \end{align}
+
+  \item Ensure reasonable power to find the OD when there is a control:
+  assign sufficient but not excessive number of patients to the control, i.e. assign patients to the control based on
+  \begin{align}
+    r_0 \propto \min(\gamma_{\max},\ 1/|A|),
+  \end{align}
+  where
+  \begin{align}
+    \gamma_{\max}=\max\{\gamma_j,\ j\in A\}.
+  \end{align}
+
+  \item calibrated $C_{\text{PoC}}$: flat immune response curve, toxicity curve, efficacy curve.
+  Control familywise Type I rate is $0.05$, and sample size $\ldots$;
+  $80\%$--$90\%$ power, or lower.
+\end{enumerate}
+
+\end{document}

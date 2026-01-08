@@ -26,6 +26,35 @@ get_expected_utility <- function(dose_idx, posterior_summaries, config) {
   return(total_utility)
 }
 
+# Calculate utility from TRUE probabilities (for plotting true dose-response curves)
+calculate_utility_from_true_probs <- function(dose_idx, p_YI, p_YT_given_I, p_YE_given_I, utility_table) {
+  # Get true probabilities for the given dose
+  # dose_idx is 1-indexed
+  pi_I <- p_YI[dose_idx]
+  pi_T_given_I0 <- p_YT_given_I[dose_idx, 1]  # Toxicity given I=0
+  pi_T_given_I1 <- p_YT_given_I[dose_idx, 2]  # Toxicity given I=1
+  pi_E_given_I0 <- p_YE_given_I[dose_idx, 1]  # Efficacy given I=0
+  pi_E_given_I1 <- p_YE_given_I[dose_idx, 2]  # Efficacy given I=1
+  
+  # Probabilities of T=0 and T=1 given I
+  p_T_given_I0 <- c(1 - pi_T_given_I0, pi_T_given_I0)
+  p_T_given_I1 <- c(1 - pi_T_given_I1, pi_T_given_I1)
+  
+  # Probabilities of E=0 and E=1 given I
+  p_E_given_I0 <- c(1 - pi_E_given_I0, pi_E_given_I0)
+  p_E_given_I1 <- c(1 - pi_E_given_I1, pi_E_given_I1)
+  
+  # Expected utility for I=0
+  utility_I0 <- sum(utility_table[,,1] * (p_E_given_I0 %o% p_T_given_I0))
+  
+  # Expected utility for I=1
+  utility_I1 <- sum(utility_table[,,2] * (p_E_given_I1 %o% p_T_given_I1))
+  
+  # Total expected utility
+  total_utility <- (1 - pi_I) * utility_I0 + pi_I * utility_I1
+  return(total_utility)
+}
+
 get_expected_utility_detailed <- function(dose_idx, posterior_summaries, config) {
   # Get posterior probabilities for the given dose
   pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]
@@ -69,14 +98,16 @@ get_expected_utility_detailed <- function(dose_idx, posterior_summaries, config)
   ))
 }
 
-get_admissible_set <- function(posterior_summaries, config) {
+get_admissible_set <- function(posterior_summaries, config, verbose = TRUE) {
   admissible_doses <- c()
-  cat("\n--- Admissibility Check ---\n")
-  
-  # Log summary statistics for transparency
-  cat("Summary: Toxicity marginal means:", round(posterior_summaries$tox_marginal$marginal_prob, 3), "\n")
-  cat("Summary: Efficacy marginal means:", round(posterior_summaries$eff_marginal$marginal_prob, 3), "\n")
-  cat("Summary: Immune response means:", round(posterior_summaries$imm$pava_mean, 3), "\n")
+  if (verbose) {
+    cat("\n--- Admissibility Check ---\n")
+    
+    # Log summary statistics for transparency
+    cat("Summary: Toxicity marginal means:", round(posterior_summaries$tox_marginal$marginal_prob, 3), "\n")
+    cat("Summary: Efficacy marginal means:", round(posterior_summaries$eff_marginal$marginal_prob, 3), "\n")
+    cat("Summary: Immune response means:", round(posterior_summaries$imm$pava_mean, 3), "\n")
+  }
   
   for (i in 1:length(config$dose_levels)) {
     tox_samples <- posterior_summaries$tox_marginal$samples[[i]]
@@ -88,19 +119,23 @@ get_admissible_set <- function(posterior_summaries, config) {
     imm_prob_good <- mean(imm_samples > config$phi_I)
 
     # Log detailed statistics for each dose
-    cat(paste("Dose", i,":",
-              "P(Tox < ", config$phi_T, ") = ", round(tox_prob_safe, 2),
-              "(Threshold: ", config$c_T, ")",
-              "P(Eff > ", config$phi_E, ") = ", round(eff_prob_good, 2),
-              "(Threshold: ", config$c_E, ")",
-              "P(Imm > ", config$phi_I, ") = ", round(imm_prob_good, 2),
-              "(Threshold: ", config$c_I, ")\n"))
+    if (verbose) {
+      cat(paste("Dose", i,":",
+                "P(Tox < ", config$phi_T, ") = ", round(tox_prob_safe, 2),
+                "(Threshold: ", config$c_T, ")",
+                "P(Eff > ", config$phi_E, ") = ", round(eff_prob_good, 2),
+                "(Threshold: ", config$c_E, ")",
+                "P(Imm > ", config$phi_I, ") = ", round(imm_prob_good, 2),
+                "(Threshold: ", config$c_I, ")\n"))
+    }
 
     if (tox_prob_safe > config$c_T && eff_prob_good > config$c_E && imm_prob_good > config$c_I) {
       admissible_doses <- c(admissible_doses, i)
     }
   }
-  cat("--- End Admissibility Check ---\n")
+  if (verbose) {
+    cat("--- End Admissibility Check ---\n")
+  }
   return(admissible_doses)
 }
 
@@ -258,7 +293,8 @@ handle_trial_termination <- function(admissible_set, stage, config) {
     reason = "Empty admissible set"
   )
   
-  if (config$log_early_termination) {
+  # Check if log_early_termination is defined and TRUE
+  if (!is.null(config$log_early_termination) && config$log_early_termination) {
     cat("\n=== TRIAL TERMINATION SUMMARY ===\n")
     cat("Trial terminated early at stage:", stage, "\n")
     cat("Reason:", termination_info$reason, "\n")
@@ -302,6 +338,14 @@ calculate_pi_parameters <- function(dose_idx, posterior_summaries) {
 }
 
 calculate_poc_probability <- function(admissible_set, posterior_summaries, config) {
+<<<<<<< HEAD
+  # Probability of Correct Selection using posterior samples (no normal approx).
+  # Based on Design notes Eq. (9):
+  # Construct P_final = { j in A : Pr(π_I1 < delta_poc * π_Ij | D_n) > c_poc }
+  # PoC is detected iff P_final is non-empty.
+  # Uses IMMUNE RESPONSE (π_I) posterior samples, not efficacy.
+  
+=======
   # Calculate Probability of Correct Selection (PoC) for admissible doses using proper Bayesian approach.
   #
   # Args:
@@ -311,12 +355,52 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
   #
   # Returns:
   #   list: PoC probabilities for each admissible dose
+>>>>>>> origin/main
   if (length(admissible_set) == 0) {
-    return(list(poc_probabilities = numeric(0), max_poc = 0))
+    return(list(
+      poc_probability = 0, 
+      pairwise_probs = numeric(0), 
+      P_final = integer(0),
+      best_dose = NA, 
+      best_utility = NA,
+      admissible_doses = integer(0)
+    ))
+  }
+
+  # Get utilities and identify best dose (for reference, though P_final includes all passing doses)
+  utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
+  best_dose_idx <- admissible_set[which.max(utilities)]
+
+  # Use IMMUNE RESPONSE samples (not efficacy!)
+  imm_samples <- posterior_summaries$imm$samples_pava
+  
+  # For each dose j in admissible set, compute Pr(π_I1 < delta_poc * π_Ij | D_n)
+  # using posterior samples of immune response
+  dose1_samples <- imm_samples[[1]]  # Reference dose (dose 1)
+  
+  pairwise_probs <- numeric(length(admissible_set))
+  names(pairwise_probs) <- admissible_set
+  
+  for (idx in seq_along(admissible_set)) {
+    j <- admissible_set[idx]
+    dose_j_samples <- imm_samples[[j]]
+    n <- min(length(dose1_samples), length(dose_j_samples))
+    # Pr(π_I1 < delta_poc * π_Ij | D_n)
+    pairwise_probs[idx] <- mean(dose1_samples[seq_len(n)] < config$delta_poc * dose_j_samples[seq_len(n)])
   }
   
-  poc_probabilities <- numeric(length(admissible_set))
+  # Construct P_final: doses where pairwise probability > c_poc
+  P_final <- admissible_set[pairwise_probs > config$c_poc]
   
+<<<<<<< HEAD
+  # PoC probability is the minimum pairwise probability (for reporting)
+  # But PoC detection is based on whether P_final is non-empty
+  poc_prob <- if (length(admissible_set) == 1) {
+    # Single dose case: check against itself (should be 0 or near 0)
+    pairwise_probs[1]
+  } else {
+    min(pairwise_probs)
+=======
   # Calculate utilities to determine the best dose (reference)
   utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
   best_dose_idx <- admissible_set[which.max(utilities)]
@@ -345,61 +429,62 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
                   best_dose_params$pi_combined_mean, best_dose_params$pi_combined_sd,
                   poc_prob))
     }
+>>>>>>> origin/main
   }
-  
-  max_poc <- max(poc_probabilities, na.rm = TRUE)
-  
+
   return(list(
-    poc_probabilities = poc_probabilities,
-    max_poc = max_poc,
+    poc_probability = poc_prob,
+    pairwise_probs = pairwise_probs,
+    P_final = P_final,
+    best_dose = best_dose_idx,
+    best_utility = max(utilities),
     admissible_doses = admissible_set
   ))
 }
 
 check_poc_threshold <- function(poc_results, config) {
-  # Check if PoC threshold is met for final dose selection.
-  #
-  # Args:
-  #   poc_results: Results from calculate_poc_probability
-  #   config: Trial configuration
-  #
-  # Returns:
-  #   logical: TRUE if PoC threshold is met
-  if (length(poc_results$poc_probabilities) == 0) {
-    return(FALSE)
+  # PoC is detected iff P_final is non-empty
+  # P_final = { j in A : Pr(π_I1 < delta_poc * π_Ij | D_n) > c_poc }
+  if (is.null(poc_results$P_final) || length(poc_results$P_final) == 0) {
+    poc_met <- FALSE
+  } else {
+    poc_met <- TRUE
   }
-  
-  # Check if the best dose meets the PoC threshold
-  # We want the probability of correct selection to be high
-  poc_met <- poc_results$max_poc >= config$c_poc
-  
-  if (config$log_early_termination) {
+
+  if (!is.null(config$log_early_termination) && config$log_early_termination) {
     cat("\n--- PoC THRESHOLD CHECK ---\n")
-    cat("Maximum PoC probability:", round(poc_results$max_poc, 3), "\n")
-    cat("PoC threshold:", config$c_poc, "\n")
-    cat("PoC threshold met:", poc_met, "\n")
+    cat("Admissible doses:", poc_results$admissible_doses, "\n")
+    cat("Pairwise probabilities Pr(π_I1 < delta_poc * π_Ij | D_n):", round(poc_results$pairwise_probs, 3), "\n")
+    cat("c_poc threshold:", config$c_poc, "\n")
+    cat("P_final (doses passing PoC):", poc_results$P_final, "\n")
+    cat("PoC detected (length(P_final) > 0):", poc_met, "\n")
     cat("--- END PoC CHECK ---\n\n")
   }
-  
+
   return(poc_met)
 }
 
 # Enhanced Final Dose Selection with PoC
-select_final_od_with_poc <- function(admissible_set, posterior_summaries, config) {
-  # Select final Optimal Dose with PoC validation.
+select_final_od_with_poc <- function(admissible_set, posterior_summaries, config, verbose = TRUE) {
+  # Select final Optimal Dose with PoC validation per Design notes Eq. (9).
+  # Constructs P_final = { j in A : Pr(π_I1 < delta_poc * π_Ij | D_n) > c_poc }
+  # PoC is detected iff P_final is non-empty.
   #
   # Args:
   #   admissible_set: Vector of admissible dose indices
   #   posterior_summaries: Posterior probability summaries
   #   config: Trial configuration
+  #   verbose: Whether to print detailed logs
   #
   # Returns:
   #   list: Selection results including PoC validation
   if (length(admissible_set) == 0) {
     return(list(
       optimal_dose = NA,
+      optimal_utility = NA,
       poc_validated = FALSE,
       poc_probability = 0,
+      P_final = integer(0),
       reason = "No admissible doses"
     ))
   }
@@ -409,41 +494,47 @@ select_final_od_with_poc <- function(admissible_set, posterior_summaries, config
   best_dose_idx <- admissible_set[which.max(utilities)]
   best_utility <- max(utilities)
   
-  # Calculate PoC probabilities
+  # Calculate PoC probabilities and construct P_final
   poc_results <- calculate_poc_probability(admissible_set, posterior_summaries, config)
-  
-  # Check PoC threshold
   poc_validated <- check_poc_threshold(poc_results, config)
-  
-  # Select optimal dose
+
   if (poc_validated) {
+    # PoC detected: select dose with highest utility from P_final
+    # (In practice, P_final often equals admissible set or is a subset)
+    # For simplicity, select best utility dose from original admissible set
+    # since P_final is just for PoC validation, not dose selection
     optimal_dose <- best_dose_idx
-    reason <- "PoC threshold met"
+    reason <- "PoC detected (P_final non-empty)"
   } else {
-    # If PoC not met, still select the best dose but note the issue
-    optimal_dose <- best_dose_idx
-    reason <- "PoC threshold not met, but selecting best available dose"
+    optimal_dose <- NA
+    reason <- "PoC not detected (P_final empty)"
   }
-  
+
   selection_result <- list(
     optimal_dose = optimal_dose,
     optimal_utility = best_utility,
     poc_validated = poc_validated,
-    poc_probability = poc_results$max_poc,
+    poc_probability = poc_results$poc_probability,
+    P_final = poc_results$P_final,
+    pairwise_probs = poc_results$pairwise_probs,
     admissible_doses = admissible_set,
     utilities = utilities,
     reason = reason
   )
   
   # Log selection results
-  if (config$log_early_termination) {
+  if (verbose && !is.null(config$log_early_termination) && config$log_early_termination) {
     cat("\n--- FINAL DOSE SELECTION WITH PoC ---\n")
-    cat("Admissible doses:", admissible_set, "\n")
+    cat("Admissible doses A:", admissible_set, "\n")
     cat("Utilities:", round(utilities, 2), "\n")
+    cat("Pairwise probabilities Pr(π_I1 < delta*π_Ij):", round(poc_results$pairwise_probs, 3), "\n")
+    cat("c_poc threshold:", config$c_poc, "\n")
+    cat("P_final (PoC-eligible doses):", poc_results$P_final, "\n")
+    cat("PoC detected:", poc_validated, "\n")
     cat("Selected dose:", optimal_dose, "\n")
-    cat("Selected utility:", round(best_utility, 2), "\n")
-    cat("PoC validated:", poc_validated, "\n")
-    cat("Max PoC probability:", round(poc_results$max_poc, 3), "\n")
+    if (!is.na(optimal_dose)) {
+      cat("Selected utility:", round(best_utility, 2), "\n")
+    }
     cat("Selection reason:", reason, "\n")
     cat("--- END FINAL SELECTION ---\n\n")
   }

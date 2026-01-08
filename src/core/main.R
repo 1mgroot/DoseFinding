@@ -5,6 +5,14 @@ library(purrr)
 library(ggplot2)
 library(Iso)
 
+<<<<<<< HEAD
+# Source files - works from project root
+# NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script)
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/utils/helpers.R")
+source("src/decision/dose_decision.R")
+=======
 # Source files - use robust path resolution
 project_root <- if (basename(getwd()) == "notebooks") ".." else "."
 
@@ -13,23 +21,67 @@ source(file.path(project_root, "src/core/simulate_data.R"))
 source(file.path(project_root, "src/core/model_utils.R"))
 source(file.path(project_root, "src/utils/helpers.R"))
 source(file.path(project_root, "src/decision/dose_decision.R"))
+>>>>>>> origin/main
 
-run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1) {
+run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed = NULL) {
   all_data <- data.frame()
   all_alloc_probs <- data.frame()
+  
+  # Get verbose logging flag (default TRUE for backward compatibility)
+  verbose <- if (is.null(trial_config$verbose_logging)) TRUE else trial_config$verbose_logging
   
   # Initial allocation is uniform
   alloc_probs <- rep(1/length(trial_config$dose_levels), length(trial_config$dose_levels))
 
   for (stage in 1:trial_config$n_stages) {
-    cat(paste("
+    if (verbose) {
+      cat(paste("
 --- Stage", stage, "---
 "))
-    cat("Workflow: Step 1 - Equal randomization (Stage 1) or Adaptive randomization (Stages 2+)
+      if (stage == 1) {
+        cat("Workflow: Step 1 - Equal randomization to all dose levels
 ")
+      } else {
+        cat("Workflow: Step 1 - Adaptive randomization (using probabilities from previous stage)
+")
+      }
+    }
     
-    n_next_stage <- round(alloc_probs * trial_config$cohort_size)
+    # Stage 1: Explicitly ensure equal allocation across all dose levels
+    # Stages 2+: Use adaptive randomization probabilities
+    if (stage == 1) {
+      # Equal allocation: divide cohort_size evenly across all dose levels
+      n_per_dose <- floor(trial_config$cohort_size / length(trial_config$dose_levels))
+      remainder <- trial_config$cohort_size - (n_per_dose * length(trial_config$dose_levels))
+      n_next_stage <- rep(n_per_dose, length(trial_config$dose_levels))
+      # Distribute remainder across first few doses
+      if (remainder > 0) {
+        n_next_stage[1:remainder] <- n_next_stage[1:remainder] + 1
+      }
+    } else {
+      # Adaptive allocation: ensure sum equals cohort_size exactly
+      # Use floor + distribute remainder to avoid rounding errors
+      n_exact <- alloc_probs * trial_config$cohort_size
+      n_next_stage <- floor(n_exact)
+      remainder <- trial_config$cohort_size - sum(n_next_stage)
+      
+      # Distribute remainder to doses with largest fractional parts
+      if (remainder > 0) {
+        fractional <- n_exact - n_next_stage
+        top_indices <- order(fractional, decreasing = TRUE)[1:remainder]
+        n_next_stage[top_indices] <- n_next_stage[top_indices] + 1
+      }
+    }
+    
+    # INVARIANT CHECK: Ensure cohort size sums correctly
+    if (sum(n_next_stage) != trial_config$cohort_size) {
+      stop(paste("Internal error: Stage", stage, "allocation sums to", sum(n_next_stage),
+                 "but cohort_size is", trial_config$cohort_size))
+    }
 
+    # Generate stage-specific seed if base seed is provided
+    stage_seed <- if (!is.null(seed)) seed + stage else NULL
+    
     stage_data <- simulate_data_gumbel(
       n_per_dose_vector = n_next_stage,
       dose_levels = trial_config$dose_levels,
@@ -37,7 +89,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       p_YT_given_I = p_YT_given_I,
       p_YE_given_I = p_YE_given_I,
       rho0 = rho0,
-      rho1 = rho1
+      rho1 = rho1,
+      seed = stage_seed
     )
     stage_data$stage <- stage
     all_data <- rbind(all_data, stage_data)
@@ -72,17 +125,35 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       tox_marginal = tox_marginal, eff_marginal = eff_marginal
     )
 
-    cat("Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
+    if (verbose) {
+      cat("Workflow: Step 2 - Interim Analysis (update admissible set based on posterior probabilities)
 ")
-    admissible_set <- get_admissible_set(posterior_summaries, trial_config)
-    cat("Admissible set:", admissible_set, "
+    }
+    admissible_set <- get_admissible_set(posterior_summaries, trial_config, verbose)
+    if (verbose) {
+      cat("Admissible set:", admissible_set, "
 ")
+    }
 
     # Step 4: Early Termination Check (CORRECT PLACEMENT - after interim analysis, before adaptive randomization)
-    cat("Workflow: Step 4 - Early Termination Check
+    # GROUP-SEQUENTIAL DESIGN: Check if A is empty after interim analysis of stage k
+    # If A is empty, stop BEFORE enrolling stage k+1
+    # Sample size at termination = stage * cohort_size (already enrolled through current stage)
+    if (verbose) {
+      cat("Workflow: Step 4 - Early Termination Check
 ")
+    }
     if (check_early_termination(admissible_set, trial_config)) {
       termination_info <- handle_trial_termination(admissible_set, stage, trial_config)
+      
+      # INVARIANT VALIDATION: Check sample size at termination
+      N_enrolled <- nrow(all_data)
+      expected_N <- stage * trial_config$cohort_size
+      if (N_enrolled != expected_N) {
+        warning(paste("Sample size mismatch at early termination:",
+                     "Expected", expected_N, "but enrolled", N_enrolled))
+      }
+      
       return(list(
         final_od = NA,
         all_data = all_data,
@@ -94,24 +165,40 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       ))
     }
 
-    log_utility_calculations(posterior_summaries, trial_config)
+    if (verbose) {
+      log_utility_calculations(posterior_summaries, trial_config)
+    }
 
     # Step 3: Adaptive Randomization (only if trial continues)
     if (stage < trial_config$n_stages) {
-      cat("Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+      if (verbose) {
+        cat("Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
 ")
+      }
       alloc_probs <- adaptive_randomization(admissible_set, posterior_summaries, trial_config)
-      cat("Allocation probabilities for next stage:", alloc_probs, "
+      if (verbose) {
+        cat("Allocation probabilities for next stage:", alloc_probs, "
 ")
+      }
     }
     
     all_alloc_probs <- rbind(all_alloc_probs, data.frame(Stage = stage, Dose = trial_config$dose_levels, Prob = alloc_probs))
   }
 
   # Step 5: Final Selection with PoC validation (CORRECT PLACEMENT - only at final stage)
-  cat("Workflow: Step 5 - Final Selection with PoC validation
+  if (verbose) {
+    cat("Workflow: Step 5 - Final Selection with PoC validation
 ")
-  final_selection <- select_final_od_with_poc(admissible_set, posterior_summaries, trial_config)
+  }
+  final_selection <- select_final_od_with_poc(admissible_set, posterior_summaries, trial_config, verbose)
+
+  # INVARIANT VALIDATION: Check sample size for completed trial
+  N_enrolled <- nrow(all_data)
+  expected_N <- trial_config$n_stages * trial_config$cohort_size
+  if (N_enrolled != expected_N) {
+    warning(paste("Sample size mismatch for completed trial:",
+                 "Expected", expected_N, "but enrolled", N_enrolled))
+  }
 
   return(list(
     final_od = final_selection$optimal_dose,

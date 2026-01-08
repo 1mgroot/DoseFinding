@@ -34,21 +34,27 @@ source(file.path(project_root, "src/core/main.R"))
 
 Modify the simulation parameters in this section. I have adjusted these values to create a more dynamic scenario where multiple doses are likely to be admissible in the early stages.
 
+**Calibration Note**: The `c_poc` parameter has been calibrated using null/flat scenarios to control Type I error at approximately 10%. The optimal value of `c_poc = 0.95` achieves a 7.8% false positive rate. For stricter Type I error control matching the calibration conditions, consider using the threshold configuration from `poc_calibration_notebook.qmd` (phi_T=0.3, c_T=0.3, phi_E=0.25, c_E=0.3).
+
 ```{r config}
 # Trial configuration
+# Note: These parameters allow for interactive exploration with different scenarios.
+# For calibrated Type I error control (~10%), use the stricter thresholds from 
+# poc_calibration_notebook.qmd: phi_T=0.3, c_T=0.3, phi_E=0.25, c_E=0.3, phi_I=0.2, c_I=0.2
+
 trial_config <- list(
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
   cohort_size = 15,
-  phi_T = 0.35, # Toxicity threshold (increased slightly)
+  phi_T = 0.35, # Toxicity threshold (relaxed for exploration)
   c_T = 0.5,   
-  phi_E = 0.1, # Efficacy threshold (increased slightly)
+  phi_E = 0.1, # Efficacy threshold (relaxed for exploration)
   c_E = 0.5,   
   phi_I = 0.20, # Immune response threshold
   c_I = 0.5,   
-  # PoC parameters
-  c_poc = 0.9,
-  delta_poc = 0.8,  # Threshold for PoC comparison
+  # PoC parameters (calibrated value from null/flat scenario testing)
+  c_poc = 0.95,  # Calibrated to achieve ~7.8% Type I error (target ≤10%)
+  delta_poc = 0.8,  # Threshold for PoC pairwise comparison
   # Early termination parameters
   enable_early_termination = TRUE,
   log_early_termination = TRUE
@@ -100,12 +106,12 @@ trial_config$utility_table <- utility_table
 
 ## Simulation
 
-This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function. The simulation follows the workflow specified in TRIAL_DESIGN.md:
+This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function. The simulation follows the workflow specified in TRIAL_DESIGN.md Section 7.1:
 
 1.  **Stage 1**: Equal randomization to all dose levels
 2.  **Interim Analysis**: Update admissible set based on posterior probabilities
-3.  **Adaptive Randomization**: Allocate patients based on utility scores
-4.  **Early Termination Check**: Terminate if admissible set is empty
+3.  **Early Termination Check**: Terminate if admissible set is empty (checked after interim analysis, before adaptive randomization)
+4.  **Adaptive Randomization**: Allocate patients based on utility scores (Stages 2+ only, only if trial continues)
 5.  **Final Selection**: Choose OD with highest utility from admissible set + PoC validation
 
 ```{r simulation}
@@ -153,7 +159,14 @@ cat("\n=== Creating Dose-Response Curves ===\n")
 # Extract true probabilities for dose-response curves
 true_toxicity <- p_YT_given_I[,1] * (1 - p_YI) + p_YT_given_I[,2] * p_YI
 true_efficacy <- p_YE_given_I[,1] * (1 - p_YI) + p_YE_given_I[,2] * p_YI
-true_utility <- results$final_utility_by_dose
+
+# Calculate true utilities for all dose levels using true probabilities
+true_utility <- sapply(1:length(trial_config$dose_levels), 
+                       calculate_utility_from_true_probs, 
+                       p_YI = p_YI, 
+                       p_YT_given_I = p_YT_given_I, 
+                       p_YE_given_I = p_YE_given_I,
+                       utility_table = utility_table)
 
 # Create dose-response curves plot
 dose_response_plot <- plot_dose_response_curves(

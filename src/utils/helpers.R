@@ -98,29 +98,56 @@ plot_dose_response_curves <- function(toxicity_data, efficacy_data, utility_data
   # Prepare data for plotting
   dose_levels <- 1:length(toxicity_data)
   
+  # Normalize utility data to 0-1 scale if provided (utilities are typically 0-100)
+  utility_normalized <- if (!is.null(utility_data)) {
+    # Check if utilities are on 0-100 scale and normalize if needed
+    if (max(utility_data, na.rm = TRUE) > 1) {
+      utility_data / 100
+    } else {
+      utility_data
+    }
+  } else {
+    rep(NA, length(toxicity_data))
+  }
+  
   df_plot <- data.frame(
     dose = rep(dose_levels, 3),
-    value = c(toxicity_data, efficacy_data, 
-              if (!is.null(utility_data)) utility_data else rep(NA, length(toxicity_data))),
+    value = c(toxicity_data, efficacy_data, utility_normalized),
     group = rep(c("Toxicity", "Efficacy", "Utility"), each = length(toxicity_data))
   )
   
-  # Remove utility if not provided
-  if (is.null(utility_data)) {
+  # Remove utility if not provided or if all values are NA
+  if (is.null(utility_data) || all(is.na(utility_normalized))) {
     df_plot <- df_plot[df_plot$group != "Utility", ]
   }
   
   df_plot$group <- factor(df_plot$group, levels = c("Toxicity", "Efficacy", "Utility"))
   
+  # Determine y-axis limits based on data range
+  max_prob_value <- max(c(toxicity_data, efficacy_data), na.rm = TRUE)
+  max_util_value <- if (!is.null(utility_data) && !all(is.na(utility_normalized))) {
+    max(utility_normalized, na.rm = TRUE)
+  } else {
+    0
+  }
+  y_max <- max(0.5, max(max_prob_value, max_util_value) * 1.1)  # Add 10% padding
+  y_breaks <- if (y_max <= 0.5) {
+    seq(0, 0.5, by = 0.1)
+  } else if (y_max <= 1) {
+    seq(0, 1, by = 0.2)
+  } else {
+    seq(0, ceiling(y_max), by = 0.5)
+  }
+  
   p <- ggplot(df_plot, aes(x = dose, y = value, color = group, shape = group, linetype = group)) +
-    geom_line(linewidth = 1) +
-    geom_point(size = 3) +
+    geom_line(linewidth = 1, na.rm = TRUE) +
+    geom_point(size = 3, na.rm = TRUE) +
     geom_hline(yintercept = 0.25, color = "gray", linetype = "dashed", linewidth = 1) +
-    labs(x = "Dose Level", y = "Probability", title = title) +
+    labs(x = "Dose Level", y = if (is.null(utility_data) || all(is.na(utility_normalized))) "Probability" else "Probability / Normalized Utility", title = title) +
     scale_color_manual(name = "", values = c("Toxicity" = "#E69F00", "Efficacy" = "#56B4E9", "Utility" = "#009E73")) +
     scale_linetype_manual(name = "", values = c("Toxicity" = "dashed", "Efficacy" = "dashed", "Utility" = "solid")) +
     scale_shape_manual(name = "", values = c("Toxicity" = 17, "Efficacy" = 16, "Utility" = 15)) +
-    scale_y_continuous(limits = c(0, 0.5), breaks = seq(0, 0.5, by = 0.1)) +
+    scale_y_continuous(limits = c(0, y_max), breaks = y_breaks) +
     theme_bw(base_size = 16) +
     theme(panel.grid = element_blank(),
           plot.title = element_text(hjust = 0.5),
