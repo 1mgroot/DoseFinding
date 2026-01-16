@@ -5,23 +5,13 @@ library(purrr)
 library(ggplot2)
 library(Iso)
 
-<<<<<<< HEAD
-# Source files - works from project root
+# Source files - resolve relative to project root
 # NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script)
-source("src/core/simulate_data.R")
-source("src/core/model_utils.R")
-source("src/utils/helpers.R")
-source("src/decision/dose_decision.R")
-=======
-# Source files - use robust path resolution
 project_root <- if (basename(getwd()) == "notebooks") ".." else "."
-
-source(file.path(project_root, "src/core/config.R"))
 source(file.path(project_root, "src/core/simulate_data.R"))
 source(file.path(project_root, "src/core/model_utils.R"))
 source(file.path(project_root, "src/utils/helpers.R"))
 source(file.path(project_root, "src/decision/dose_decision.R"))
->>>>>>> origin/main
 
 run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed = NULL) {
   all_data <- data.frame()

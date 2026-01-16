@@ -338,24 +338,9 @@ calculate_pi_parameters <- function(dose_idx, posterior_summaries) {
 }
 
 calculate_poc_probability <- function(admissible_set, posterior_summaries, config) {
-<<<<<<< HEAD
   # Probability of Correct Selection using posterior samples (no normal approx).
-  # Based on Design notes Eq. (9):
-  # Construct P_final = { j in A : Pr(π_I1 < delta_poc * π_Ij | D_n) > c_poc }
-  # PoC is detected iff P_final is non-empty.
-  # Uses IMMUNE RESPONSE (π_I) posterior samples, not efficacy.
-  
-=======
-  # Calculate Probability of Correct Selection (PoC) for admissible doses using proper Bayesian approach.
-  #
-  # Args:
-  #   admissible_set: Vector of admissible dose indices
-  #   posterior_summaries: Posterior probability summaries
-  #   config: Trial configuration
-  #
-  # Returns:
-  #   list: PoC probabilities for each admissible dose
->>>>>>> origin/main
+  # PoC uses marginal efficacy posterior samples and compares the best utility
+  # dose against each competitor: Pr(π_best > delta_poc * π_j | D_n).
   if (length(admissible_set) == 0) {
     return(list(
       poc_probability = 0, 
@@ -367,70 +352,39 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
     ))
   }
 
-  # Get utilities and identify best dose (for reference, though P_final includes all passing doses)
+  # Get utilities and identify best dose (reference for pairwise comparisons)
   utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
   best_dose_idx <- admissible_set[which.max(utilities)]
 
-  # Use IMMUNE RESPONSE samples (not efficacy!)
-  imm_samples <- posterior_summaries$imm$samples_pava
-  
-  # For each dose j in admissible set, compute Pr(π_I1 < delta_poc * π_Ij | D_n)
-  # using posterior samples of immune response
-  dose1_samples <- imm_samples[[1]]  # Reference dose (dose 1)
-  
+  # Posterior samples for marginal efficacy (Π_j) per dose
+  best_dose_params <- calculate_pi_parameters(best_dose_idx, posterior_summaries)
+  best_samples <- best_dose_params$pi_combined_samples
+
   pairwise_probs <- numeric(length(admissible_set))
   names(pairwise_probs) <- admissible_set
-  
+
   for (idx in seq_along(admissible_set)) {
     j <- admissible_set[idx]
-    dose_j_samples <- imm_samples[[j]]
-    n <- min(length(dose1_samples), length(dose_j_samples))
-    # Pr(π_I1 < delta_poc * π_Ij | D_n)
-    pairwise_probs[idx] <- mean(dose1_samples[seq_len(n)] < config$delta_poc * dose_j_samples[seq_len(n)])
-  }
-  
-  # Construct P_final: doses where pairwise probability > c_poc
-  P_final <- admissible_set[pairwise_probs > config$c_poc]
-  
-<<<<<<< HEAD
-  # PoC probability is the minimum pairwise probability (for reporting)
-  # But PoC detection is based on whether P_final is non-empty
-  poc_prob <- if (length(admissible_set) == 1) {
-    # Single dose case: check against itself (should be 0 or near 0)
-    pairwise_probs[1]
-  } else {
-    min(pairwise_probs)
-=======
-  # Calculate utilities to determine the best dose (reference)
-  utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
-  best_dose_idx <- admissible_set[which.max(utilities)]
-  
-  # Calculate Πᵢⱼ parameters for the best dose (reference)
-  best_dose_params <- calculate_pi_parameters(best_dose_idx, posterior_summaries)
-  
-  for (i in seq_along(admissible_set)) {
-    dose_idx <- admissible_set[i]
-    
-    # Calculate Πᵢ parameters for this dose
-    dose_params <- calculate_pi_parameters(dose_idx, posterior_summaries)
-    
-    # Calculate PoC probability: Pr(Πᵢ < δ Πᵢⱼ | Dₙ)
-    # This represents the probability that this dose is significantly worse than the best dose
-    # Using proper Bayesian calculation with posterior samples
-    poc_prob <- mean(dose_params$pi_combined_samples < config$delta_poc * best_dose_params$pi_combined_samples)
-    
-    poc_probabilities[i] <- poc_prob
-    
-    # Log detailed PoC calculation if enabled
-    if (config$log_early_termination) {
-      cat(sprintf("PoC calculation for dose %d: Πᵢ=%.3f±%.3f, Πᵢⱼ=%.3f±%.3f, PoC=%.3f\n",
-                  dose_idx, 
-                  dose_params$pi_combined_mean, dose_params$pi_combined_sd,
-                  best_dose_params$pi_combined_mean, best_dose_params$pi_combined_sd,
-                  poc_prob))
+    if (j == best_dose_idx) {
+      pairwise_probs[idx] <- 1
+      next
     }
->>>>>>> origin/main
+
+    dose_params <- calculate_pi_parameters(j, posterior_summaries)
+    comp_samples <- dose_params$pi_combined_samples
+    n <- min(length(best_samples), length(comp_samples))
+    pairwise_probs[idx] <- mean(best_samples[seq_len(n)] > config$delta_poc * comp_samples[seq_len(n)])
   }
+
+  # PoC probability is the minimum pairwise probability across competitors
+  poc_prob <- if (length(admissible_set) == 1) {
+    1
+  } else {
+    min(pairwise_probs[admissible_set != best_dose_idx])
+  }
+
+  # PoC detected if min pairwise probability meets threshold
+  P_final <- if (poc_prob >= config$c_poc) admissible_set else integer(0)
 
   return(list(
     poc_probability = poc_prob,
@@ -443,8 +397,8 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
 }
 
 check_poc_threshold <- function(poc_results, config) {
-  # PoC is detected iff P_final is non-empty
-  # P_final = { j in A : Pr(π_I1 < delta_poc * π_Ij | D_n) > c_poc }
+  # PoC is detected iff P_final is non-empty.
+  # P_final is non-empty when min_j Pr(π_best > delta_poc * π_j | D_n) >= c_poc.
   if (is.null(poc_results$P_final) || length(poc_results$P_final) == 0) {
     poc_met <- FALSE
   } else {
@@ -454,7 +408,7 @@ check_poc_threshold <- function(poc_results, config) {
   if (!is.null(config$log_early_termination) && config$log_early_termination) {
     cat("\n--- PoC THRESHOLD CHECK ---\n")
     cat("Admissible doses:", poc_results$admissible_doses, "\n")
-    cat("Pairwise probabilities Pr(π_I1 < delta_poc * π_Ij | D_n):", round(poc_results$pairwise_probs, 3), "\n")
+    cat("Pairwise probabilities Pr(π_best > delta_poc * π_j | D_n):", round(poc_results$pairwise_probs, 3), "\n")
     cat("c_poc threshold:", config$c_poc, "\n")
     cat("P_final (doses passing PoC):", poc_results$P_final, "\n")
     cat("PoC detected (length(P_final) > 0):", poc_met, "\n")
@@ -527,7 +481,7 @@ select_final_od_with_poc <- function(admissible_set, posterior_summaries, config
     cat("\n--- FINAL DOSE SELECTION WITH PoC ---\n")
     cat("Admissible doses A:", admissible_set, "\n")
     cat("Utilities:", round(utilities, 2), "\n")
-    cat("Pairwise probabilities Pr(π_I1 < delta*π_Ij):", round(poc_results$pairwise_probs, 3), "\n")
+    cat("Pairwise probabilities Pr(π_best > delta*π_j):", round(poc_results$pairwise_probs, 3), "\n")
     cat("c_poc threshold:", config$c_poc, "\n")
     cat("P_final (PoC-eligible doses):", poc_results$P_final, "\n")
     cat("PoC detected:", poc_validated, "\n")

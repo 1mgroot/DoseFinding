@@ -7,21 +7,12 @@ library(Iso)
 
 # Trial configuration - aligned with simulation_notebook.qmd
 trial_config <- list(
-<<<<<<< HEAD
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
   cohort_size = 15,
   phi_T = 0.35, c_T = 0.5,   # Toxicity threshold and probability cutoff
   phi_E = 0.1,  c_E = 0.5,   # Efficacy threshold and probability cutoff
   phi_I = 0.20, c_I = 0.5,   # Immune response threshold and probability cutoff
-=======
-  dose_levels = c(1, 2, 3),
-  n_stages = 3,
-  cohort_size = 6,
-  phi_T = 0.3, c_T = 0.9,
-  phi_E = 0.2, c_E = 0.75,  # Adjusted from 0.9 for calibration space
-  phi_I = 0.1, c_I = 0.65,  # Adjusted from 0.7 for calibration space
->>>>>>> origin/main
   # PoC parameters
   c_poc = 0.9,
   delta_poc = 0.8,  # Threshold for PoC comparison
