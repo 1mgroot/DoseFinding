@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.39">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>PoC Calibration Notebook - New Methodology</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="poc_calibration_notebook_files/libs/clipboard/clipboard.min.js"></script>
+<script src="poc_calibration_notebook_files/libs/quarto-html/quarto.js"></script>
+<script src="poc_calibration_notebook_files/libs/quarto-html/popper.min.js"></script>
+<script src="poc_calibration_notebook_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="poc_calibration_notebook_files/libs/quarto-html/anchor.min.js"></script>
+<link href="poc_calibration_notebook_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="poc_calibration_notebook_files/libs/quarto-html/quarto-syntax-highlighting-e26003cea8cd680ca0c55a263523d882.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="poc_calibration_notebook_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="poc_calibration_notebook_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="poc_calibration_notebook_files/libs/bootstrap/bootstrap-973236bd072d72a04ee9cd82dcc9cb29.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">PoC Calibration Notebook - New Methodology</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This notebook implements the new PoC calibration methodology based on the email specification. The calibration uses null/flat scenarios to control Type I error rates.</p>
+<section id="key-features" class="level3">
+<h3 class="anchored" data-anchor-id="key-features">Key Features</h3>
+<ul>
+<li><strong>Null/Flat Scenario Construction</strong>: Uses total probability formula for marginal efficacy calculation</li>
+<li><strong>C_poc Calibration</strong>: Finds optimal threshold to achieve ~10% Type I error rate</li>
+</ul>
+</section>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(knitr)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'dplyr'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    filter, lag</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Set working directory to project root</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">basename</span>(<span class="fu">getwd</span>()) <span class="sc">==</span> <span class="st">"notebooks"</span>) {</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setwd</span>(<span class="st">".."</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Source required functions</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/utils/helpers.R"</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/utils/plotting_extensions.R"</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/simulate_data.R"</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/model_utils.R"</span>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/decision/dose_decision.R"</span>)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/core/main.R"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Iso 0.0-21</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+     An "infelicity" in the function ufit() (whereby 
+     it was all too easy to conflate the location of 
+     the mode with its index in the entries of the 
+     "x" argument) has been corrected.  To this end, 
+     ufit() now has arguments "lmode" (the location 
+     of the mode), and "imode" (its index).  At most 
+     one of these arguments should be specified.  See 
+     the help for ufit().</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"src/optimization/poc_calibration_new.R"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="configuration" class="level2">
+<h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
+<section id="important-parameter-naming-convention" class="level3">
+<h3 class="anchored" data-anchor-id="important-parameter-naming-convention">Important: Parameter Naming Convention</h3>
+<p><strong>Two different types of parameters with clear naming:</strong></p>
+<ol type="1">
+<li><strong><code>null_p_*</code></strong> = True probability values in the NULL scenario (used to generate data)
+<ul>
+<li><code>null_p_I</code> = True immune response rate (e.g., 0.25)</li>
+<li><code>null_p_E</code> = True efficacy rate (e.g., 0.30)</li>
+<li><code>null_p_T</code> = True toxicity rate (e.g., 0.05)</li>
+</ul></li>
+<li><strong><code>phi_*</code></strong> = Admissibility thresholds (used for decision making)
+<ul>
+<li><code>phi_I</code> = Immune response threshold for admissibility (e.g., 0.20)</li>
+<li><code>phi_E</code> = Efficacy threshold for admissibility (e.g., 0.25)</li>
+<li><code>phi_T</code> = Toxicity threshold for admissibility (e.g., 0.30)</li>
+</ul></li>
+</ol>
+<p><strong>Example</strong>: We set <code>null_p_I = 0.20</code> (true value) = <code>phi_I = 0.20</code> (threshold) for a true null scenario.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Parameter Type</th>
+<th>Immune</th>
+<th>Efficacy</th>
+<th>Toxicity</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Null Scenario</strong></td>
+<td>null_p_I = 0.20</td>
+<td>null_p_E = 0.25</td>
+<td>null_p_T = 0.05</td>
+<td>Generate data</td>
+</tr>
+<tr class="even">
+<td><strong>Thresholds</strong></td>
+<td>phi_I = 0.20</td>
+<td>phi_E = 0.25</td>
+<td>phi_T = 0.30</td>
+<td>Make decisions</td>
+</tr>
+<tr class="odd">
+<td><strong>Relationship</strong></td>
+<td>null_p_I = phi_I</td>
+<td>null_p_E = phi_E</td>
+<td>null_p_T &lt; phi_T</td>
+<td>Null scenario</td>
+</tr>
+</tbody>
+</table>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Calibration parameters per email specification</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Null scenario: true values equal thresholds for a true null scenario</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>calibration_params <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">null_p_I =</span> <span class="fl">0.20</span>,      <span class="co"># NULL SCENARIO: True immune response rate (equals threshold phi_I=0.20)</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">null_p_E =</span> <span class="fl">0.25</span>,      <span class="co"># NULL SCENARIO: True efficacy rate (equals threshold phi_E=0.25)</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">null_p_T =</span> <span class="fl">0.05</span>,      <span class="co"># NULL SCENARIO: True toxicity rate (flat, safe level)</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">tox_upper =</span> <span class="fl">0.30</span>,     <span class="co"># Toxicity upper bound for scenario construction</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_simulations =</span> <span class="dv">1000</span>  <span class="co"># Number of simulations for calibration</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Trial configuration for calibration</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># These phi_* values are THRESHOLDS for admissibility checks (not true data values!)</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>trial_config <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">dose_levels =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>),</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_stages =</span> <span class="dv">5</span>,          <span class="co"># 5 total stages (1 equal + 4 adaptive)</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">cohort_size =</span> <span class="dv">15</span>,</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_T =</span> <span class="fl">0.30</span>,          <span class="co"># THRESHOLD: Toxicity upper limit for admissibility</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_T =</span> <span class="fl">0.3</span>,             <span class="co"># PROBABILITY: P(Tox &lt; phi_T) must exceed this</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_E =</span> <span class="fl">0.25</span>,          <span class="co"># THRESHOLD: Efficacy lower limit for admissibility</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_E =</span> <span class="fl">0.3</span>,             <span class="co"># PROBABILITY: P(Eff &gt; phi_E) must exceed this</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_I =</span> <span class="fl">0.20</span>,          <span class="co"># THRESHOLD: Immune response lower limit for admissibility</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_I =</span> <span class="fl">0.2</span>,             <span class="co"># PROBABILITY: P(Imm &gt; phi_I) must exceed this</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">delta_poc =</span> <span class="fl">0.8</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">enable_early_termination =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">log_early_termination =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">verbose_logging =</span> <span class="cn">FALSE</span>  <span class="co"># Disable verbose logs in notebook</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Utility table</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>utility_table <span class="ot">&lt;-</span> <span class="fu">array</span>(<span class="dv">0</span>, <span class="at">dim =</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>), <span class="at">dimnames =</span> <span class="fu">list</span>(</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>  <span class="at">E =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>),</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>  <span class="at">T =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>),</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>  <span class="at">I =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">0</span>   <span class="co"># E=0, T=0, I=0</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">80</span>  <span class="co"># E=1, T=0, I=0</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">0</span>   <span class="co"># E=0, T=1, I=0</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">1</span>] <span class="ot">&lt;-</span> <span class="dv">30</span>  <span class="co"># E=1, T=1, I=0</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">10</span>  <span class="co"># E=0, T=0, I=1</span></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">100</span> <span class="co"># E=1, T=0, I=1</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">0</span>   <span class="co"># E=0, T=1, I=1</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>utility_table[<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>] <span class="ot">&lt;-</span> <span class="dv">40</span>  <span class="co"># E=1, T=1, I=1</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>trial_config<span class="sc">$</span>utility_table <span class="ot">&lt;-</span> utility_table</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Configuration loaded successfully!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Configuration loaded successfully!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Null Scenario True Values (for data generation):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Null Scenario True Values (for data generation):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  null_p_I (immune) ="</span>, calibration_params<span class="sc">$</span>null_p_I, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  null_p_I (immune) = 0.2 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  null_p_E (efficacy) ="</span>, calibration_params<span class="sc">$</span>null_p_E, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  null_p_E (efficacy) = 0.25 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  null_p_T (toxicity) ="</span>, calibration_params<span class="sc">$</span>null_p_T, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  null_p_T (toxicity) = 0.05 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Admissibility Thresholds (for decision making):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Admissibility Thresholds (for decision making):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  phi_I (immune threshold) ="</span>, trial_config<span class="sc">$</span>phi_I, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  phi_I (immune threshold) = 0.2 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  phi_E (efficacy threshold) ="</span>, trial_config<span class="sc">$</span>phi_E, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  phi_E (efficacy threshold) = 0.25 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  phi_T (toxicity threshold) ="</span>, trial_config<span class="sc">$</span>phi_T, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  phi_T (toxicity threshold) = 0.3 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Other parameters:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Other parameters:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"  Simulations ="</span>, calibration_params<span class="sc">$</span>n_simulations, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  Simulations = 1000 </code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="nullflat-scenario-construction" class="level2">
+<h2 class="anchored" data-anchor-id="nullflat-scenario-construction">Null/Flat Scenario Construction</h2>
+<p>This section demonstrates the construction of the null/flat scenario using the total probability formula.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create null/flat scenario</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Note: Using null_p_* (true values for data generation), NOT phi_* (thresholds)</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>null_scenario <span class="ot">&lt;-</span> <span class="fu">create_null_flat_scenario</span>(</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_doses =</span> <span class="dv">5</span>,</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_I =</span> calibration_params<span class="sc">$</span>null_p_I,   <span class="co"># True immune response rate in null scenario</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">phi_E =</span> calibration_params<span class="sc">$</span>null_p_E,   <span class="co"># True efficacy rate in null scenario</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">tox_upper =</span> calibration_params<span class="sc">$</span>tox_upper,</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">tox_flat =</span> calibration_params<span class="sc">$</span>null_p_T  <span class="co"># True toxicity rate in null scenario</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Null/Flat Scenario Parameters:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Null/Flat Scenario Parameters:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Description:"</span>, null_scenario<span class="sc">$</span>description, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Description: Null/Flat: φ_I=0.2, φ_E=0.25, tox=0.05 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Immune Response Probabilities (P_I):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Immune Response Probabilities (P_I):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">round</span>(null_scenario<span class="sc">$</span>p_YI, <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 0.2 0.2 0.2 0.2 0.2</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Toxicity Probabilities (P_T|I):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Toxicity Probabilities (P_T|I):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">round</span>(null_scenario<span class="sc">$</span>p_YT_given_I, <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     [,1] [,2]
+[1,] 0.05 0.05
+[2,] 0.05 0.05
+[3,] 0.05 0.05
+[4,] 0.05 0.05
+[5,] 0.05 0.05</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Efficacy Probabilities (P_E|I):</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Efficacy Probabilities (P_E|I):</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(<span class="fu">round</span>(null_scenario<span class="sc">$</span>p_YE_given_I, <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>     [,1] [,2]
+[1,] 0.25 0.25
+[2,] 0.25 0.25
+[3,] 0.25 0.25
+[4,] 0.25 0.25
+[5,] 0.25 0.25</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Verify marginal efficacy calculation</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Marginal Efficacy Verification:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Marginal Efficacy Verification:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (dose <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>) {</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>  marginal_eff <span class="ot">&lt;-</span> null_scenario<span class="sc">$</span>p_YE_given_I[dose, <span class="dv">1</span>] <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> null_scenario<span class="sc">$</span>p_YI[dose]) <span class="sc">+</span> </span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>                  null_scenario<span class="sc">$</span>p_YE_given_I[dose, <span class="dv">2</span>] <span class="sc">*</span> null_scenario<span class="sc">$</span>p_YI[dose]</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Dose"</span>, dose, <span class="st">"marginal efficacy:"</span>, <span class="fu">round</span>(marginal_eff, <span class="dv">3</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Dose 1 marginal efficacy: 0.25 
+Dose 2 marginal efficacy: 0.25 
+Dose 3 marginal efficacy: 0.25 
+Dose 4 marginal efficacy: 0.25 
+Dose 5 marginal efficacy: 0.25 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create visualization of null scenario</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>null_plot_data <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">Dose =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>,</span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">Immune_Response =</span> null_scenario<span class="sc">$</span>p_YI,</span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">Toxicity_I0 =</span> null_scenario<span class="sc">$</span>p_YT_given_I[, <span class="dv">1</span>],</span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">Toxicity_I1 =</span> null_scenario<span class="sc">$</span>p_YT_given_I[, <span class="dv">2</span>],</span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">Efficacy_I0 =</span> null_scenario<span class="sc">$</span>p_YE_given_I[, <span class="dv">1</span>],</span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">Efficacy_I1 =</span> null_scenario<span class="sc">$</span>p_YE_given_I[, <span class="dv">2</span>]</span>
+<span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot null scenario parameters</span></span>
+<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a>p_null <span class="ot">&lt;-</span> <span class="fu">ggplot</span>(null_plot_data, <span class="fu">aes</span>(<span class="at">x =</span> Dose)) <span class="sc">+</span></span>
+<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> Immune_Response, <span class="at">color =</span> <span class="st">"Immune Response"</span>), <span class="at">size =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb51-14"><a href="#cb51-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> Toxicity_I0, <span class="at">color =</span> <span class="st">"Toxicity (I=0)"</span>), <span class="at">size =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb51-15"><a href="#cb51-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> Toxicity_I1, <span class="at">color =</span> <span class="st">"Toxicity (I=1)"</span>), <span class="at">size =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb51-16"><a href="#cb51-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> Efficacy_I0, <span class="at">color =</span> <span class="st">"Efficacy (I=0)"</span>), <span class="at">size =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb51-17"><a href="#cb51-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> Efficacy_I1, <span class="at">color =</span> <span class="st">"Efficacy (I=1)"</span>), <span class="at">size =</span> <span class="fl">1.2</span>) <span class="sc">+</span></span>
+<span id="cb51-18"><a href="#cb51-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Null/Flat Scenario Parameters"</span>,</span>
+<span id="cb51-19"><a href="#cb51-19" aria-hidden="true" tabindex="-1"></a>       <span class="at">subtitle =</span> <span class="st">"All doses have identical response probabilities"</span>,</span>
+<span id="cb51-20"><a href="#cb51-20" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Dose Level"</span>, <span class="at">y =</span> <span class="st">"Probability"</span>) <span class="sc">+</span></span>
+<span id="cb51-21"><a href="#cb51-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">14</span>) <span class="sc">+</span></span>
+<span id="cb51-22"><a href="#cb51-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">hjust =</span> <span class="fl">0.5</span>)) <span class="sc">+</span></span>
+<span id="cb51-23"><a href="#cb51-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"Immune Response"</span> <span class="ot">=</span> <span class="st">"#2E86AB"</span>, </span>
+<span id="cb51-24"><a href="#cb51-24" aria-hidden="true" tabindex="-1"></a>                               <span class="st">"Toxicity (I=0)"</span> <span class="ot">=</span> <span class="st">"#A23B72"</span>,</span>
+<span id="cb51-25"><a href="#cb51-25" aria-hidden="true" tabindex="-1"></a>                               <span class="st">"Toxicity (I=1)"</span> <span class="ot">=</span> <span class="st">"#F18F01"</span>,</span>
+<span id="cb51-26"><a href="#cb51-26" aria-hidden="true" tabindex="-1"></a>                               <span class="st">"Efficacy (I=0)"</span> <span class="ot">=</span> <span class="st">"#C73E1D"</span>,</span>
+<span id="cb51-27"><a href="#cb51-27" aria-hidden="true" tabindex="-1"></a>                               <span class="st">"Efficacy (I=1)"</span> <span class="ot">=</span> <span class="st">"#7209B7"</span>)) <span class="sc">+</span></span>
+<span id="cb51-28"><a href="#cb51-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ylim</span>(<span class="dv">0</span>, <span class="fl">0.3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
+ℹ Please use `linewidth` instead.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(p_null)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="poc_calibration_notebook_files/figure-html/null_scenario-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="c_poc-calibration-process" class="level2">
+<h2 class="anchored" data-anchor-id="c_poc-calibration-process">C_poc Calibration Process</h2>
+<p>This section runs the calibration process to find the optimal C_poc threshold.</p>
+<p><strong>Note on Output Verbosity:</strong> - Debug output is minimal by default to avoid console overflow in RStudio - Only shows first 3 simulations for the first c_poc candidate - Set <code>debug_early_termination = TRUE</code> in the function call below for more detailed examples</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb54"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run C_poc calibration</span></span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Starting C_poc calibration...</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Starting C_poc calibration...</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb56"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"This may take several minutes...</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>This may take several minutes...</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb58"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>start_time <span class="ot">&lt;-</span> <span class="fu">Sys.time</span>()</span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a>calibration_results <span class="ot">&lt;-</span> <span class="fu">calibrate_c_poc</span>(</span>
+<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">null_scenario =</span> null_scenario,</span>
+<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">c_poc_candidates =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="fl">0.6</span>, <span class="fl">0.7</span>, <span class="fl">0.8</span>, <span class="fl">0.85</span>, <span class="fl">0.9</span>, <span class="fl">0.95</span>),</span>
+<span id="cb58-6"><a href="#cb58-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_simulations =</span> calibration_params<span class="sc">$</span>n_simulations,</span>
+<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">base_config =</span> trial_config,</span>
+<span id="cb58-8"><a href="#cb58-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">debug_early_termination =</span> <span class="cn">FALSE</span>,  <span class="co"># Set to TRUE for detailed early termination examples</span></span>
+<span id="cb58-9"><a href="#cb58-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">max_debug_cases_per_candidate =</span> <span class="dv">2</span>  <span class="co"># Number of debug examples per c_poc (if debug enabled)</span></span>
+<span id="cb58-10"><a href="#cb58-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Starting C_poc calibration...
+Testing 7 C_poc values
+Simulations per value: 1000 
+
+=== Configuration Parameters Used ===
+Trial Design Parameters:
+  dose_levels: 1, 2, 3, 4, 5 
+  n_stages: 5 
+  cohort_size: 15 
+
+Toxicity Parameters:
+  phi_T: 0.3 
+  c_T: 0.3 
+
+Efficacy Parameters:
+  phi_E: 0.25 
+  c_E: 0.3 
+
+Immune Response Parameters:
+  phi_I: 0.2 
+  c_I: 0.2 
+
+PoC Parameters:
+  delta_poc: 0.8 
+  enable_early_termination: TRUE 
+  log_early_termination: FALSE 
+
+=== Null Scenario Parameters ===
+  p_YI: 0.2, 0.2, 0.2, 0.2, 0.2 
+  p_YT_given_I (rows=dose, cols=I=[0,1]):
+    Dose 1 : 0.05, 0.05 
+    Dose 2 : 0.05, 0.05 
+    Dose 3 : 0.05, 0.05 
+    Dose 4 : 0.05, 0.05 
+    Dose 5 : 0.05, 0.05 
+  p_YE_given_I (rows=dose, cols=I=[0,1]):
+    Dose 1 : 0.25, 0.25 
+    Dose 2 : 0.25, 0.25 
+    Dose 3 : 0.25, 0.25 
+    Dose 4 : 0.25, 0.25 
+    Dose 5 : 0.25, 0.25 
+  rho0: 1.5 
+  rho1: 2 
+
+=== Testing C_poc = 0.5 ===
+
+[DEBUG] c_poc = 0.5 , sim = 1 
+  Early terminated: FALSE 
+  Final OD: 5 
+  PoC validated: TRUE 
+  PoC probability: 0.572 
+  A_final: 3 4 5 
+  P_final non-empty: TRUE 
+
+[DEBUG] c_poc = 0.5 , sim = 2 
+  Early terminated: FALSE 
+  Final OD: 5 
+  PoC validated: TRUE 
+  PoC probability: 1 
+  A_final: 5 
+  P_final non-empty: TRUE 
+
+[DEBUG] c_poc = 0.5 , sim = 3 
+  Early terminated: FALSE 
+  Final OD: 5 
+  PoC validated: TRUE 
+  PoC probability: 1 
+  A_final: 5 
+  P_final non-empty: TRUE 
+  PoC detection rate: 0.608 (SE: 0.0154 , 95% CI: [ 0.578 , 0.638 ])
+  Early termination rate: 0.083 
+  Completion rate: 0.917 
+  PoC rate among completed trials: 0.663 
+=== Testing C_poc = 0.6 ===
+  PoC detection rate: 0.526 (SE: 0.0158 , 95% CI: [ 0.495 , 0.557 ])
+  Early termination rate: 0.11 
+  Completion rate: 0.89 
+  PoC rate among completed trials: 0.591 
+=== Testing C_poc = 0.7 ===
+  PoC detection rate: 0.426 (SE: 0.0156 , 95% CI: [ 0.395 , 0.457 ])
+  Early termination rate: 0.094 
+  Completion rate: 0.906 
+  PoC rate among completed trials: 0.47 
+=== Testing C_poc = 0.8 ===
+  PoC detection rate: 0.339 (SE: 0.015 , 95% CI: [ 0.31 , 0.368 ])
+  Early termination rate: 0.094 
+  Completion rate: 0.906 
+  PoC rate among completed trials: 0.374 
+=== Testing C_poc = 0.85 ===
+  PoC detection rate: 0.293 (SE: 0.0144 , 95% CI: [ 0.265 , 0.321 ])
+  Early termination rate: 0.088 
+  Completion rate: 0.912 
+  PoC rate among completed trials: 0.321 
+=== Testing C_poc = 0.9 ===
+  PoC detection rate: 0.212 (SE: 0.0129 , 95% CI: [ 0.187 , 0.237 ])
+  Early termination rate: 0.072 
+  Completion rate: 0.928 
+  PoC rate among completed trials: 0.228 
+=== Testing C_poc = 0.95 ===
+  PoC detection rate: 0.183 (SE: 0.0122 , 95% CI: [ 0.159 , 0.207 ])
+  Early termination rate: 0.084 
+  Completion rate: 0.916 
+  PoC rate among completed trials: 0.2 
+
+=== CALIBRATION RESULTS SUMMARY ===
+Target Type I error (PoC detection rate): ≤ 10 %
+✗ TYPE I ERROR CONTROL NOT ACHIEVED
+Selected C_poc: 0.95 (largest tested, but still exceeds target)
+⚠ WARNING: All tested C_poc values exceed target Type I error!
+⚠ Consider testing higher C_poc values (e.g., 0.96, 0.97, 0.98)
+Achieved PoC detection rate: 0.183 (SE: 0.0122 )
+Achieved completion rate: 0.916 
+
+=== TYPE I ERROR CONTROL TABLE ===
+C_poc      | PoC Rate (95% CI)    | Control Achieved?         | Status         
+--------------------------------------------------------------------------------
+0.50       | 0.608   [0.578, 0.638] | ✗ No                    |                
+0.60       | 0.526   [0.495, 0.557] | ✗ No                    |                
+0.70       | 0.426   [0.395, 0.457] | ✗ No                    |                
+0.80       | 0.339   [0.310, 0.368] | ✗ No                    |                
+0.85       | 0.293   [0.265, 0.321] | ✗ No                    |                
+0.90       | 0.212   [0.187, 0.237] | ✗ No                    |                
+0.95       | 0.183   [0.159, 0.207] | ✗ No                    | ← SELECTED*  
+--------------------------------------------------------------------------------
+* Selected despite exceeding target (no C_poc achieved control)
+
+=== SANITY CHECKS ===
+1. PoC rate &lt;= completion rate for all c_poc values?
+   c_poc = 0.5 : ✓ PASS (PoC: 0.608 , Completion: 0.917 )
+   c_poc = 0.6 : ✓ PASS (PoC: 0.526 , Completion: 0.89 )
+   c_poc = 0.7 : ✓ PASS (PoC: 0.426 , Completion: 0.906 )
+   c_poc = 0.8 : ✓ PASS (PoC: 0.339 , Completion: 0.906 )
+   c_poc = 0.85 : ✓ PASS (PoC: 0.293 , Completion: 0.912 )
+   c_poc = 0.9 : ✓ PASS (PoC: 0.212 , Completion: 0.928 )
+   c_poc = 0.95 : ✓ PASS (PoC: 0.183 , Completion: 0.916 )
+
+2. Monotonicity check (higher c_poc should generally decrease PoC rate):
+   c_poc: 0.5 → 0.6 : ✓ Non-increasing (Δ = -0.082 )
+   c_poc: 0.6 → 0.7 : ✓ Non-increasing (Δ = -0.1 )
+   c_poc: 0.7 → 0.8 : ✓ Non-increasing (Δ = -0.087 )
+   c_poc: 0.8 → 0.85 : ✓ Non-increasing (Δ = -0.046 )
+   c_poc: 0.85 → 0.9 : ✓ Non-increasing (Δ = -0.081 )
+   c_poc: 0.9 → 0.95 : ✓ Non-increasing (Δ = -0.029 )
+
+=== END SANITY CHECKS ===</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb60"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>end_time <span class="ot">&lt;-</span> <span class="fu">Sys.time</span>()</span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>calibration_duration <span class="ot">&lt;-</span> <span class="fu">difftime</span>(end_time, start_time, <span class="at">units =</span> <span class="st">"mins"</span>)</span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">C_poc Calibration Complete!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+C_poc Calibration Complete!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb62"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Duration:"</span>, <span class="fu">round</span>(calibration_duration, <span class="dv">2</span>), <span class="st">"minutes</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Duration: 35.45 minutes</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb64"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Calibration Results:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Calibration Results:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb66"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Optimal C_poc:"</span>, calibration_results<span class="sc">$</span>optimal_c_poc, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Optimal C_poc: 0.95 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb68"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Target PoC detection rate: 10%</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Target PoC detection rate: 10%</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Achieved PoC detection rate:"</span>, <span class="fu">round</span>(calibration_results<span class="sc">$</span>achieved_rate, <span class="dv">3</span>), <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Achieved PoC detection rate: 0.183 </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb72"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Display calibration curve</span></span>
+<span id="cb72-2"><a href="#cb72-2" aria-hidden="true" tabindex="-1"></a>calibration_plot <span class="ot">&lt;-</span> <span class="fu">plot_calibration_curve</span>(calibration_results)</span>
+<span id="cb72-3"><a href="#cb72-3" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(calibration_plot)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="poc_calibration_notebook_files/figure-html/calibration-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb73"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create detailed results table</span></span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>calibration_table <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">C_poc =</span> <span class="fu">sapply</span>(calibration_results<span class="sc">$</span>calibration_results, <span class="cf">function</span>(x) x<span class="sc">$</span>c_poc),</span>
+<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">PoC_Detection_Rate =</span> <span class="fu">sapply</span>(calibration_results<span class="sc">$</span>calibration_results, <span class="cf">function</span>(x) x<span class="sc">$</span>poc_detection_rate),</span>
+<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">Early_Termination_Rate =</span> <span class="fu">sapply</span>(calibration_results<span class="sc">$</span>calibration_results, <span class="cf">function</span>(x) x<span class="sc">$</span>early_termination_rate)</span>
+<span id="cb73-6"><a href="#cb73-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb73-7"><a href="#cb73-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb73-8"><a href="#cb73-8" aria-hidden="true" tabindex="-1"></a>calibration_table<span class="sc">$</span>Optimal <span class="ot">&lt;-</span> calibration_table<span class="sc">$</span>C_poc <span class="sc">==</span> calibration_results<span class="sc">$</span>optimal_c_poc</span>
+<span id="cb73-9"><a href="#cb73-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb73-10"><a href="#cb73-10" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Calibration Results Table:</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Calibration Results Table:</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb75"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(calibration_table)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  C_poc PoC_Detection_Rate Early_Termination_Rate Optimal
+1  0.50              0.608                  0.083   FALSE
+2  0.60              0.526                  0.110   FALSE
+3  0.70              0.426                  0.094   FALSE
+4  0.80              0.339                  0.094   FALSE
+5  0.85              0.293                  0.088   FALSE
+6  0.90              0.212                  0.072   FALSE
+7  0.95              0.183                  0.084    TRUE</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb77"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate detailed report file</span></span>
+<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">--- Generating Detailed Report ---</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+--- Generating Detailed Report ---</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb79"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use relative path from notebooks/ directory (where notebook runs)</span></span>
+<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a>report_path <span class="ot">&lt;-</span> <span class="st">"results/notebook_calibration/calibration_detailed_report.txt"</span></span>
+<span id="cb79-3"><a href="#cb79-3" aria-hidden="true" tabindex="-1"></a><span class="fu">generate_calibration_report</span>(</span>
+<span id="cb79-4"><a href="#cb79-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">calibration_results =</span> calibration_results,</span>
+<span id="cb79-5"><a href="#cb79-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">null_scenario =</span> null_scenario,</span>
+<span id="cb79-6"><a href="#cb79-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">base_config =</span> trial_config,</span>
+<span id="cb79-7"><a href="#cb79-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_path =</span> report_path</span>
+<span id="cb79-8"><a href="#cb79-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Detailed calibration report saved to: results/notebook_calibration/calibration_detailed_report.txt </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Report generated successfully!</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Report generated successfully!</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb83"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"View the full report at:"</span>, report_path, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>View the full report at: results/notebook_calibration/calibration_detailed_report.txt </code></pre>
+</div>
+</div>
+</section>
+<section id="view-report-summary" class="level2">
+<h2 class="anchored" data-anchor-id="view-report-summary">View Report Summary</h2>
+<p>After generating the report, you can view key sections here or open the full text file.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb85"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Read and display key sections of the report</span></span>
+<span id="cb85-2"><a href="#cb85-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">file.exists</span>(report_path)) {</span>
+<span id="cb85-3"><a href="#cb85-3" aria-hidden="true" tabindex="-1"></a>  report_lines <span class="ot">&lt;-</span> <span class="fu">readLines</span>(report_path)</span>
+<span id="cb85-4"><a href="#cb85-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb85-5"><a href="#cb85-5" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Display first 1000 lines (header + configuration + summary)</span></span>
+<span id="cb85-6"><a href="#cb85-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"=== REPORT PREVIEW (First 1000 lines) ===</span><span class="sc">\n\n</span><span class="st">"</span>)</span>
+<span id="cb85-7"><a href="#cb85-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="fu">paste</span>(<span class="fu">head</span>(report_lines, <span class="dv">1000</span>), <span class="at">collapse =</span> <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>))</span>
+<span id="cb85-8"><a href="#cb85-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"</span><span class="sc">\n\n</span><span class="st">... (see full report file for complete details) ...</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb85-9"><a href="#cb85-9" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb85-10"><a href="#cb85-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">"Report file not found. Please run the calibration chunk first.</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb85-11"><a href="#cb85-11" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>=== REPORT PREVIEW (First 1000 lines) ===
+
+================================================================================
+                    POC CALIBRATION DETAILED REPORT                            
+================================================================================
+Generated: 2026-01-19 23:19:46 
+
+================================================================================
+1. CONFIGURATION SUMMARY
+================================================================================
+
+Trial Design:
+  - Number of doses: 5 
+  - Number of stages: 5 
+  - Cohort size: 15 
+  - Total sample size (if completed): 75 
+
+Admissibility Thresholds:
+  - Toxicity (φ_T): 0.3   (Probability threshold c_T: 0.3 )
+  - Efficacy (φ_E): 0.25   (Probability threshold c_E: 0.3 )
+  - Immune Response (φ_I): 0.2   (Probability threshold c_I: 0.2 )
+
+PoC Parameters:
+  - delta_poc: 0.8 
+  - Early termination enabled: TRUE 
+
+Null Scenario Parameters:
+  - True immune response (p_YI): 0.2, 0.2, 0.2, 0.2, 0.2 
+  - True toxicity (p_YT | I=0): 0.05, 0.05, 0.05, 0.05, 0.05 
+  - True toxicity (p_YT | I=1): 0.05, 0.05, 0.05, 0.05, 0.05 
+  - True efficacy (p_YE | I=0): 0.25, 0.25, 0.25, 0.25, 0.25 
+  - True efficacy (p_YE | I=1): 0.25, 0.25, 0.25, 0.25, 0.25 
+
+================================================================================
+2. CALIBRATION RESULTS SUMMARY
+================================================================================
+
+Target Type I Error Rate: 10%
+Optimal C_poc: 0.95 
+Achieved PoC Detection Rate: 18.3% 
+
+Detailed Results by C_poc:
+--------------------------------------------------------------------------------------------------------
+C_poc    | PoC Detection Rate     | Completion Rate      | PoC | Completed      | Status      
+--------------------------------------------------------------------------------------------------------
+0.50     | 60.8% ± 1.5%          | 91.7%                | 66.3%                |             
+0.60     | 52.6% ± 1.6%          | 89.0%                | 59.1%                |             
+0.70     | 42.6% ± 1.6%          | 90.6%                | 47.0%                |             
+0.80     | 33.9% ± 1.5%          | 90.6%                | 37.4%                |             
+0.85     | 29.3% ± 1.4%          | 91.2%                | 32.1%                |             
+0.90     | 21.2% ± 1.3%          | 92.8%                | 22.8%                |             
+0.95     | 18.3% ± 1.2%          | 91.6%                | 20.0%                | OPTIMAL     
+--------------------------------------------------------------------------------------------------------
+Note: PoC Detection Rate = Pr(PoC detected) across ALL trials (including early terminated)
+      PoC | Completed = Pr(PoC detected | trial completed without early termination)
+      Standard errors are Monte Carlo SE = sqrt(p*(1-p)/N)
+
+================================================================================
+3. EARLY TERMINATION DETAILED ANALYSIS
+================================================================================
+
+--- C_poc = 0.5 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 83 (8.3%) 
+  - Completed trials: 917 (91.7%) 
+
+  Early Termination by Stage:
+    Stage 2: 6 trials (7.2% of early terminations)
+    Stage 3: 15 trials (18.1% of early terminations)
+    Stage 4: 29 trials (34.9% of early terminations)
+    Stage 5: 33 trials (39.8% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 61.1 patients (SD: 14.0)
+    Range: 30 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 27, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.065, 0.082, 0.092, 0.103, 0.130 
+        Efficacy:   0.158, 0.167, 0.168, 0.203, 0.211 
+        Immune:     0.110, 0.200, 0.210, 0.230, 0.374 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.02, P(Imm&gt;0.20)=0.15
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.02, P(Imm&gt;0.20)=0.49
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.03, P(Imm&gt;0.20)=0.55
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.13, P(Imm&gt;0.20)=0.65
+        Dose 5 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.19, P(Imm&gt;0.20)=0.99
+
+    Example 2 (Simulation 54, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.085, 0.105, 0.113, 0.118, 0.140 
+        Efficacy:   0.142, 0.192, 0.245, 0.279, 0.296 
+        Immune:     0.104, 0.129, 0.129, 0.131, 0.141 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.08, P(Imm&gt;0.20)=0.02
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.16, P(Imm&gt;0.20)=0.03
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.47, P(Imm&gt;0.20)=0.03
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.70, P(Imm&gt;0.20)=0.04
+        Dose 5 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.78, P(Imm&gt;0.20)=0.09
+
+    Example 3 (Simulation 61, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.064, 0.078, 0.099, 0.109, 0.136 
+        Efficacy:   0.169, 0.310, 0.329, 0.336, 0.349 
+        Immune:     0.120, 0.120, 0.129, 0.149, 0.154 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.22, P(Imm&gt;0.20)=0.02
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.86, P(Imm&gt;0.20)=0.02
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.95, P(Imm&gt;0.20)=0.04
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.97, P(Imm&gt;0.20)=0.10
+        Dose 5 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.97, P(Imm&gt;0.20)=0.14
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 608 trials (66.3% of completed trials)
+
+--- C_poc = 0.6 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 110 (11.0%) 
+  - Completed trials: 890 (89.0%) 
+
+  Early Termination by Stage:
+    Stage 1: 2 trials (1.8% of early terminations)
+    Stage 2: 6 trials (5.5% of early terminations)
+    Stage 3: 22 trials (20.0% of early terminations)
+    Stage 4: 28 trials (25.5% of early terminations)
+    Stage 5: 52 trials (47.3% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 61.6 patients (SD: 15.4)
+    Range: 15 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 4, Stage 1):
+      Posterior Estimates (Mean):
+        Toxicity:   0.225, 0.361, 0.378, 0.400, 0.434 
+        Efficacy:   0.179, 0.236, 0.279, 0.352, 0.496 
+        Immune:     0.281, 0.312, 0.328, 0.547, 0.652 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=0.75, P(Eff&gt;0.25)=0.21, P(Imm&gt;0.20)=0.75
+        Dose 2 ✗: P(Tox&lt;0.30)=0.26, P(Eff&gt;0.25)=0.42, P(Imm&gt;0.20)=0.84
+        Dose 3 ✗: P(Tox&lt;0.30)=0.18, P(Eff&gt;0.25)=0.61, P(Imm&gt;0.20)=0.86
+        Dose 4 ✗: P(Tox&lt;0.30)=0.12, P(Eff&gt;0.25)=0.85, P(Imm&gt;0.20)=1.00
+        Dose 5 ✗: P(Tox&lt;0.30)=0.08, P(Eff&gt;0.25)=0.99, P(Imm&gt;0.20)=1.00
+
+    Example 2 (Simulation 5, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.088, 0.102, 0.120, 0.163, 0.433 
+        Efficacy:   0.111, 0.138, 0.199, 0.217, 0.330 
+        Immune:     0.090, 0.108, 0.143, 0.231, 0.282 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.01, P(Imm&gt;0.20)=0.04
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.03, P(Imm&gt;0.20)=0.06
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.12, P(Imm&gt;0.20)=0.17
+        Dose 4 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.21, P(Imm&gt;0.20)=0.70
+        Dose 5 ✗: P(Tox&lt;0.30)=0.23, P(Eff&gt;0.25)=0.71, P(Imm&gt;0.20)=0.79
+
+    Example 3 (Simulation 21, Stage 3):
+      Posterior Estimates (Mean):
+        Toxicity:   0.101, 0.120, 0.139, 0.160, 0.217 
+        Efficacy:   0.123, 0.152, 0.217, 0.269, 0.318 
+        Immune:     0.107, 0.109, 0.118, 0.121, 0.137 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.04, P(Imm&gt;0.20)=0.02
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.08, P(Imm&gt;0.20)=0.03
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.29, P(Imm&gt;0.20)=0.04
+        Dose 4 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.58, P(Imm&gt;0.20)=0.05
+        Dose 5 ✗: P(Tox&lt;0.30)=0.89, P(Eff&gt;0.25)=0.81, P(Imm&gt;0.20)=0.12
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 526 trials (59.1% of completed trials)
+
+--- C_poc = 0.7 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 94 (9.4%) 
+  - Completed trials: 906 (90.6%) 
+
+  Early Termination by Stage:
+    Stage 2: 9 trials (9.6% of early terminations)
+    Stage 3: 17 trials (18.1% of early terminations)
+    Stage 4: 31 trials (33.0% of early terminations)
+    Stage 5: 37 trials (39.4% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 60.3 patients (SD: 14.8)
+    Range: 30 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 45, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.067, 0.086, 0.091, 0.105, 0.198 
+        Efficacy:   0.190, 0.276, 0.321, 0.326, 0.384 
+        Immune:     0.150, 0.150, 0.154, 0.160, 0.161 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.27, P(Imm&gt;0.20)=0.08
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.68, P(Imm&gt;0.20)=0.08
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.92, P(Imm&gt;0.20)=0.10
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.94, P(Imm&gt;0.20)=0.14
+        Dose 5 ✗: P(Tox&lt;0.30)=0.90, P(Eff&gt;0.25)=0.99, P(Imm&gt;0.20)=0.14
+
+    Example 2 (Simulation 47, Stage 3):
+      Posterior Estimates (Mean):
+        Toxicity:   0.068, 0.108, 0.131, 0.167, 0.451 
+        Efficacy:   0.217, 0.243, 0.256, 0.278, 0.486 
+        Immune:     0.128, 0.128, 0.135, 0.142, 0.243 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.27, P(Imm&gt;0.20)=0.04
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.41, P(Imm&gt;0.20)=0.04
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.52, P(Imm&gt;0.20)=0.08
+        Dose 4 ✗: P(Tox&lt;0.30)=0.97, P(Eff&gt;0.25)=0.64, P(Imm&gt;0.20)=0.12
+        Dose 5 ✗: P(Tox&lt;0.30)=0.19, P(Eff&gt;0.25)=0.96, P(Imm&gt;0.20)=0.50
+
+    Example 3 (Simulation 62, Stage 2):
+      Posterior Estimates (Mean):
+        Toxicity:   0.130, 0.150, 0.171, 0.200, 0.444 
+        Efficacy:   0.225, 0.245, 0.266, 0.446, 0.603 
+        Immune:     0.083, 0.113, 0.141, 0.147, 0.240 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.34, P(Imm&gt;0.20)=0.04
+        Dose 2 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.43, P(Imm&gt;0.20)=0.09
+        Dose 3 ✗: P(Tox&lt;0.30)=0.98, P(Eff&gt;0.25)=0.55, P(Imm&gt;0.20)=0.16
+        Dose 4 ✗: P(Tox&lt;0.30)=0.92, P(Eff&gt;0.25)=0.97, P(Imm&gt;0.20)=0.19
+        Dose 5 ✗: P(Tox&lt;0.30)=0.18, P(Eff&gt;0.25)=1.00, P(Imm&gt;0.20)=0.51
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 426 trials (47.0% of completed trials)
+
+--- C_poc = 0.8 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 94 (9.4%) 
+  - Completed trials: 906 (90.6%) 
+
+  Early Termination by Stage:
+    Stage 1: 2 trials (2.1% of early terminations)
+    Stage 2: 8 trials (8.5% of early terminations)
+    Stage 3: 16 trials (17.0% of early terminations)
+    Stage 4: 37 trials (39.4% of early terminations)
+    Stage 5: 31 trials (33.0% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 58.9 patients (SD: 15.3)
+    Range: 15 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 32, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.065, 0.085, 0.095, 0.113, 0.167 
+        Efficacy:   0.200, 0.246, 0.349, 0.358, 0.370 
+        Immune:     0.078, 0.134, 0.134, 0.142, 0.144 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.23, P(Imm&gt;0.20)=0.01
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.46, P(Imm&gt;0.20)=0.03
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.98, P(Imm&gt;0.20)=0.03
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.99, P(Imm&gt;0.20)=0.07
+        Dose 5 ✗: P(Tox&lt;0.30)=0.98, P(Eff&gt;0.25)=0.99, P(Imm&gt;0.20)=0.08
+
+    Example 2 (Simulation 42, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.071, 0.089, 0.098, 0.154, 0.437 
+        Efficacy:   0.171, 0.177, 0.211, 0.307, 0.380 
+        Immune:     0.139, 0.162, 0.165, 0.167, 0.245 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.08, P(Imm&gt;0.20)=0.11
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.09, P(Imm&gt;0.20)=0.17
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.24, P(Imm&gt;0.20)=0.18
+        Dose 4 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.82, P(Imm&gt;0.20)=0.20
+        Dose 5 ✗: P(Tox&lt;0.30)=0.21, P(Eff&gt;0.25)=0.93, P(Imm&gt;0.20)=0.51
+
+    Example 3 (Simulation 43, Stage 4):
+      Posterior Estimates (Mean):
+        Toxicity:   0.080, 0.098, 0.109, 0.127, 0.145 
+        Efficacy:   0.167, 0.188, 0.191, 0.224, 0.363 
+        Immune:     0.125, 0.127, 0.137, 0.137, 0.147 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.06, P(Imm&gt;0.20)=0.03
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.12, P(Imm&gt;0.20)=0.04
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.13, P(Imm&gt;0.20)=0.06
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.31, P(Imm&gt;0.20)=0.06
+        Dose 5 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.92, P(Imm&gt;0.20)=0.11
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 339 trials (37.4% of completed trials)
+
+--- C_poc = 0.85 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 88 (8.8%) 
+  - Completed trials: 912 (91.2%) 
+
+  Early Termination by Stage:
+    Stage 2: 3 trials (3.4% of early terminations)
+    Stage 3: 15 trials (17.0% of early terminations)
+    Stage 4: 35 trials (39.8% of early terminations)
+    Stage 5: 35 trials (39.8% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 62.4 patients (SD: 12.4)
+    Range: 30 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 32, Stage 4):
+      Posterior Estimates (Mean):
+        Toxicity:   0.104, 0.113, 0.125, 0.146, 0.161 
+        Efficacy:   0.136, 0.181, 0.207, 0.260, 0.290 
+        Immune:     0.116, 0.152, 0.153, 0.156, 0.164 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.06, P(Imm&gt;0.20)=0.06
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.12, P(Imm&gt;0.20)=0.12
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.22, P(Imm&gt;0.20)=0.13
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.54, P(Imm&gt;0.20)=0.15
+        Dose 5 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.73, P(Imm&gt;0.20)=0.20
+
+    Example 2 (Simulation 46, Stage 3):
+      Posterior Estimates (Mean):
+        Toxicity:   0.167, 0.187, 0.220, 0.233, 0.401 
+        Efficacy:   0.230, 0.296, 0.343, 0.388, 0.636 
+        Immune:     0.095, 0.131, 0.136, 0.139, 0.596 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.42, P(Imm&gt;0.20)=0.04
+        Dose 2 ✗: P(Tox&lt;0.30)=0.98, P(Eff&gt;0.25)=0.73, P(Imm&gt;0.20)=0.08
+        Dose 3 ✗: P(Tox&lt;0.30)=0.92, P(Eff&gt;0.25)=0.91, P(Imm&gt;0.20)=0.10
+        Dose 4 ✗: P(Tox&lt;0.30)=0.87, P(Eff&gt;0.25)=0.98, P(Imm&gt;0.20)=0.12
+        Dose 5 ✗: P(Tox&lt;0.30)=0.21, P(Eff&gt;0.25)=1.00, P(Imm&gt;0.20)=0.98
+
+    Example 3 (Simulation 60, Stage 4):
+      Posterior Estimates (Mean):
+        Toxicity:   0.077, 0.090, 0.105, 0.112, 0.158 
+        Efficacy:   0.162, 0.237, 0.268, 0.282, 0.347 
+        Immune:     0.086, 0.100, 0.105, 0.133, 0.133 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.18, P(Imm&gt;0.20)=0.01
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.44, P(Imm&gt;0.20)=0.01
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.64, P(Imm&gt;0.20)=0.02
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.74, P(Imm&gt;0.20)=0.07
+        Dose 5 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.94, P(Imm&gt;0.20)=0.07
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 293 trials (32.1% of completed trials)
+
+--- C_poc = 0.9 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 72 (7.2%) 
+  - Completed trials: 928 (92.8%) 
+
+  Early Termination by Stage:
+    Stage 1: 1 trials (1.4% of early terminations)
+    Stage 2: 8 trials (11.1% of early terminations)
+    Stage 3: 11 trials (15.3% of early terminations)
+    Stage 4: 32 trials (44.4% of early terminations)
+    Stage 5: 20 trials (27.8% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 57.9 patients (SD: 15.0)
+    Range: 15 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 7, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.072, 0.085, 0.094, 0.112, 0.176 
+        Efficacy:   0.165, 0.184, 0.204, 0.223, 0.253 
+        Immune:     0.124, 0.136, 0.138, 0.138, 0.138 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.06, P(Imm&gt;0.20)=0.04
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.07, P(Imm&gt;0.20)=0.05
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.13, P(Imm&gt;0.20)=0.06
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.24, P(Imm&gt;0.20)=0.06
+        Dose 5 ✗: P(Tox&lt;0.30)=0.96, P(Eff&gt;0.25)=0.48, P(Imm&gt;0.20)=0.06
+
+    Example 2 (Simulation 10, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.054, 0.064, 0.086, 0.137, 0.433 
+        Efficacy:   0.168, 0.219, 0.262, 0.300, 0.455 
+        Immune:     0.156, 0.156, 0.156, 0.157, 0.234 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.12, P(Imm&gt;0.20)=0.12
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.27, P(Imm&gt;0.20)=0.12
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.57, P(Imm&gt;0.20)=0.12
+        Dose 4 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.80, P(Imm&gt;0.20)=0.13
+        Dose 5 ✗: P(Tox&lt;0.30)=0.22, P(Eff&gt;0.25)=0.96, P(Imm&gt;0.20)=0.46
+
+    Example 3 (Simulation 12, Stage 3):
+      Posterior Estimates (Mean):
+        Toxicity:   0.078, 0.100, 0.119, 0.152, 0.466 
+        Efficacy:   0.164, 0.186, 0.297, 0.383, 0.613 
+        Immune:     0.140, 0.146, 0.147, 0.149, 0.407 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.10, P(Imm&gt;0.20)=0.09
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.17, P(Imm&gt;0.20)=0.11
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.70, P(Imm&gt;0.20)=0.12
+        Dose 4 ✗: P(Tox&lt;0.30)=0.99, P(Eff&gt;0.25)=0.94, P(Imm&gt;0.20)=0.13
+        Dose 5 ✗: P(Tox&lt;0.30)=0.14, P(Eff&gt;0.25)=1.00, P(Imm&gt;0.20)=0.85
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 212 trials (22.8% of completed trials)
+
+--- C_poc = 0.95 ---
+
+Overall Statistics:
+  - Total simulations: 1000 
+  - Early terminations: 84 (8.4%) 
+  - Completed trials: 916 (91.6%) 
+
+  Early Termination by Stage:
+    Stage 1: 1 trials (1.2% of early terminations)
+    Stage 2: 4 trials (4.8% of early terminations)
+    Stage 3: 18 trials (21.4% of early terminations)
+    Stage 4: 25 trials (29.8% of early terminations)
+    Stage 5: 36 trials (42.9% of early terminations)
+
+  Sample Size at Early Termination:
+    Mean: 61.2 patients (SD: 14.6)
+    Range: 15 - 75 patients
+
+  Common Patterns in Early Termination:
+
+    Example 1 (Simulation 8, Stage 4):
+      Posterior Estimates (Mean):
+        Toxicity:   0.072, 0.097, 0.104, 0.111, 0.135 
+        Efficacy:   0.140, 0.149, 0.154, 0.159, 0.172 
+        Immune:     0.090, 0.145, 0.151, 0.153, 0.225 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.01, P(Imm&gt;0.20)=0.04
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.01, P(Imm&gt;0.20)=0.12
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.02, P(Imm&gt;0.20)=0.15
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.02, P(Imm&gt;0.20)=0.16
+        Dose 5 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.05, P(Imm&gt;0.20)=0.58
+
+    Example 2 (Simulation 48, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.062, 0.071, 0.085, 0.101, 0.222 
+        Efficacy:   0.128, 0.168, 0.194, 0.206, 0.225 
+        Immune:     0.080, 0.094, 0.131, 0.146, 0.226 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.03, P(Imm&gt;0.20)=0.01
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.05, P(Imm&gt;0.20)=0.02
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.08, P(Imm&gt;0.20)=0.07
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.15, P(Imm&gt;0.20)=0.13
+        Dose 5 ✗: P(Tox&lt;0.30)=0.84, P(Eff&gt;0.25)=0.28, P(Imm&gt;0.20)=0.56
+
+    Example 3 (Simulation 49, Stage 5):
+      Posterior Estimates (Mean):
+        Toxicity:   0.071, 0.082, 0.090, 0.098, 0.164 
+        Efficacy:   0.139, 0.187, 0.209, 0.223, 0.257 
+        Immune:     0.081, 0.095, 0.113, 0.115, 0.136 
+      Admissibility Probabilities:
+        Dose 1 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.06, P(Imm&gt;0.20)=0.00
+        Dose 2 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.12, P(Imm&gt;0.20)=0.01
+        Dose 3 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.19, P(Imm&gt;0.20)=0.02
+        Dose 4 ✗: P(Tox&lt;0.30)=1.00, P(Eff&gt;0.25)=0.27, P(Imm&gt;0.20)=0.02
+        Dose 5 ✗: P(Tox&lt;0.30)=0.98, P(Eff&gt;0.25)=0.53, P(Imm&gt;0.20)=0.09
+
+  Completed Trials Analysis:
+    Mean sample size: 75.0 patients (SD: 0.0)
+    PoC validated: 183 trials (20.0% of completed trials)
+
+================================================================================
+4. RECOMMENDATIONS
+================================================================================
+
+Based on the calibration results:
+
+1. ✗ Type I Error Control Status: NOT ACHIEVED
+   Selected C_poc = 0.95 (largest tested)
+   ⚠ WARNING: This still exceeds the 10% target!
+   Achieved Type I error rate: 18.3% (target: ≤10%)
+   RECOMMENDATION: Test higher C_poc values (e.g., 0.96, 0.97, 0.98, 0.99)
+
+2. Expected Trial Characteristics:
+   - Early termination rate: 8.4% 
+   - Trial completion rate: 91.6% 
+
+3. Next Steps:
+   - Validate calibration with alternative scenarios
+   - Test performance in signal scenarios
+   - Consider sensitivity analysis for key parameters
+
+================================================================================
+                           END OF REPORT                                       
+================================================================================
+
+... (see full report file for complete details) ...</code></pre>
+</div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
