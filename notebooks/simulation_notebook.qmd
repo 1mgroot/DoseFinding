@@ -32,32 +32,29 @@ source(file.path(project_root, "src/core/main.R"))
 
 ## Configuration
 
-Modify the simulation parameters in this section. I have adjusted these values to create a more dynamic scenario where multiple doses are likely to be admissible in the early stages.
-
-**Calibration Note**: The `c_poc` parameter has been calibrated using null/flat scenarios to control Type I error at approximately 10%. The optimal value of `c_poc = 0.95` achieves a 7.8% false positive rate. For stricter Type I error control matching the calibration conditions, consider using the threshold configuration from `poc_calibration_notebook.qmd` (phi_T=0.3, c_T=0.3, phi_E=0.25, c_E=0.3).
+Modify the simulation parameters in this section. These parameters are aligned with `poc_calibration_notebook.qmd` for consistent Type I error control.
 
 ```{r config}
 # Trial configuration
-# Note: These parameters allow for interactive exploration with different scenarios.
-# For calibrated Type I error control (~10%), use the stricter thresholds from 
-# poc_calibration_notebook.qmd: phi_T=0.3, c_T=0.3, phi_E=0.25, c_E=0.3, phi_I=0.2, c_I=0.2
+# Parameters aligned with poc_calibration_notebook.qmd for consistency
 
 trial_config <- list(
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
   cohort_size = 15,
-  phi_T = 0.35, # Toxicity threshold (relaxed for exploration)
-  c_T = 0.5,   
-  phi_E = 0.1, # Efficacy threshold (relaxed for exploration)
-  c_E = 0.5,   
-  phi_I = 0.20, # Immune response threshold
-  c_I = 0.5,   
-  # PoC parameters (calibrated value from null/flat scenario testing)
-  c_poc = 0.95,  # Calibrated to achieve ~7.8% Type I error (target ≤10%)
-  delta_poc = 0.8,  # Threshold for PoC pairwise comparison
+  phi_T = 0.30,
+  c_T = 0.3,
+  phi_E = 0.25,
+  c_E = 0.3,
+  phi_I = 0.20,
+  c_I = 0.2,
+  # PoC parameters (c_poc calibrated via poc_calibration_notebook.qmd)
+  c_poc = 0.95,
+  delta_poc = 0.8,
   # Early termination parameters
   enable_early_termination = TRUE,
-  log_early_termination = TRUE
+  log_early_termination = FALSE,
+  verbose_logging = FALSE
 )
 #cohort size may vary on diff stage (future work)
 
@@ -72,7 +69,7 @@ p_YT_given_I <- matrix(c(
 ), nrow = 5, ncol = 2)
 
 p_YE_given_I <- matrix(c(
-  # I=0 (No Immune Response)
+  # I=0 (No Immune Response)ƒ
   0.10, 0.20, 0.35, 0.45, 0.50, 
   # I=1 (Immune Response)
   0.30, 0.50, 0.70, 0.80, 0.75  
@@ -197,7 +194,11 @@ print(p_alloc_time)
 allocation_summary <- results$all_data %>%
   group_by(d, stage) %>%
   summarise(n_participants = n(), .groups = 'drop') %>%
-  mutate(d = factor(d), stage = factor(stage, levels = 1:5, labels = paste("Stage", 1:5)))
+  mutate(
+    d = factor(d),
+    stage_num = as.integer(stage),
+    stage = factor(stage_num, levels = 1:5, labels = paste("Stage", 1:5))
+  )
 
 # Plot 1: Allocation by dose level and stage with modern styling
 p_alloc <- ggplot(allocation_summary, aes(x = d, y = n_participants, fill = stage)) +
@@ -216,6 +217,7 @@ print(p_alloc)
 
 # Plot 2: Cumulative allocation over stages
 cumulative_summary <- allocation_summary %>%
+  arrange(d, stage_num) %>%
   group_by(d) %>%
   mutate(cumulative_participants = cumsum(n_participants)) %>%
   ungroup()
@@ -360,131 +362,16 @@ print(multi_scenario_plot)
 cat("✅ Multi-scenario analysis completed!\n")
 ```
 
-## Calibration Framework
-
-This section demonstrates the calibration framework for optimizing trial parameters.
-
-### Setup Calibration
-
-```{r calibration-setup}
-# Use absolute paths for calibration functions
-project_root <- "/Users/jz/Development/DoseFinding"
-
-# Source calibration functions
-source(file.path(project_root, "src/optimization/poc_calibration.R"))
-source(file.path(project_root, "src/optimization/early_termination_calibration.R"))
-source(file.path(project_root, "src/utils/calibration_plots.R"))
-
-# Set up output directory for calibration results
-calibration_output_dir <- "results/notebook_calibration"
-dir.create(calibration_output_dir, showWarnings = FALSE, recursive = TRUE)
-```
-
-### PoC Calibration
-
-Calibrate the PoC threshold to achieve target detection rates in null scenarios.
-
-```{r poc-calibration}
-# Run PoC calibration with reduced simulations for notebook
-cat("Running PoC calibration...\n")
-poc_results <- run_quick_calibration(
-  target_rate = 0.10,
-  n_simulations = 100  # Reduced for notebook
-)
-
-# Display results
-cat("PoC Calibration Results:\n")
-cat("Optimal C_poc =", poc_results$optimal_c_poc, "\n")
-cat("Achieved rate =", round(poc_results$optimal_rate, 3), "\n")
-cat("Target rate =", poc_results$target_rate, "\n")
-
-# Create calibration curve
-poc_plot <- plot_poc_calibration_curve(
-  poc_results,
-  target_rate = 0.10,
-  save_path = file.path(calibration_output_dir, "poc_calibration_curve.png")
-)
-print(poc_plot)
-```
-
-### Early Termination Calibration
-
-Calibrate early termination parameters to achieve target termination rates in unfavorable scenarios.
-
-```{r early-termination-calibration}
-# Run early termination calibration with reduced simulations for notebook
-cat("Running early termination calibration...\n")
-early_term_results <- run_quick_early_termination_calibration(
-  target_rate = 0.80,
-  n_simulations = 100  # Reduced for notebook
-)
-
-# Display results
-cat("Early Termination Calibration Results:\n")
-cat("Optimal", early_term_results$threshold_type, "=", early_term_results$optimal_threshold, "\n")
-cat("Achieved rate =", round(early_term_results$optimal_rate, 3), "\n")
-cat("Target rate =", early_term_results$target_rate, "\n")
-
-# Create calibration curve
-early_term_plot <- plot_early_termination_curve(
-  early_term_results,
-  target_rate = 0.80,
-  save_path = file.path(calibration_output_dir, "early_termination_calibration_curve.png")
-)
-print(early_term_plot)
-```
-
-### Combined Performance Curves
-
-Visualize both calibration results together.
-
-```{r combined-calibration}
-# Create combined calibration data
-combined_calibration_data <- list(
-  poc_calibration = poc_results,
-  termination_calibration = early_term_results
-)
-
-# Create combined performance curves
-combined_plot <- plot_threshold_performance_curves(
-  combined_calibration_data,
-  save_path = file.path(calibration_output_dir, "combined_performance_curves.png")
-)
-print(combined_plot)
-```
-
-### Calibration Summary
-
-```{r calibration-summary}
-# Create summary table
-calibration_summary <- data.frame(
-  Parameter = c("C_poc (PoC)", "C_T (Early Termination)", "PoC Target", "PoC Achieved", 
-                "Early Termination Target", "Early Termination Achieved"),
-  Value = c(
-    round(poc_results$optimal_c_poc, 3),
-    round(early_term_results$optimal_threshold, 3),
-    poc_results$target_rate,
-    round(poc_results$optimal_rate, 3),
-    early_term_results$target_rate,
-    round(early_term_results$optimal_rate, 3)
-  )
-)
-
-# Display summary table
-kable(calibration_summary, caption = "Calibration Summary")
-```
-
 ## Summary
 
-This notebook demonstrates the Bayesian dose-finding trial simulation with modern, publication-ready visualizations inspired by the reference code. The plots include:
+This notebook demonstrates the Bayesian dose-finding trial simulation with modern, publication-ready visualizations. The plots include:
 
 -   **Dose-response curves** with toxicity, efficacy, and utility
 -   **Posterior summaries** with modern styling
 -   **Allocation analysis** showing participant distribution
 -   **Method comparisons** for performance evaluation
 -   **Multi-scenario analysis** for parameter sensitivity
--   **Calibration framework** for optimizing trial parameters
+
+For PoC calibration and early termination calibration, see the dedicated `poc_calibration_notebook.qmd`.
 
 All plots use consistent color schemes and professional styling suitable for academic publications and regulatory submissions.
-
-\`\`\`

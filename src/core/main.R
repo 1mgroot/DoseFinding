@@ -37,6 +37,9 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       }
     }
     
+    # Record allocation probabilities at START of stage (before any early termination)
+    all_alloc_probs <- rbind(all_alloc_probs, data.frame(Stage = stage, Dose = trial_config$dose_levels, Prob = alloc_probs))
+    
     # Stage 1: Explicitly ensure equal allocation across all dose levels
     # Stages 2+: Use adaptive randomization probabilities
     if (stage == 1) {
@@ -171,8 +174,6 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
 ")
       }
     }
-    
-    all_alloc_probs <- rbind(all_alloc_probs, data.frame(Stage = stage, Dose = trial_config$dose_levels, Prob = alloc_probs))
   }
 
   # Step 5: Final Selection with PoC validation (CORRECT PLACEMENT - only at final stage)
