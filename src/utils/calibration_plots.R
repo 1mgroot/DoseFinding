@@ -84,33 +84,78 @@ plot_early_termination_curve <- function(termination_results, target_rate = 0.80
     optimal_threshold <- data$threshold[which.min(abs(data$termination_rate - target_rate))]
   }
   
-  p <- ggplot(data, aes(x = .data$threshold)) +
-    geom_line(aes(y = .data$termination_rate), color = "#E69F00", size = 1.2) +
-    geom_ribbon(aes(ymin = .data$termination_rate_lower, ymax = .data$termination_rate_upper), 
-                alpha = 0.3, fill = "#E69F00") +
-    geom_hline(yintercept = target_rate, linetype = "dashed", color = "#009E73", size = 1) +
-    geom_vline(xintercept = optimal_threshold, 
-               linetype = "dashed", color = "#56B4E9", size = 1) +
-    geom_point(aes(x = optimal_threshold, y = data$termination_rate[data$threshold == optimal_threshold]), 
-               color = "#CC79A7", size = 4, shape = 16) +
-    labs(
-      title = "Early Termination Calibration Curve",
-      subtitle = paste("Target termination rate:", target_rate, "| Optimal threshold =", round(optimal_threshold, 3)),
-      x = "Termination Threshold",
-      y = "Early Termination Rate",
-      caption = paste("Based on", unique(data$n_simulations), "simulations per point")
-    ) +
-    scale_y_continuous(breaks = seq(0, 1, by = 0.1), limits = c(0, 1)) +
-    theme_bw(base_size = 16) +
-    theme(
-      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
-      plot.subtitle = element_text(size = 14, hjust = 0.5),
-      axis.title = element_text(size = 12),
-      axis.text = element_text(size = 11),
-      plot.caption = element_text(size = 10, hjust = 0.5),
-      panel.grid.minor = element_blank(),
-      panel.grid.major = element_line(color = "gray90", size = 0.5)
-    )
+  has_threshold <- "threshold" %in% names(data)
+  has_grid <- all(c("c_T", "c_E") %in% names(data))
+  
+  if (has_threshold) {
+    p <- ggplot(data, aes(x = .data$threshold)) +
+      geom_line(aes(y = .data$termination_rate), color = "#E69F00", size = 1.2) +
+      geom_ribbon(aes(ymin = .data$termination_rate_lower, ymax = .data$termination_rate_upper), 
+                  alpha = 0.3, fill = "#E69F00") +
+      geom_hline(yintercept = target_rate, linetype = "dashed", color = "#009E73", size = 1) +
+      geom_vline(xintercept = optimal_threshold, 
+                 linetype = "dashed", color = "#56B4E9", size = 1) +
+      geom_point(aes(x = optimal_threshold, y = data$termination_rate[data$threshold == optimal_threshold]), 
+                 color = "#CC79A7", size = 4, shape = 16) +
+      labs(
+        title = "Early Termination Calibration Curve",
+        subtitle = paste("Target termination rate:", target_rate, "| Optimal threshold =", round(optimal_threshold, 3)),
+        x = "Termination Threshold",
+        y = "Early Termination Rate",
+        caption = paste("Based on", unique(data$n_simulations), "simulations per point")
+      ) +
+      scale_y_continuous(breaks = seq(0, 1, by = 0.1), limits = c(0, 1)) +
+      theme_bw(base_size = 16) +
+      theme(
+        plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 14, hjust = 0.5),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 11),
+        plot.caption = element_text(size = 10, hjust = 0.5),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "gray90", size = 0.5)
+      )
+  } else if (has_grid) {
+    optimal_c_T <- if (!is.null(termination_results$optimal_c_T)) termination_results$optimal_c_T else NA_real_
+    optimal_c_E <- if (!is.null(termination_results$optimal_c_E)) termination_results$optimal_c_E else NA_real_
+    threshold_type <- if (!is.null(termination_results$threshold_type)) termination_results$threshold_type else "c_T and c_E"
+    
+    caption_text <- NULL
+    if ("n_simulations" %in% names(data)) {
+      caption_text <- paste("Based on", unique(data$n_simulations), "simulations per point")
+    }
+    
+    p <- ggplot(data, aes(x = .data$c_T, y = .data$c_E, fill = .data$termination_rate)) +
+      geom_tile(color = "white") +
+      geom_point(
+        data = data.frame(c_T = optimal_c_T, c_E = optimal_c_E),
+        aes(x = .data$c_T, y = .data$c_E),
+        inherit.aes = FALSE,
+        color = "#CC79A7",
+        size = 4
+      ) +
+      labs(
+        title = "Early Termination Calibration Heatmap",
+        subtitle = paste("Target termination rate:", target_rate, "| Optimal", threshold_type),
+        x = "c_T Threshold",
+        y = "c_E Threshold",
+        fill = "Termination Rate",
+        caption = caption_text
+      ) +
+      scale_fill_gradient(low = "#F0F0F0", high = "#E69F00", limits = c(0, 1)) +
+      theme_bw(base_size = 16) +
+      theme(
+        plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 14, hjust = 0.5),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 11),
+        plot.caption = element_text(size = 10, hjust = 0.5),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "gray90", size = 0.5)
+      )
+  } else {
+    stop("Early termination calibration data must include 'threshold' or 'c_T' and 'c_E' columns.")
+  }
   
   if (!is.null(save_path)) {
     # Create directory if it doesn't exist
@@ -149,12 +194,37 @@ plot_threshold_performance_curves <- function(calibration_data, save_path = NULL
   # Add termination calibration data
   if ("termination_calibration" %in% names(calibration_data)) {
     term_data <- calibration_data$termination_calibration$calibration_results
-    term_data$metric <- "Early Termination Rate"
-    term_data$threshold <- term_data$threshold
-    term_data$rate <- term_data$termination_rate
-    term_data$rate_lower <- term_data$termination_rate_lower
-    term_data$rate_upper <- term_data$termination_rate_upper
-    combined_data <- rbind(combined_data, term_data[, c("threshold", "rate", "rate_lower", "rate_upper", "metric")])
+    
+    if ("threshold" %in% names(term_data)) {
+      term_data$metric <- "Early Termination Rate"
+      term_data$threshold <- term_data$threshold
+      term_data$rate <- term_data$termination_rate
+      term_data$rate_lower <- term_data$termination_rate_lower
+      term_data$rate_upper <- term_data$termination_rate_upper
+      combined_data <- rbind(combined_data, term_data[, c("threshold", "rate", "rate_lower", "rate_upper", "metric")])
+    } else if (all(c("c_T", "c_E") %in% names(term_data))) {
+      optimal_c_E <- calibration_data$termination_calibration$optimal_c_E
+      if (is.null(optimal_c_E)) {
+        optimal_c_E <- term_data$c_E[1]
+      }
+      
+      term_slice <- term_data[term_data$c_E == optimal_c_E, , drop = FALSE]
+      term_slice$metric <- "Early Termination Rate"
+      term_slice$threshold <- term_slice$c_T
+      term_slice$rate <- term_slice$termination_rate
+      term_slice$rate_lower <- if ("termination_rate_lower" %in% names(term_slice)) {
+        term_slice$termination_rate_lower
+      } else {
+        term_slice$termination_rate
+      }
+      term_slice$rate_upper <- if ("termination_rate_upper" %in% names(term_slice)) {
+        term_slice$termination_rate_upper
+      } else {
+        term_slice$termination_rate
+      }
+      
+      combined_data <- rbind(combined_data, term_slice[, c("threshold", "rate", "rate_lower", "rate_upper", "metric")])
+    }
   }
   
   if (nrow(combined_data) == 0) {
