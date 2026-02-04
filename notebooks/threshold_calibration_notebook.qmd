@@ -1,0 +1,783 @@
+---
+title: "阈值校准 Notebook - c_T, c_E, c_I 独立校准"
+subtitle: "Threshold Calibration for Early Termination Control"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "显示代码"
+editor: visual
+---
+
+## 1. 简介 / Introduction
+
+本 notebook 实现 c_T、c_E、c_I 三个阈值参数的独立校准。
+
+**校准目标**：在对应的"极端坏场景"下，使得由该模块单独触发的 Early Termination Rate (ESR) 达到 **60%-70%**。
+
+**校准策略**：
+
+1.  **c_T 校准**：使用"明显过毒"场景，毒性规则主导 early termination
+2.  **c_E 校准**：使用"明显无效"场景，疗效规则主导 early termination
+3.  **c_I 校准**：使用"免疫不足"场景，免疫规则主导 early termination
+
+**重要设定**：
+
+-   `enable_early_termination = TRUE`
+-   Early termination 在任一阶段（除最终推荐前）admissible set 为空时触发
+
+## 2. 环境设置 / Setup
+
+```{r setup}
+#| message: false
+#| warning: false
+
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Set working directory to project root
+if (basename(getwd()) == "notebooks") {
+  setwd("..")
+}
+
+# Source required functions
+source("src/utils/helpers.R")
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/decision/dose_decision.R")
+source("src/core/main.R")
+
+cat("环境加载成功 / Environment loaded successfully!\n")
+```
+
+## 3. 基础配置 / Base Configuration
+
+定义校准使用的基础试验配置和阈值边界。
+
+```{r base_config}
+# 阈值边界 / Threshold boundaries (固定不变)
+phi_T <- 0.30  # 毒性上限
+phi_E <- 0.25  # 疗效下限  
+phi_I <- 0.20  # 免疫下限
+
+# 基础试验配置
+create_base_config <- function(c_T = 0.5, c_E = 0.5, c_I = 0.5) {
+  config <- list(
+    dose_levels = c(1, 2, 3, 4, 5),
+    n_stages = 5,
+    cohort_size = 15,
+    # 阈值边界
+    phi_T = phi_T,
+    phi_E = phi_E,
+    phi_I = phi_I,
+    # 概率阈值 (待校准)
+    c_T = c_T,
+    c_E = c_E,
+    c_I = c_I,
+    # PoC 参数 (此处不关注)
+    c_poc = 0.9,
+    delta_poc = 0.8,
+    # Early termination 设置 (必须开启)
+    enable_early_termination = TRUE,
+    log_early_termination = FALSE,
+    verbose_logging = FALSE
+  )
+  
+  # Utility table
+  utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
+    E = c(0, 1), T = c(0, 1), I = c(0, 1)
+  ))
+  utility_table[1, 1, 1] <- 0    # E=0, T=0, I=0
+  utility_table[2, 1, 1] <- 80   # E=1, T=0, I=0
+  utility_table[1, 2, 1] <- 0    # E=0, T=1, I=0
+  utility_table[2, 2, 1] <- 30   # E=1, T=1, I=0
+  utility_table[1, 1, 2] <- 10   # E=0, T=0, I=1
+  utility_table[2, 1, 2] <- 100  # E=1, T=0, I=1
+  utility_table[1, 2, 2] <- 0    # E=0, T=1, I=1
+  utility_table[2, 2, 2] <- 40   # E=1, T=1, I=1
+  config$utility_table <- utility_table
+  
+  return(config)
+}
+
+cat("阈值边界 / Threshold Boundaries:\n")
+cat("  phi_T (毒性上限):", phi_T, "\n")
+cat("  phi_E (疗效下限):", phi_E, "\n")
+cat("  phi_I (免疫下限):", phi_I, "\n")
+```
+
+## 4. 场景定义 / Scenario Definitions
+
+### 4.1 高毒性场景 (c_T 校准)
+
+```{r scenario_tox}
+# 高毒性场景：T 极端坏，E/I 标准好
+create_high_tox_scenario <- function() {
+  # 毒性很高 (从 phi_T + 0.15 = 0.45 起跳)
+  # 注意：p_YT_given_I 是条件概率矩阵 [dose, I]
+  p_YT_given_I <- matrix(c(
+    # I=0
+    0.45, 0.50, 0.60, 0.70, 0.90,
+    # I=1 (稍高)
+    0.50, 0.55, 0.65, 0.75, 0.95
+  ), nrow = 5, ncol = 2)
+  
+  # 疗效达标且偏高 (全部 > phi_E = 0.25)
+  p_YE_given_I <- matrix(c(
+    # I=0
+    rep(0.30, 5),
+    # I=1
+    rep(0.35, 5)
+  ), nrow = 5, ncol = 2)
+  
+  # 免疫达标且偏高 (全部 > phi_I = 0.20)
+  p_YI <- rep(0.25, 5)
+  
+  return(list(
+    p_YI = p_YI,
+    p_YT_given_I = p_YT_given_I,
+    p_YE_given_I = p_YE_given_I,
+    rho0 = 1.5,
+    rho1 = 2.0,
+    scenario_type = "high_toxicity",
+    description = "高毒性场景：T极端坏，E/I标准好"
+  ))
+}
+
+high_tox <- create_high_tox_scenario()
+cat("高毒性场景参数:\n")
+cat("  p_YI (免疫):", high_tox$p_YI, "\n")
+cat("  p_YT|I=0 (毒性):", high_tox$p_YT_given_I[,1], "\n")
+cat("  p_YT|I=1 (毒性):", high_tox$p_YT_given_I[,2], "\n")
+cat("  p_YE|I=0 (疗效):", high_tox$p_YE_given_I[,1], "\n")
+```
+
+### 4.2 低疗效场景 (c_E 校准)
+
+```{r scenario_eff}
+# 低疗效场景：E 极端坏，T/I 标准好
+create_low_eff_scenario <- function() {
+  # 毒性标准可接受 (全部 < phi_T = 0.30)
+  p_YT_given_I <- matrix(c(
+    # I=0
+    rep(0.20, 5),
+    # I=1
+    rep(0.22, 5)
+  ), nrow = 5, ncol = 2)
+  
+  # 疗效很低 (明显低于 phi_E = 0.25)
+  p_YE_given_I <- matrix(c(
+    # I=0
+    rep(0.05, 5),
+    # I=1
+    rep(0.08, 5)
+  ), nrow = 5, ncol = 2)
+  
+  # 免疫达标 (全部 > phi_I = 0.20)
+  p_YI <- rep(0.25, 5)
+  
+  return(list(
+    p_YI = p_YI,
+    p_YT_given_I = p_YT_given_I,
+    p_YE_given_I = p_YE_given_I,
+    rho0 = 1.5,
+    rho1 = 2.0,
+    scenario_type = "low_efficacy",
+    description = "低疗效场景：E极端坏，T/I标准好"
+  ))
+}
+
+low_eff <- create_low_eff_scenario()
+cat("低疗效场景参数:\n")
+cat("  p_YI (免疫):", low_eff$p_YI, "\n")
+cat("  p_YT|I=0 (毒性):", low_eff$p_YT_given_I[,1], "\n")
+cat("  p_YE|I=0 (疗效):", low_eff$p_YE_given_I[,1], "\n")
+cat("  p_YE|I=1 (疗效):", low_eff$p_YE_given_I[,2], "\n")
+```
+
+### 4.3 低免疫场景 (c_I 校准)
+
+```{r scenario_imm}
+# 低免疫场景：I 极端坏，T/E 标准好
+create_low_imm_scenario <- function() {
+  # 毒性标准可接受 (全部 < phi_T = 0.30)
+  p_YT_given_I <- matrix(c(
+    # I=0
+    rep(0.20, 5),
+    # I=1
+    rep(0.22, 5)
+  ), nrow = 5, ncol = 2)
+  
+  # 疗效达标 (全部 > phi_E = 0.25)
+  p_YE_given_I <- matrix(c(
+    # I=0
+    rep(0.30, 5),
+    # I=1
+    rep(0.35, 5)
+  ), nrow = 5, ncol = 2)
+  
+  # 免疫很低 (明显低于 phi_I = 0.20)
+  p_YI <- rep(0.05, 5)
+  
+  return(list(
+    p_YI = p_YI,
+    p_YT_given_I = p_YT_given_I,
+    p_YE_given_I = p_YE_given_I,
+    rho0 = 1.5,
+    rho1 = 2.0,
+    scenario_type = "low_immune",
+    description = "低免疫场景：I极端坏，T/E标准好"
+  ))
+}
+
+low_imm <- create_low_imm_scenario()
+cat("低免疫场景参数:\n")
+cat("  p_YI (免疫):", low_imm$p_YI, "\n")
+cat("  p_YT|I=0 (毒性):", low_imm$p_YT_given_I[,1], "\n")
+cat("  p_YE|I=0 (疗效):", low_imm$p_YE_given_I[,1], "\n")
+```
+
+## 5. 校准辅助函数 / Calibration Helper Functions
+
+```{r calibration_functions}
+#' 运行单次模拟并提取指标
+#' @param config 试验配置
+#' @param scenario 场景参数
+#' @param seed 随机种子
+run_single_simulation <- function(config, scenario, seed = NULL) {
+  tryCatch({
+    results <- run_trial_simulation(
+      config,
+      scenario$p_YI,
+      scenario$p_YT_given_I,
+      scenario$p_YE_given_I,
+      scenario$rho0,
+      scenario$rho1,
+      seed = seed
+    )
+    
+    return(list(
+      terminated_early = results$terminated_early,
+      termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
+      final_od = ifelse(results$terminated_early, NA, results$final_od),
+      total_participants = nrow(results$all_data),
+      success = TRUE
+    ))
+  }, error = function(e) {
+    return(list(
+      terminated_early = TRUE,
+      termination_stage = 1,
+      final_od = NA,
+      total_participants = 0,
+      success = FALSE
+    ))
+  })
+}
+
+#' 运行多次模拟计算 ESR
+#' @param config 试验配置
+#' @param scenario 场景参数
+#' @param n_sim 模拟次数
+#' @param base_seed 基础种子
+run_calibration_simulations <- function(config, scenario, n_sim = 500, base_seed = 12345) {
+  results <- vector("list", n_sim)
+  
+  for (i in 1:n_sim) {
+    results[[i]] <- run_single_simulation(config, scenario, seed = base_seed + i)
+  }
+  
+  # 计算 ESR (Early Stop Rate)
+  early_terminations <- sapply(results, function(x) x$terminated_early)
+  esr <- mean(early_terminations)
+  esr_se <- sqrt(esr * (1 - esr) / n_sim)
+  
+  # 终止阶段分布
+  term_stages <- sapply(results, function(x) x$termination_stage)
+  term_stages <- term_stages[!is.na(term_stages)]
+  
+  return(list(
+    esr = esr,
+    esr_se = esr_se,
+    esr_ci_lower = max(0, esr - 1.96 * esr_se),
+    esr_ci_upper = min(1, esr + 1.96 * esr_se),
+    n_sim = n_sim,
+    n_early_term = sum(early_terminations),
+    termination_stage_dist = if(length(term_stages) > 0) table(term_stages) else NULL,
+    results = results
+  ))
+}
+
+#' 校准单个阈值参数
+#' @param param_name 参数名 ("c_T", "c_E", "c_I")
+#' @param scenario 场景参数
+#' @param candidates 候选值向量
+#' @param fixed_params 固定参数列表
+#' @param n_sim 每个候选值的模拟次数
+#' @param target_esr_range 目标 ESR 范围
+calibrate_threshold <- function(
+  param_name,
+  scenario,
+  candidates,
+  fixed_params = list(c_T = 0.5, c_E = 0.5, c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+) {
+  cat("\n", rep("=", 60), "\n", sep = "")
+  cat("开始校准 / Calibrating:", param_name, "\n")
+  cat("场景:", scenario$description, "\n")
+  cat("候选值:", paste(candidates, collapse = ", "), "\n")
+  cat("目标 ESR 范围:", target_esr_range[1], "-", target_esr_range[2], "\n")
+  cat(rep("=", 60), "\n\n")
+  
+  results <- list()
+  
+  for (i in seq_along(candidates)) {
+    candidate <- candidates[i]
+    cat("测试", param_name, "=", candidate, "... ")
+    
+    # 创建配置 (更新待校准参数)
+    params <- fixed_params
+    params[[param_name]] <- candidate
+    config <- create_base_config(c_T = params$c_T, c_E = params$c_E, c_I = params$c_I)
+    
+    # 运行模拟
+    sim_results <- run_calibration_simulations(
+      config, scenario, n_sim = n_sim, base_seed = 10000 * i
+    )
+    
+    results[[i]] <- list(
+      param_value = candidate,
+      esr = sim_results$esr,
+      esr_se = sim_results$esr_se,
+      esr_ci_lower = sim_results$esr_ci_lower,
+      esr_ci_upper = sim_results$esr_ci_upper,
+      n_early_term = sim_results$n_early_term,
+      termination_stage_dist = sim_results$termination_stage_dist
+    )
+    
+    cat("ESR =", round(sim_results$esr, 3), 
+        "(95% CI:", round(sim_results$esr_ci_lower, 3), "-", 
+        round(sim_results$esr_ci_upper, 3), ")\n")
+  }
+  
+  # 找到最优值 (ESR 最接近目标范围中心)
+  target_center <- mean(target_esr_range)
+  esr_values <- sapply(results, function(x) x$esr)
+  
+  # 找在目标范围内的值
+  in_range <- which(esr_values >= target_esr_range[1] & esr_values <= target_esr_range[2])
+  
+  if (length(in_range) > 0) {
+    # 选择范围内最接近中心的
+    distances <- abs(esr_values[in_range] - target_center)
+    optimal_idx <- in_range[which.min(distances)]
+    optimal_value <- candidates[optimal_idx]
+    optimal_esr <- esr_values[optimal_idx]
+    status <- "在目标范围内 / Within target range"
+  } else {
+    # 没有在范围内的，选择最接近的
+    distances <- abs(esr_values - target_center)
+    optimal_idx <- which.min(distances)
+    optimal_value <- candidates[optimal_idx]
+    optimal_esr <- esr_values[optimal_idx]
+    status <- "最接近目标 / Closest to target"
+  }
+  
+  cat("\n", rep("-", 60), "\n", sep = "")
+  cat("校准结果 / Calibration Result:\n")
+  cat("  推荐", param_name, "=", optimal_value, "\n")
+  cat("  对应 ESR =", round(optimal_esr, 3), "\n")
+  cat("  状态:", status, "\n")
+  cat(rep("-", 60), "\n")
+  
+  return(list(
+    param_name = param_name,
+    candidates = candidates,
+    results = results,
+    optimal_value = optimal_value,
+    optimal_esr = optimal_esr,
+    target_range = target_esr_range,
+    status = status
+  ))
+}
+
+#' 绘制校准曲线
+#' @param calibration_result calibrate_threshold 的返回值
+plot_calibration_result <- function(calibration_result) {
+  df <- data.frame(
+    param_value = sapply(calibration_result$results, function(x) x$param_value),
+    esr = sapply(calibration_result$results, function(x) x$esr),
+    esr_ci_lower = sapply(calibration_result$results, function(x) x$esr_ci_lower),
+    esr_ci_upper = sapply(calibration_result$results, function(x) x$esr_ci_upper)
+  )
+  
+  p <- ggplot(df, aes(x = param_value, y = esr)) +
+    # 目标范围
+    geom_rect(aes(xmin = -Inf, xmax = Inf, 
+                  ymin = calibration_result$target_range[1], 
+                  ymax = calibration_result$target_range[2]),
+              fill = "lightgreen", alpha = 0.3) +
+    # 置信区间
+    geom_ribbon(aes(ymin = esr_ci_lower, ymax = esr_ci_upper),
+                fill = "#2E86AB", alpha = 0.2) +
+    # ESR 曲线
+    geom_line(color = "#2E86AB", size = 1.2) +
+    geom_point(color = "#2E86AB", size = 3) +
+    # 最优值
+    geom_vline(xintercept = calibration_result$optimal_value,
+               linetype = "dashed", color = "red", size = 1) +
+    # 目标范围线
+    geom_hline(yintercept = calibration_result$target_range,
+               linetype = "dotted", color = "darkgreen", size = 0.8) +
+    # 标签
+    labs(
+      title = paste0(calibration_result$param_name, " 校准曲线 / Calibration Curve"),
+      subtitle = paste0("最优值 / Optimal: ", calibration_result$param_name, " = ", 
+                        calibration_result$optimal_value,
+                        " (ESR = ", round(calibration_result$optimal_esr, 3), ")"),
+      x = calibration_result$param_name,
+      y = "Early Stop Rate (ESR)",
+      caption = paste0("目标范围 / Target range: ", 
+                       calibration_result$target_range[1], "-", 
+                       calibration_result$target_range[2],
+                       " (绿色区域 / green area)")
+    ) +
+    scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1)) +
+    theme_bw(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+  
+  return(p)
+}
+```
+
+## 6. c_T 校准 (毒性阈值)
+
+### 6.1 运行校准
+
+```{r calibrate_c_T}
+#| cache: true
+
+# 校准 c_T，固定 c_E, c_I
+c_T_candidates <- seq(0.3, 0.9, by = 0.1)
+
+c_T_calibration <- calibrate_threshold(
+  param_name = "c_T",
+  scenario = high_tox,
+  candidates = c_T_candidates,
+  fixed_params = list(c_T = 0.5, c_E = 0.5, c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+)
+```
+
+### 6.2 校准曲线
+
+```{r plot_c_T}
+plot_calibration_result(c_T_calibration)
+```
+
+### 6.3 详细结果
+
+```{r table_c_T}
+c_T_df <- data.frame(
+  c_T = sapply(c_T_calibration$results, function(x) x$param_value),
+  ESR = sapply(c_T_calibration$results, function(x) round(x$esr, 3)),
+  `95% CI` = sapply(c_T_calibration$results, function(x) 
+    paste0("[", round(x$esr_ci_lower, 3), ", ", round(x$esr_ci_upper, 3), "]")),
+  `Early Terms` = sapply(c_T_calibration$results, function(x) x$n_early_term),
+  Status = sapply(c_T_calibration$results, function(x) {
+    if (x$esr >= 0.60 && x$esr <= 0.70) "✓ 在目标范围" else ""
+  }),
+  check.names = FALSE
+)
+c_T_df$Status[c_T_df$c_T == c_T_calibration$optimal_value] <- "★ 推荐值"
+kable(c_T_df, caption = "c_T 校准结果")
+```
+
+## 7. c_E 校准 (疗效阈值)
+
+### 7.1 运行校准
+
+```{r calibrate_c_E}
+#| cache: true
+
+# 校准 c_E，固定 c_T 为推荐值, c_I 固定
+c_E_candidates <- seq(0.3, 0.9, by = 0.1)
+
+c_E_calibration <- calibrate_threshold(
+  param_name = "c_E",
+  scenario = low_eff,
+  candidates = c_E_candidates,
+  fixed_params = list(c_T = c_T_calibration$optimal_value, c_E = 0.5, c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+)
+```
+
+### 7.2 校准曲线
+
+```{r plot_c_E}
+plot_calibration_result(c_E_calibration)
+```
+
+### 7.3 详细结果
+
+```{r table_c_E}
+c_E_df <- data.frame(
+  c_E = sapply(c_E_calibration$results, function(x) x$param_value),
+  ESR = sapply(c_E_calibration$results, function(x) round(x$esr, 3)),
+  `95% CI` = sapply(c_E_calibration$results, function(x) 
+    paste0("[", round(x$esr_ci_lower, 3), ", ", round(x$esr_ci_upper, 3), "]")),
+  `Early Terms` = sapply(c_E_calibration$results, function(x) x$n_early_term),
+  Status = sapply(c_E_calibration$results, function(x) {
+    if (x$esr >= 0.60 && x$esr <= 0.70) "✓ 在目标范围" else ""
+  }),
+  check.names = FALSE
+)
+c_E_df$Status[c_E_df$c_E == c_E_calibration$optimal_value] <- "★ 推荐值"
+kable(c_E_df, caption = "c_E 校准结果")
+```
+
+## 8. c_I 校准 (免疫阈值)
+
+### 8.1 运行校准
+
+```{r calibrate_c_I}
+#| cache: true
+
+# 校准 c_I，固定 c_T, c_E 为推荐值
+c_I_candidates <- seq(0.3, 0.9, by = 0.1)
+
+c_I_calibration <- calibrate_threshold(
+  param_name = "c_I",
+  scenario = low_imm,
+  candidates = c_I_candidates,
+  fixed_params = list(c_T = c_T_calibration$optimal_value, 
+                      c_E = c_E_calibration$optimal_value, 
+                      c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+)
+```
+
+### 8.2 校准曲线
+
+```{r plot_c_I}
+plot_calibration_result(c_I_calibration)
+```
+
+### 8.3 详细结果
+
+```{r table_c_I}
+c_I_df <- data.frame(
+  c_I = sapply(c_I_calibration$results, function(x) x$param_value),
+  ESR = sapply(c_I_calibration$results, function(x) round(x$esr, 3)),
+  `95% CI` = sapply(c_I_calibration$results, function(x) 
+    paste0("[", round(x$esr_ci_lower, 3), ", ", round(x$esr_ci_upper, 3), "]")),
+  `Early Terms` = sapply(c_I_calibration$results, function(x) x$n_early_term),
+  Status = sapply(c_I_calibration$results, function(x) {
+    if (x$esr >= 0.60 && x$esr <= 0.70) "✓ 在目标范围" else ""
+  }),
+  check.names = FALSE
+)
+c_I_df$Status[c_I_df$c_I == c_I_calibration$optimal_value] <- "★ 推荐值"
+kable(c_I_df, caption = "c_I 校准结果")
+```
+
+## 9. 校准结果汇总 / Calibration Summary
+
+```{r summary}
+cat("\n")
+cat(rep("=", 70), "\n", sep = "")
+cat("              阈值校准结果汇总 / CALIBRATION SUMMARY\n")
+cat(rep("=", 70), "\n\n")
+
+cat("阈值边界 (固定) / Threshold Boundaries (Fixed):\n")
+cat("  phi_T (毒性上限) = ", phi_T, "\n")
+cat("  phi_E (疗效下限) = ", phi_E, "\n")
+cat("  phi_I (免疫下限) = ", phi_I, "\n\n")
+
+cat("推荐阈值 / Recommended Thresholds:\n")
+cat("  ", rep("-", 50), "\n", sep = "")
+cat("  参数    |  推荐值  |  ESR    |  目标范围   |  状态\n")
+cat("  ", rep("-", 50), "\n", sep = "")
+cat(sprintf("  c_T     |  %.2f    |  %.1f%%  |  60-70%%    |  %s\n",
+            c_T_calibration$optimal_value,
+            c_T_calibration$optimal_esr * 100,
+            c_T_calibration$status))
+cat(sprintf("  c_E     |  %.2f    |  %.1f%%  |  60-70%%    |  %s\n",
+            c_E_calibration$optimal_value,
+            c_E_calibration$optimal_esr * 100,
+            c_E_calibration$status))
+cat(sprintf("  c_I     |  %.2f    |  %.1f%%  |  60-70%%    |  %s\n",
+            c_I_calibration$optimal_value,
+            c_I_calibration$optimal_esr * 100,
+            c_I_calibration$status))
+cat("  ", rep("-", 50), "\n", sep = "")
+
+cat("\n使用方法 / Usage:\n")
+cat("将以下配置应用到 trial_config:\n\n")
+cat("trial_config$c_T <-", c_T_calibration$optimal_value, "\n")
+cat("trial_config$c_E <-", c_E_calibration$optimal_value, "\n")
+cat("trial_config$c_I <-", c_I_calibration$optimal_value, "\n")
+
+cat("\n")
+cat(rep("=", 70), "\n", sep = "")
+```
+
+## 10. 验证测试 / Validation Tests
+
+使用校准后的阈值在各场景下进行验证。
+
+```{r validation}
+#| cache: true
+
+cat("使用校准后的阈值进行验证...\n\n")
+
+# 创建使用所有校准阈值的配置
+calibrated_config <- create_base_config(
+  c_T = c_T_calibration$optimal_value,
+  c_E = c_E_calibration$optimal_value,
+  c_I = c_I_calibration$optimal_value
+)
+
+# 在三个场景下验证
+scenarios <- list(
+  high_toxicity = high_tox,
+  low_efficacy = low_eff,
+  low_immune = low_imm
+)
+
+validation_results <- list()
+for (name in names(scenarios)) {
+  cat("验证场景:", name, "... ")
+  sim_res <- run_calibration_simulations(calibrated_config, scenarios[[name]], n_sim = 500)
+  validation_results[[name]] <- sim_res
+  cat("ESR =", round(sim_res$esr, 3), "\n")
+}
+
+cat("\n验证结果汇总:\n")
+cat("  场景            |  ESR      |  期望\n")
+cat("  ", rep("-", 40), "\n", sep = "")
+cat(sprintf("  高毒性          |  %.1f%%    |  ~60-70%% (c_T 主导)\n",
+            validation_results$high_toxicity$esr * 100))
+cat(sprintf("  低疗效          |  %.1f%%    |  ~60-70%% (c_E 主导)\n",
+            validation_results$low_efficacy$esr * 100))
+cat(sprintf("  低免疫          |  %.1f%%    |  ~60-70%% (c_I 主导)\n",
+            validation_results$low_immune$esr * 100))
+```
+
+## 11. 组合曲线可视化 / Combined Visualization
+
+```{r combined_plot}
+#| fig-width: 12
+#| fig-height: 4
+
+library(gridExtra)
+
+p1 <- plot_calibration_result(c_T_calibration) + 
+  ggtitle("c_T 校准") + 
+  theme(plot.title = element_text(size = 12))
+
+p2 <- plot_calibration_result(c_E_calibration) + 
+  ggtitle("c_E 校准") + 
+  theme(plot.title = element_text(size = 12))
+
+p3 <- plot_calibration_result(c_I_calibration) + 
+  ggtitle("c_I 校准") + 
+  theme(plot.title = element_text(size = 12))
+
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+## 12. 保存结果 / Save Results
+
+```{r save_results}
+# 保存校准结果到文件
+calibration_summary <- list(
+  timestamp = Sys.time(),
+  threshold_boundaries = list(phi_T = phi_T, phi_E = phi_E, phi_I = phi_I),
+  recommended_thresholds = list(
+    c_T = c_T_calibration$optimal_value,
+    c_E = c_E_calibration$optimal_value,
+    c_I = c_I_calibration$optimal_value
+  ),
+  esr_achieved = list(
+    c_T = c_T_calibration$optimal_esr,
+    c_E = c_E_calibration$optimal_esr,
+    c_I = c_I_calibration$optimal_esr
+  ),
+  target_range = c(0.60, 0.70),
+  n_sim_per_candidate = 500,
+  calibration_details = list(
+    c_T = c_T_calibration,
+    c_E = c_E_calibration,
+    c_I = c_I_calibration
+  ),
+  validation_results = validation_results
+)
+
+# 创建结果目录
+if (!dir.exists("results/threshold_calibration")) {
+  dir.create("results/threshold_calibration", recursive = TRUE)
+}
+
+# 保存 RDS
+saveRDS(calibration_summary, "results/threshold_calibration/calibration_summary.rds")
+cat("校准结果已保存到: results/threshold_calibration/calibration_summary.rds\n")
+
+# 保存文本报告
+report_file <- "results/threshold_calibration/calibration_report.txt"
+sink(report_file)
+cat("阈值校准报告 / Threshold Calibration Report\n")
+cat("生成时间:", format(calibration_summary$timestamp, "%Y-%m-%d %H:%M:%S"), "\n\n")
+cat("阈值边界:\n")
+cat("  phi_T =", phi_T, "\n")
+cat("  phi_E =", phi_E, "\n")
+cat("  phi_I =", phi_I, "\n\n")
+cat("推荐阈值:\n")
+cat("  c_T =", c_T_calibration$optimal_value, "(ESR:", round(c_T_calibration$optimal_esr, 3), ")\n")
+cat("  c_E =", c_E_calibration$optimal_value, "(ESR:", round(c_E_calibration$optimal_esr, 3), ")\n")
+cat("  c_I =", c_I_calibration$optimal_value, "(ESR:", round(c_I_calibration$optimal_esr, 3), ")\n")
+sink()
+cat("文本报告已保存到:", report_file, "\n")
+```
+
+------------------------------------------------------------------------
+
+## 附录: 技术说明 / Technical Notes
+
+### A.1 校准方法说明
+
+本 notebook 采用的校准方法:
+
+1.  **独立校准**: 每次只调整一个参数，其它参数固定
+2.  **顺序依赖**: c_T → c_E → c_I，后续校准使用前面的最优值
+3.  **目标导向**: 以 ESR = 60-70% 为目标选择最优值
+4.  **Monte Carlo**: 每个候选值运行 500 次模拟，计算 95% CI
+
+### A.2 场景设计原理
+
+| 场景     | 目的                   | T      | E      | I      |
+|----------|------------------------|--------|--------|--------|
+| 高毒性   | c_T 校准               | 极端坏 | 标准好 | 标准好 |
+| 低疗效   | c_E 校准               | 标准好 | 极端坏 | 标准好 |
+| 低免疫   | c_I 校准               | 标准好 | 标准好 | 极端坏 |
+
+### A.3 如何使用校准结果
+
+```{r usage_example, eval=FALSE}
+# 加载校准结果
+calibration <- readRDS("results/threshold_calibration/calibration_summary.rds")
+
+# 应用到配置
+trial_config$c_T <- calibration$recommended_thresholds$c_T
+trial_config$c_E <- calibration$recommended_thresholds$c_E
+trial_config$c_I <- calibration$recommended_thresholds$c_I
+```
