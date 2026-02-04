@@ -470,7 +470,7 @@ plot_calibration_result <- function(calibration_result) {
 #| cache: true
 
 # Calibrate c_T, keeping c_E and c_I fixed
-c_T_candidates <- seq(0.3, 0.9, by = 0.1)
+c_T_candidates <- seq(0.2, 0.5, by = 0.05)
 
 c_T_calibration <- calibrate_threshold(
   param_name = "c_T",
@@ -514,7 +514,7 @@ kable(c_T_df, caption = "c_T Calibration Results")
 #| cache: true
 
 # Calibrate c_E, using recommended c_T, keeping c_I fixed
-c_E_candidates <- seq(0.3, 0.9, by = 0.1)
+c_E_candidates <- seq(0.2, 0.5, by = 0.05)
 
 c_E_calibration <- calibrate_threshold(
   param_name = "c_E",
@@ -558,7 +558,7 @@ kable(c_E_df, caption = "c_E Calibration Results")
 #| cache: true
 
 # Calibrate c_I, using recommended c_T and c_E
-c_I_candidates <- seq(0.3, 0.9, by = 0.1)
+c_I_candidates <- seq(0.2, 0.5, by = 0.05)
 
 c_I_calibration <- calibrate_threshold(
   param_name = "c_I",
@@ -770,18 +770,18 @@ This notebook uses the following calibration approach:
 
 ### A.2 Scenario Design Principles
 
-| Scenario       | Purpose        | T (increasing)         | E (increasing)         | I (increasing)         |
-|------------|------------|--------------|--------------|--------------|
-| High Toxicity  | c_T calibration| Elevated [0.32→0.50]  | Meets [0.30→0.50]     | Meets [0.25→0.45]     |
-| Low Efficacy   | c_E calibration| Safe [0.10→0.26]      | Low [0.12→0.22]       | Meets [0.25→0.45]     |
-| Low Immune     | c_I calibration| Safe [0.10→0.26]      | Meets [0.30→0.50]     | Low [0.08→0.18]       |
+| Scenario | Purpose | T (increasing) | E (increasing) | I (increasing) |
+|----|----|----|----|----|
+| High Toxicity | c_T calibration | Elevated \[0.32→0.50\] | Meets \[0.30→0.50\] | Meets \[0.25→0.45\] |
+| Low Efficacy | c_E calibration | Safe \[0.10→0.26\] | Low \[0.12→0.22\] | Meets \[0.25→0.45\] |
+| Low Immune | c_I calibration | Safe \[0.10→0.26\] | Meets \[0.30→0.50\] | Low \[0.08→0.18\] |
 
-**Design Principles**: 
+**Design Principles**:
 
-- All parameters increase with dose, matching realistic clinical dose-response patterns
-- "Unfavorable" parameters are **slightly** above/below threshold boundaries (not extreme)
-- "Favorable" parameters are well within acceptable ranges
-- Values closer to thresholds produce moderate ESR (~60-70%) rather than extreme ESR (~100%)
+-   All parameters increase with dose, matching realistic clinical dose-response patterns
+-   "Unfavorable" parameters are **slightly** above/below threshold boundaries (not extreme)
+-   "Favorable" parameters are well within acceptable ranges
+-   Values closer to thresholds produce moderate ESR (\~60-70%) rather than extreme ESR (\~100%)
 
 ### A.3 How to Use Calibration Results
 
