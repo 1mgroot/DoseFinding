@@ -26,6 +26,9 @@
 .DS_Store
 Thumbs.db
 
+# Quarto cache
+*_cache/
+
 # Output files
 *.log
 *.out

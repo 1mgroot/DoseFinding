@@ -76,11 +76,11 @@ trial_config <- list(
   n_stages = 5,          # 5 total stages (1 equal + 4 adaptive)
   cohort_size = 15,
   phi_T = 0.30,          # THRESHOLD: Toxicity upper limit for admissibility
-  c_T = 0.3,             # PROBABILITY: P(Tox < phi_T) must exceed this
+  c_T = 0.2,             # PROBABILITY: P(Tox < phi_T) must exceed this
   phi_E = 0.25,          # THRESHOLD: Efficacy lower limit for admissibility
-  c_E = 0.3,             # PROBABILITY: P(Eff > phi_E) must exceed this
+  c_E = 0.5,             # PROBABILITY: P(Eff > phi_E) must exceed this
   phi_I = 0.20,          # THRESHOLD: Immune response lower limit for admissibility
-  c_I = 0.2,             # PROBABILITY: P(Imm > phi_I) must exceed this
+  c_I = 0.35,             # PROBABILITY: P(Imm > phi_I) must exceed this
   delta_poc = 0.8,
   enable_early_termination = TRUE,
   log_early_termination = FALSE,

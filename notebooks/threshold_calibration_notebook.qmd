@@ -1,0 +1,796 @@
+---
+title: "Threshold Calibration Notebook"
+subtitle: "Independent Calibration of c_T, c_E, c_I for Early Termination Control"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show Code"
+    embed-resources: true
+    self-contained: true
+editor: visual
+---
+
+## 1. Introduction
+
+This notebook implements independent calibration of the three threshold parameters: c_T, c_E, and c_I.
+
+**Calibration Objective**: Achieve an Early Stop Rate (ESR) of approximately **60%-70%** in the corresponding "unfavorable scenario" where each module dominates early termination.
+
+**Calibration Strategy**:
+
+1.  **c_T calibration**: Use "elevated toxicity" scenario where toxicity rule dominates early termination
+2.  **c_E calibration**: Use "low efficacy" scenario where efficacy rule dominates early termination
+3.  **c_I calibration**: Use "low immune response" scenario where immune rule dominates early termination
+
+**Key Settings**:
+
+-   `enable_early_termination = TRUE` (required)
+-   Early termination triggers when admissible set becomes empty at any stage before final recommendation
+
+## 2. Setup
+
+```{r setup}
+#| message: false
+#| warning: false
+
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Set working directory to project root
+if (basename(getwd()) == "notebooks") {
+  setwd("..")
+}
+
+# Source required functions
+source("src/utils/helpers.R")
+source("src/core/simulate_data.R")
+source("src/core/model_utils.R")
+source("src/decision/dose_decision.R")
+source("src/core/main.R")
+
+cat("Environment loaded successfully!\n")
+```
+
+## 3. Base Configuration
+
+Define the base trial configuration and threshold boundaries used for calibration.
+
+```{r base_config}
+# Threshold boundaries (fixed)
+phi_T <- 0.30  # Toxicity upper limit
+phi_E <- 0.25  # Efficacy lower limit  
+phi_I <- 0.20  # Immune response lower limit
+
+# Base trial configuration
+create_base_config <- function(c_T = 0.5, c_E = 0.5, c_I = 0.5) {
+  config <- list(
+    dose_levels = c(1, 2, 3, 4, 5),
+    n_stages = 5,
+    cohort_size = 15,
+    # Threshold boundaries
+    phi_T = phi_T,
+    phi_E = phi_E,
+    phi_I = phi_I,
+    # Probability thresholds (to be calibrated)
+    c_T = c_T,
+    c_E = c_E,
+    c_I = c_I,
+    # PoC parameters (not the focus here)
+    c_poc = 0.9,
+    delta_poc = 0.8,
+    # Early termination settings (must be enabled)
+    enable_early_termination = TRUE,
+    log_early_termination = FALSE,
+    verbose_logging = FALSE
+  )
+  
+  # Utility table
+  utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
+    E = c(0, 1), T = c(0, 1), I = c(0, 1)
+  ))
+  utility_table[1, 1, 1] <- 0    # E=0, T=0, I=0
+  utility_table[2, 1, 1] <- 80   # E=1, T=0, I=0
+  utility_table[1, 2, 1] <- 0    # E=0, T=1, I=0
+  utility_table[2, 2, 1] <- 30   # E=1, T=1, I=0
+  utility_table[1, 1, 2] <- 10   # E=0, T=0, I=1
+  utility_table[2, 1, 2] <- 100  # E=1, T=0, I=1
+  utility_table[1, 2, 2] <- 0    # E=0, T=1, I=1
+  utility_table[2, 2, 2] <- 40   # E=1, T=1, I=1
+  config$utility_table <- utility_table
+  
+  return(config)
+}
+
+cat("Threshold Boundaries:\n")
+cat("  phi_T (toxicity upper limit):", phi_T, "\n")
+cat("  phi_E (efficacy lower limit):", phi_E, "\n")
+cat("  phi_I (immune lower limit):", phi_I, "\n")
+```
+
+## 4. Scenario Definitions
+
+### 4.1 Elevated Toxicity Scenario (c_T Calibration)
+
+```{r scenario_tox}
+# Elevated toxicity scenario: T slightly above threshold, E/I meet criteria
+create_high_tox_scenario <- function() {
+  # Toxicity slightly elevated (starting just above phi_T = 0.30, increasing)
+  # Values are closer to threshold for moderate ESR
+  p_YT_given_I <- matrix(c(
+    # I=0
+    0.32, 0.36, 0.40, 0.45, 0.50,
+    # I=1 (slightly higher)
+    0.35, 0.40, 0.45, 0.50, 0.55
+  ), nrow = 5, ncol = 2)
+  
+  # Efficacy meets criteria (all > phi_E = 0.25, increasing)
+  p_YE_given_I <- matrix(c(
+    # I=0
+    0.30, 0.35, 0.40, 0.45, 0.50,
+    # I=1 (slightly higher)
+    0.35, 0.40, 0.45, 0.50, 0.55
+  ), nrow = 5, ncol = 2)
+  
+  # Immune response meets criteria (all > phi_I = 0.20, increasing)
+  p_YI <- c(0.25, 0.30, 0.35, 0.40, 0.45)
+  
+  return(list(
+    p_YI = p_YI,
+    p_YT_given_I = p_YT_given_I,
+    p_YE_given_I = p_YE_given_I,
+    rho0 = 1.5,
+    rho1 = 2.0,
+    scenario_type = "high_toxicity",
+    description = "Elevated Toxicity: T slightly above threshold, E/I meet criteria"
+  ))
+}
+
+high_tox <- create_high_tox_scenario()
+cat("Elevated Toxicity Scenario Parameters:\n")
+cat("  p_YI (immune):", high_tox$p_YI, "\n")
+cat("  p_YT|I=0 (toxicity):", high_tox$p_YT_given_I[,1], "\n")
+cat("  p_YT|I=1 (toxicity):", high_tox$p_YT_given_I[,2], "\n")
+cat("  p_YE|I=0 (efficacy):", high_tox$p_YE_given_I[,1], "\n")
+cat("  p_YE|I=1 (efficacy):", high_tox$p_YE_given_I[,2], "\n")
+```
+
+### 4.2 Low Efficacy Scenario (c_E Calibration)
+
+```{r scenario_eff}
+# Low efficacy scenario: E slightly below threshold, T/I meet criteria
+create_low_eff_scenario <- function() {
+  # Toxicity safe (all < phi_T = 0.30, increasing)
+  p_YT_given_I <- matrix(c(
+    # I=0
+    0.10, 0.14, 0.18, 0.22, 0.26,
+    # I=1 (slightly higher)
+    0.12, 0.16, 0.20, 0.24, 0.28
+  ), nrow = 5, ncol = 2)
+  
+  # Efficacy slightly below threshold (approaching phi_E = 0.25, increasing)
+  p_YE_given_I <- matrix(c(
+    # I=0
+    0.12, 0.15, 0.18, 0.20, 0.22,
+    # I=1 (slightly higher)
+    0.14, 0.17, 0.20, 0.22, 0.24
+  ), nrow = 5, ncol = 2)
+  
+  # Immune response meets criteria (all > phi_I = 0.20, increasing)
+  p_YI <- c(0.25, 0.30, 0.35, 0.40, 0.45)
+  
+  return(list(
+    p_YI = p_YI,
+    p_YT_given_I = p_YT_given_I,
+    p_YE_given_I = p_YE_given_I,
+    rho0 = 1.5,
+    rho1 = 2.0,
+    scenario_type = "low_efficacy",
+    description = "Low Efficacy: E slightly below threshold, T/I meet criteria"
+  ))
+}
+
+low_eff <- create_low_eff_scenario()
+cat("Low Efficacy Scenario Parameters:\n")
+cat("  p_YI (immune):", low_eff$p_YI, "\n")
+cat("  p_YT|I=0 (toxicity):", low_eff$p_YT_given_I[,1], "\n")
+cat("  p_YT|I=1 (toxicity):", low_eff$p_YT_given_I[,2], "\n")
+cat("  p_YE|I=0 (efficacy):", low_eff$p_YE_given_I[,1], "\n")
+cat("  p_YE|I=1 (efficacy):", low_eff$p_YE_given_I[,2], "\n")
+```
+
+### 4.3 Low Immune Response Scenario (c_I Calibration)
+
+```{r scenario_imm}
+# Low immune scenario: I slightly below threshold, T/E meet criteria
+create_low_imm_scenario <- function() {
+  # Toxicity safe (all < phi_T = 0.30, increasing)
+  p_YT_given_I <- matrix(c(
+    # I=0
+    0.10, 0.14, 0.18, 0.22, 0.26,
+    # I=1 (slightly higher)
+    0.12, 0.16, 0.20, 0.24, 0.28
+  ), nrow = 5, ncol = 2)
+  
+  # Efficacy meets criteria (all > phi_E = 0.25, increasing)
+  p_YE_given_I <- matrix(c(
+    # I=0
+    0.30, 0.35, 0.40, 0.45, 0.50,
+    # I=1 (slightly higher)
+    0.35, 0.40, 0.45, 0.50, 0.55
+  ), nrow = 5, ncol = 2)
+  
+  # Immune response slightly below threshold (approaching phi_I = 0.20, increasing)
+  p_YI <- c(0.08, 0.11, 0.14, 0.16, 0.18)
+  
+  return(list(
+    p_YI = p_YI,
+    p_YT_given_I = p_YT_given_I,
+    p_YE_given_I = p_YE_given_I,
+    rho0 = 1.5,
+    rho1 = 2.0,
+    scenario_type = "low_immune",
+    description = "Low Immune: I slightly below threshold, T/E meet criteria"
+  ))
+}
+
+low_imm <- create_low_imm_scenario()
+cat("Low Immune Response Scenario Parameters:\n")
+cat("  p_YI (immune):", low_imm$p_YI, "\n")
+cat("  p_YT|I=0 (toxicity):", low_imm$p_YT_given_I[,1], "\n")
+cat("  p_YT|I=1 (toxicity):", low_imm$p_YT_given_I[,2], "\n")
+cat("  p_YE|I=0 (efficacy):", low_imm$p_YE_given_I[,1], "\n")
+cat("  p_YE|I=1 (efficacy):", low_imm$p_YE_given_I[,2], "\n")
+```
+
+## 5. Calibration Helper Functions
+
+```{r calibration_functions}
+#' Run a single simulation and extract metrics
+#' @param config Trial configuration
+#' @param scenario Scenario parameters
+#' @param seed Random seed
+run_single_simulation <- function(config, scenario, seed = NULL) {
+  tryCatch({
+    results <- run_trial_simulation(
+      config,
+      scenario$p_YI,
+      scenario$p_YT_given_I,
+      scenario$p_YE_given_I,
+      scenario$rho0,
+      scenario$rho1,
+      seed = seed
+    )
+    
+    return(list(
+      terminated_early = results$terminated_early,
+      termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
+      final_od = ifelse(results$terminated_early, NA, results$final_od),
+      total_participants = nrow(results$all_data),
+      success = TRUE
+    ))
+  }, error = function(e) {
+    return(list(
+      terminated_early = TRUE,
+      termination_stage = 1,
+      final_od = NA,
+      total_participants = 0,
+      success = FALSE
+    ))
+  })
+}
+
+#' Run multiple simulations and calculate ESR
+#' @param config Trial configuration
+#' @param scenario Scenario parameters
+#' @param n_sim Number of simulations
+#' @param base_seed Base random seed
+run_calibration_simulations <- function(config, scenario, n_sim = 500, base_seed = 12345) {
+  results <- vector("list", n_sim)
+  
+  for (i in 1:n_sim) {
+    results[[i]] <- run_single_simulation(config, scenario, seed = base_seed + i)
+  }
+  
+  # Calculate ESR (Early Stop Rate)
+  early_terminations <- sapply(results, function(x) x$terminated_early)
+  esr <- mean(early_terminations)
+  esr_se <- sqrt(esr * (1 - esr) / n_sim)
+  
+  # Termination stage distribution
+  term_stages <- sapply(results, function(x) x$termination_stage)
+  term_stages <- term_stages[!is.na(term_stages)]
+  
+  return(list(
+    esr = esr,
+    esr_se = esr_se,
+    esr_ci_lower = max(0, esr - 1.96 * esr_se),
+    esr_ci_upper = min(1, esr + 1.96 * esr_se),
+    n_sim = n_sim,
+    n_early_term = sum(early_terminations),
+    termination_stage_dist = if(length(term_stages) > 0) table(term_stages) else NULL,
+    results = results
+  ))
+}
+
+#' Calibrate a single threshold parameter
+#' @param param_name Parameter name ("c_T", "c_E", "c_I")
+#' @param scenario Scenario parameters
+#' @param candidates Candidate values vector
+#' @param fixed_params Fixed parameter list
+#' @param n_sim Number of simulations per candidate
+#' @param target_esr_range Target ESR range
+calibrate_threshold <- function(
+  param_name,
+  scenario,
+  candidates,
+  fixed_params = list(c_T = 0.5, c_E = 0.5, c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+) {
+  cat("\n", rep("=", 60), "\n", sep = "")
+  cat("Calibrating:", param_name, "\n")
+  cat("Scenario:", scenario$description, "\n")
+  cat("Candidates:", paste(candidates, collapse = ", "), "\n")
+  cat("Target ESR range:", target_esr_range[1], "-", target_esr_range[2], "\n")
+  cat(rep("=", 60), "\n\n")
+  
+  results <- list()
+  
+  for (i in seq_along(candidates)) {
+    candidate <- candidates[i]
+    cat("Testing", param_name, "=", candidate, "... ")
+    
+    # Create config (update parameter being calibrated)
+    params <- fixed_params
+    params[[param_name]] <- candidate
+    config <- create_base_config(c_T = params$c_T, c_E = params$c_E, c_I = params$c_I)
+    
+    # Run simulations
+    sim_results <- run_calibration_simulations(
+      config, scenario, n_sim = n_sim, base_seed = 10000 * i
+    )
+    
+    results[[i]] <- list(
+      param_value = candidate,
+      esr = sim_results$esr,
+      esr_se = sim_results$esr_se,
+      esr_ci_lower = sim_results$esr_ci_lower,
+      esr_ci_upper = sim_results$esr_ci_upper,
+      n_early_term = sim_results$n_early_term,
+      termination_stage_dist = sim_results$termination_stage_dist
+    )
+    
+    cat("ESR =", round(sim_results$esr, 3), 
+        "(95% CI:", round(sim_results$esr_ci_lower, 3), "-", 
+        round(sim_results$esr_ci_upper, 3), ")\n")
+  }
+  
+  # Find optimal value (ESR closest to target range center)
+  target_center <- mean(target_esr_range)
+  esr_values <- sapply(results, function(x) x$esr)
+  
+  # Find values within target range
+  in_range <- which(esr_values >= target_esr_range[1] & esr_values <= target_esr_range[2])
+  
+  if (length(in_range) > 0) {
+    # Select closest to center within range
+    distances <- abs(esr_values[in_range] - target_center)
+    optimal_idx <- in_range[which.min(distances)]
+    optimal_value <- candidates[optimal_idx]
+    optimal_esr <- esr_values[optimal_idx]
+    status <- "Within target range"
+  } else {
+    # No value in range, select closest
+    distances <- abs(esr_values - target_center)
+    optimal_idx <- which.min(distances)
+    optimal_value <- candidates[optimal_idx]
+    optimal_esr <- esr_values[optimal_idx]
+    status <- "Closest to target"
+  }
+  
+  cat("\n", rep("-", 60), "\n", sep = "")
+  cat("Calibration Result:\n")
+  cat("  Recommended", param_name, "=", optimal_value, "\n")
+  cat("  Corresponding ESR =", round(optimal_esr, 3), "\n")
+  cat("  Status:", status, "\n")
+  cat(rep("-", 60), "\n")
+  
+  return(list(
+    param_name = param_name,
+    candidates = candidates,
+    results = results,
+    optimal_value = optimal_value,
+    optimal_esr = optimal_esr,
+    target_range = target_esr_range,
+    status = status
+  ))
+}
+
+#' Plot calibration curve
+#' @param calibration_result Return value from calibrate_threshold
+plot_calibration_result <- function(calibration_result) {
+  df <- data.frame(
+    param_value = sapply(calibration_result$results, function(x) x$param_value),
+    esr = sapply(calibration_result$results, function(x) x$esr),
+    esr_ci_lower = sapply(calibration_result$results, function(x) x$esr_ci_lower),
+    esr_ci_upper = sapply(calibration_result$results, function(x) x$esr_ci_upper)
+  )
+  
+  p <- ggplot(df, aes(x = param_value, y = esr)) +
+    # Target range
+    geom_rect(aes(xmin = -Inf, xmax = Inf, 
+                  ymin = calibration_result$target_range[1], 
+                  ymax = calibration_result$target_range[2]),
+              fill = "lightgreen", alpha = 0.3) +
+    # Confidence interval
+    geom_ribbon(aes(ymin = esr_ci_lower, ymax = esr_ci_upper),
+                fill = "#2E86AB", alpha = 0.2) +
+    # ESR curve
+    geom_line(color = "#2E86AB", size = 1.2) +
+    geom_point(color = "#2E86AB", size = 3) +
+    # Optimal value
+    geom_vline(xintercept = calibration_result$optimal_value,
+               linetype = "dashed", color = "red", size = 1) +
+    # Target range lines
+    geom_hline(yintercept = calibration_result$target_range,
+               linetype = "dotted", color = "darkgreen", size = 0.8) +
+    # Labels
+    labs(
+      title = paste0(calibration_result$param_name, " Calibration Curve"),
+      subtitle = paste0("Optimal: ", calibration_result$param_name, " = ", 
+                        calibration_result$optimal_value,
+                        " (ESR = ", round(calibration_result$optimal_esr, 3), ")"),
+      x = calibration_result$param_name,
+      y = "Early Stop Rate (ESR)",
+      caption = paste0("Target range: ", 
+                       calibration_result$target_range[1], "-", 
+                       calibration_result$target_range[2],
+                       " (green area)")
+    ) +
+    scale_y_continuous(labels = scales::percent_format(), limits = c(0, 1)) +
+    theme_bw(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+  
+  return(p)
+}
+```
+
+## 6. c_T Calibration (Toxicity Threshold)
+
+### 6.1 Run Calibration
+
+```{r calibrate_c_T}
+#| cache: true
+
+# Calibrate c_T, keeping c_E and c_I fixed
+c_T_candidates <- seq(0.2, 0.5, by = 0.05)
+
+c_T_calibration <- calibrate_threshold(
+  param_name = "c_T",
+  scenario = high_tox,
+  candidates = c_T_candidates,
+  fixed_params = list(c_T = 0.5, c_E = 0.5, c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+)
+```
+
+### 6.2 Calibration Curve
+
+```{r plot_c_T}
+plot_calibration_result(c_T_calibration)
+```
+
+### 6.3 Detailed Results
+
+```{r table_c_T}
+c_T_df <- data.frame(
+  c_T = sapply(c_T_calibration$results, function(x) x$param_value),
+  ESR = sapply(c_T_calibration$results, function(x) round(x$esr, 3)),
+  `95% CI` = sapply(c_T_calibration$results, function(x) 
+    paste0("[", round(x$esr_ci_lower, 3), ", ", round(x$esr_ci_upper, 3), "]")),
+  `Early Terms` = sapply(c_T_calibration$results, function(x) x$n_early_term),
+  Status = sapply(c_T_calibration$results, function(x) {
+    if (x$esr >= 0.60 && x$esr <= 0.70) "Within target" else ""
+  }),
+  check.names = FALSE
+)
+c_T_df$Status[c_T_df$c_T == c_T_calibration$optimal_value] <- "RECOMMENDED"
+kable(c_T_df, caption = "c_T Calibration Results")
+```
+
+## 7. c_E Calibration (Efficacy Threshold)
+
+### 7.1 Run Calibration
+
+```{r calibrate_c_E}
+#| cache: true
+
+# Calibrate c_E, using recommended c_T, keeping c_I fixed
+c_E_candidates <- seq(0.2, 0.5, by = 0.05)
+
+c_E_calibration <- calibrate_threshold(
+  param_name = "c_E",
+  scenario = low_eff,
+  candidates = c_E_candidates,
+  fixed_params = list(c_T = c_T_calibration$optimal_value, c_E = 0.5, c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+)
+```
+
+### 7.2 Calibration Curve
+
+```{r plot_c_E}
+plot_calibration_result(c_E_calibration)
+```
+
+### 7.3 Detailed Results
+
+```{r table_c_E}
+c_E_df <- data.frame(
+  c_E = sapply(c_E_calibration$results, function(x) x$param_value),
+  ESR = sapply(c_E_calibration$results, function(x) round(x$esr, 3)),
+  `95% CI` = sapply(c_E_calibration$results, function(x) 
+    paste0("[", round(x$esr_ci_lower, 3), ", ", round(x$esr_ci_upper, 3), "]")),
+  `Early Terms` = sapply(c_E_calibration$results, function(x) x$n_early_term),
+  Status = sapply(c_E_calibration$results, function(x) {
+    if (x$esr >= 0.60 && x$esr <= 0.70) "Within target" else ""
+  }),
+  check.names = FALSE
+)
+c_E_df$Status[c_E_df$c_E == c_E_calibration$optimal_value] <- "RECOMMENDED"
+kable(c_E_df, caption = "c_E Calibration Results")
+```
+
+## 8. c_I Calibration (Immune Response Threshold)
+
+### 8.1 Run Calibration
+
+```{r calibrate_c_I}
+#| cache: true
+
+# Calibrate c_I, using recommended c_T and c_E
+c_I_candidates <- seq(0.2, 0.5, by = 0.05)
+
+c_I_calibration <- calibrate_threshold(
+  param_name = "c_I",
+  scenario = low_imm,
+  candidates = c_I_candidates,
+  fixed_params = list(c_T = c_T_calibration$optimal_value, 
+                      c_E = c_E_calibration$optimal_value, 
+                      c_I = 0.5),
+  n_sim = 500,
+  target_esr_range = c(0.60, 0.70)
+)
+```
+
+### 8.2 Calibration Curve
+
+```{r plot_c_I}
+plot_calibration_result(c_I_calibration)
+```
+
+### 8.3 Detailed Results
+
+```{r table_c_I}
+c_I_df <- data.frame(
+  c_I = sapply(c_I_calibration$results, function(x) x$param_value),
+  ESR = sapply(c_I_calibration$results, function(x) round(x$esr, 3)),
+  `95% CI` = sapply(c_I_calibration$results, function(x) 
+    paste0("[", round(x$esr_ci_lower, 3), ", ", round(x$esr_ci_upper, 3), "]")),
+  `Early Terms` = sapply(c_I_calibration$results, function(x) x$n_early_term),
+  Status = sapply(c_I_calibration$results, function(x) {
+    if (x$esr >= 0.60 && x$esr <= 0.70) "Within target" else ""
+  }),
+  check.names = FALSE
+)
+c_I_df$Status[c_I_df$c_I == c_I_calibration$optimal_value] <- "RECOMMENDED"
+kable(c_I_df, caption = "c_I Calibration Results")
+```
+
+## 9. Calibration Summary
+
+```{r summary}
+cat("\n")
+cat(rep("=", 70), "\n", sep = "")
+cat("                    CALIBRATION SUMMARY\n")
+cat(rep("=", 70), "\n\n")
+
+cat("Threshold Boundaries (Fixed):\n")
+cat("  phi_T (toxicity upper limit) = ", phi_T, "\n")
+cat("  phi_E (efficacy lower limit) = ", phi_E, "\n")
+cat("  phi_I (immune lower limit) = ", phi_I, "\n\n")
+
+cat("Recommended Thresholds:\n")
+cat("  ", rep("-", 55), "\n", sep = "")
+cat("  Parameter |  Value  |  ESR     |  Target   |  Status\n")
+cat("  ", rep("-", 55), "\n", sep = "")
+cat(sprintf("  c_T       |  %.2f   |  %.1f%%   |  60-70%%   |  %s\n",
+            c_T_calibration$optimal_value,
+            c_T_calibration$optimal_esr * 100,
+            c_T_calibration$status))
+cat(sprintf("  c_E       |  %.2f   |  %.1f%%   |  60-70%%   |  %s\n",
+            c_E_calibration$optimal_value,
+            c_E_calibration$optimal_esr * 100,
+            c_E_calibration$status))
+cat(sprintf("  c_I       |  %.2f   |  %.1f%%   |  60-70%%   |  %s\n",
+            c_I_calibration$optimal_value,
+            c_I_calibration$optimal_esr * 100,
+            c_I_calibration$status))
+cat("  ", rep("-", 55), "\n", sep = "")
+
+cat("\nUsage:\n")
+cat("Apply the following to your trial_config:\n\n")
+cat("trial_config$c_T <-", c_T_calibration$optimal_value, "\n")
+cat("trial_config$c_E <-", c_E_calibration$optimal_value, "\n")
+cat("trial_config$c_I <-", c_I_calibration$optimal_value, "\n")
+
+cat("\n")
+cat(rep("=", 70), "\n", sep = "")
+```
+
+## 10. Validation Tests
+
+Validate the calibrated thresholds across all scenarios.
+
+```{r validation}
+#| cache: true
+
+cat("Validating calibrated thresholds...\n\n")
+
+# Create config with all calibrated thresholds
+calibrated_config <- create_base_config(
+  c_T = c_T_calibration$optimal_value,
+  c_E = c_E_calibration$optimal_value,
+  c_I = c_I_calibration$optimal_value
+)
+
+# Validate in all three scenarios
+scenarios <- list(
+  high_toxicity = high_tox,
+  low_efficacy = low_eff,
+  low_immune = low_imm
+)
+
+validation_results <- list()
+for (name in names(scenarios)) {
+  cat("Validating scenario:", name, "... ")
+  sim_res <- run_calibration_simulations(calibrated_config, scenarios[[name]], n_sim = 500)
+  validation_results[[name]] <- sim_res
+  cat("ESR =", round(sim_res$esr, 3), "\n")
+}
+
+cat("\nValidation Summary:\n")
+cat("  Scenario         |  ESR      |  Expected\n")
+cat("  ", rep("-", 45), "\n", sep = "")
+cat(sprintf("  High Toxicity    |  %.1f%%    |  ~60-70%% (c_T dominant)\n",
+            validation_results$high_toxicity$esr * 100))
+cat(sprintf("  Low Efficacy     |  %.1f%%    |  ~60-70%% (c_E dominant)\n",
+            validation_results$low_efficacy$esr * 100))
+cat(sprintf("  Low Immune       |  %.1f%%    |  ~60-70%% (c_I dominant)\n",
+            validation_results$low_immune$esr * 100))
+```
+
+## 11. Combined Visualization
+
+```{r combined_plot}
+#| fig-width: 12
+#| fig-height: 4
+
+library(gridExtra)
+
+p1 <- plot_calibration_result(c_T_calibration) + 
+  ggtitle("c_T Calibration") + 
+  theme(plot.title = element_text(size = 12))
+
+p2 <- plot_calibration_result(c_E_calibration) + 
+  ggtitle("c_E Calibration") + 
+  theme(plot.title = element_text(size = 12))
+
+p3 <- plot_calibration_result(c_I_calibration) + 
+  ggtitle("c_I Calibration") + 
+  theme(plot.title = element_text(size = 12))
+
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+## 12. Save Results
+
+```{r save_results}
+# Save calibration results to file
+calibration_summary <- list(
+  timestamp = Sys.time(),
+  threshold_boundaries = list(phi_T = phi_T, phi_E = phi_E, phi_I = phi_I),
+  recommended_thresholds = list(
+    c_T = c_T_calibration$optimal_value,
+    c_E = c_E_calibration$optimal_value,
+    c_I = c_I_calibration$optimal_value
+  ),
+  esr_achieved = list(
+    c_T = c_T_calibration$optimal_esr,
+    c_E = c_E_calibration$optimal_esr,
+    c_I = c_I_calibration$optimal_esr
+  ),
+  target_range = c(0.60, 0.70),
+  n_sim_per_candidate = 500,
+  calibration_details = list(
+    c_T = c_T_calibration,
+    c_E = c_E_calibration,
+    c_I = c_I_calibration
+  ),
+  validation_results = validation_results
+)
+
+# Create results directory
+if (!dir.exists("results/threshold_calibration")) {
+  dir.create("results/threshold_calibration", recursive = TRUE)
+}
+
+# Save RDS
+saveRDS(calibration_summary, "results/threshold_calibration/calibration_summary.rds")
+cat("Calibration results saved to: results/threshold_calibration/calibration_summary.rds\n")
+
+# Save text report
+report_file <- "results/threshold_calibration/calibration_report.txt"
+sink(report_file)
+cat("Threshold Calibration Report\n")
+cat("Generated:", format(calibration_summary$timestamp, "%Y-%m-%d %H:%M:%S"), "\n\n")
+cat("Threshold Boundaries:\n")
+cat("  phi_T =", phi_T, "\n")
+cat("  phi_E =", phi_E, "\n")
+cat("  phi_I =", phi_I, "\n\n")
+cat("Recommended Thresholds:\n")
+cat("  c_T =", c_T_calibration$optimal_value, "(ESR:", round(c_T_calibration$optimal_esr, 3), ")\n")
+cat("  c_E =", c_E_calibration$optimal_value, "(ESR:", round(c_E_calibration$optimal_esr, 3), ")\n")
+cat("  c_I =", c_I_calibration$optimal_value, "(ESR:", round(c_I_calibration$optimal_esr, 3), ")\n")
+sink()
+cat("Text report saved to:", report_file, "\n")
+```
+
+------------------------------------------------------------------------
+
+## Appendix: Technical Notes
+
+### A.1 Calibration Methodology
+
+This notebook uses the following calibration approach:
+
+1.  **Independent Calibration**: Adjust one parameter at a time, keeping others fixed
+2.  **Sequential Dependency**: c_T → c_E → c_I, subsequent calibrations use prior optimal values
+3.  **Target-Driven**: Select optimal value based on ESR = 60-70% target
+4.  **Monte Carlo**: Run 500 simulations per candidate, calculate 95% CI
+
+### A.2 Scenario Design Principles
+
+| Scenario | Purpose | T (increasing) | E (increasing) | I (increasing) |
+|----|----|----|----|----|
+| High Toxicity | c_T calibration | Elevated \[0.32→0.50\] | Meets \[0.30→0.50\] | Meets \[0.25→0.45\] |
+| Low Efficacy | c_E calibration | Safe \[0.10→0.26\] | Low \[0.12→0.22\] | Meets \[0.25→0.45\] |
+| Low Immune | c_I calibration | Safe \[0.10→0.26\] | Meets \[0.30→0.50\] | Low \[0.08→0.18\] |
+
+**Design Principles**:
+
+-   All parameters increase with dose, matching realistic clinical dose-response patterns
+-   "Unfavorable" parameters are **slightly** above/below threshold boundaries (not extreme)
+-   "Favorable" parameters are well within acceptable ranges
+-   Values closer to thresholds produce moderate ESR (\~60-70%) rather than extreme ESR (\~100%)
+
+### A.3 How to Use Calibration Results
+
+```{r usage_example, eval=FALSE}
+# Load calibration results
+calibration <- readRDS("results/threshold_calibration/calibration_summary.rds")
+
+# Apply to configuration
+trial_config$c_T <- calibration$recommended_thresholds$c_T
+trial_config$c_E <- calibration$recommended_thresholds$c_E
+trial_config$c_I <- calibration$recommended_thresholds$c_I
+```
