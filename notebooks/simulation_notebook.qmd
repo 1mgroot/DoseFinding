@@ -1,6 +1,6 @@
 ---
 title: "Bayesian Dose-Finding Trial Simulation"
-format: html
+format: pdf
 editor: visual
 ---
 

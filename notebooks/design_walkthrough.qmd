@@ -1,6 +1,6 @@
 ---
 title: "Design Walkthrough: From Theory to Implementation"
-format: html
+format: pdf
 editor: visual
 ---
 
