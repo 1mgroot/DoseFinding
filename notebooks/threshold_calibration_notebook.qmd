@@ -114,9 +114,9 @@ cat("  phi_I (免疫下限):", phi_I, "\n")
 ### 4.1 高毒性场景 (c_T 校准)
 
 ```{r scenario_tox}
-# 高毒性场景：T 极端坏，E/I 标准好
+# 高毒性场景：T 极端坏，E/I 标准好（递增）
 create_high_tox_scenario <- function() {
-  # 毒性很高 (从 phi_T + 0.15 = 0.45 起跳)
+  # 毒性很高 (从 phi_T + 0.15 = 0.45 起跳，递增)
   # 注意：p_YT_given_I 是条件概率矩阵 [dose, I]
   p_YT_given_I <- matrix(c(
     # I=0
@@ -125,16 +125,16 @@ create_high_tox_scenario <- function() {
     0.50, 0.55, 0.65, 0.75, 0.95
   ), nrow = 5, ncol = 2)
   
-  # 疗效达标且偏高 (全部 > phi_E = 0.25)
+  # 疗效达标且偏高 (全部 > phi_E = 0.25，递增)
   p_YE_given_I <- matrix(c(
     # I=0
-    rep(0.30, 5),
-    # I=1
-    rep(0.35, 5)
+    0.30, 0.35, 0.40, 0.45, 0.50,
+    # I=1 (稍高)
+    0.35, 0.40, 0.45, 0.50, 0.55
   ), nrow = 5, ncol = 2)
   
-  # 免疫达标且偏高 (全部 > phi_I = 0.20)
-  p_YI <- rep(0.25, 5)
+  # 免疫达标且偏高 (全部 > phi_I = 0.20，递增)
+  p_YI <- c(0.25, 0.30, 0.35, 0.40, 0.45)
   
   return(list(
     p_YI = p_YI,
@@ -143,7 +143,7 @@ create_high_tox_scenario <- function() {
     rho0 = 1.5,
     rho1 = 2.0,
     scenario_type = "high_toxicity",
-    description = "高毒性场景：T极端坏，E/I标准好"
+    description = "高毒性场景：T极端坏(递增)，E/I标准好(递增)"
   ))
 }
 
@@ -153,31 +153,32 @@ cat("  p_YI (免疫):", high_tox$p_YI, "\n")
 cat("  p_YT|I=0 (毒性):", high_tox$p_YT_given_I[,1], "\n")
 cat("  p_YT|I=1 (毒性):", high_tox$p_YT_given_I[,2], "\n")
 cat("  p_YE|I=0 (疗效):", high_tox$p_YE_given_I[,1], "\n")
+cat("  p_YE|I=1 (疗效):", high_tox$p_YE_given_I[,2], "\n")
 ```
 
 ### 4.2 低疗效场景 (c_E 校准)
 
 ```{r scenario_eff}
-# 低疗效场景：E 极端坏，T/I 标准好
+# 低疗效场景：E 极端坏（递增但都很低），T/I 标准好（递增）
 create_low_eff_scenario <- function() {
-  # 毒性标准可接受 (全部 < phi_T = 0.30)
+  # 毒性标准可接受 (全部 < phi_T = 0.30，递增)
   p_YT_given_I <- matrix(c(
     # I=0
-    rep(0.20, 5),
-    # I=1
-    rep(0.22, 5)
+    0.10, 0.14, 0.18, 0.22, 0.26,
+    # I=1 (稍高)
+    0.12, 0.16, 0.20, 0.24, 0.28
   ), nrow = 5, ncol = 2)
   
-  # 疗效很低 (明显低于 phi_E = 0.25)
+  # 疗效很低 (明显低于 phi_E = 0.25，递增但都很低)
   p_YE_given_I <- matrix(c(
     # I=0
-    rep(0.05, 5),
-    # I=1
-    rep(0.08, 5)
+    0.02, 0.05, 0.08, 0.10, 0.12,
+    # I=1 (稍高)
+    0.04, 0.07, 0.10, 0.12, 0.15
   ), nrow = 5, ncol = 2)
   
-  # 免疫达标 (全部 > phi_I = 0.20)
-  p_YI <- rep(0.25, 5)
+  # 免疫达标 (全部 > phi_I = 0.20，递增)
+  p_YI <- c(0.25, 0.30, 0.35, 0.40, 0.45)
   
   return(list(
     p_YI = p_YI,
@@ -186,7 +187,7 @@ create_low_eff_scenario <- function() {
     rho0 = 1.5,
     rho1 = 2.0,
     scenario_type = "low_efficacy",
-    description = "低疗效场景：E极端坏，T/I标准好"
+    description = "低疗效场景：E极端坏(递增)，T/I标准好(递增)"
   ))
 }
 
@@ -194,6 +195,7 @@ low_eff <- create_low_eff_scenario()
 cat("低疗效场景参数:\n")
 cat("  p_YI (免疫):", low_eff$p_YI, "\n")
 cat("  p_YT|I=0 (毒性):", low_eff$p_YT_given_I[,1], "\n")
+cat("  p_YT|I=1 (毒性):", low_eff$p_YT_given_I[,2], "\n")
 cat("  p_YE|I=0 (疗效):", low_eff$p_YE_given_I[,1], "\n")
 cat("  p_YE|I=1 (疗效):", low_eff$p_YE_given_I[,2], "\n")
 ```
@@ -201,26 +203,26 @@ cat("  p_YE|I=1 (疗效):", low_eff$p_YE_given_I[,2], "\n")
 ### 4.3 低免疫场景 (c_I 校准)
 
 ```{r scenario_imm}
-# 低免疫场景：I 极端坏，T/E 标准好
+# 低免疫场景：I 极端坏（递增但都很低），T/E 标准好（递增）
 create_low_imm_scenario <- function() {
-  # 毒性标准可接受 (全部 < phi_T = 0.30)
+  # 毒性标准可接受 (全部 < phi_T = 0.30，递增)
   p_YT_given_I <- matrix(c(
     # I=0
-    rep(0.20, 5),
-    # I=1
-    rep(0.22, 5)
+    0.10, 0.14, 0.18, 0.22, 0.26,
+    # I=1 (稍高)
+    0.12, 0.16, 0.20, 0.24, 0.28
   ), nrow = 5, ncol = 2)
   
-  # 疗效达标 (全部 > phi_E = 0.25)
+  # 疗效达标 (全部 > phi_E = 0.25，递增)
   p_YE_given_I <- matrix(c(
     # I=0
-    rep(0.30, 5),
-    # I=1
-    rep(0.35, 5)
+    0.30, 0.35, 0.40, 0.45, 0.50,
+    # I=1 (稍高)
+    0.35, 0.40, 0.45, 0.50, 0.55
   ), nrow = 5, ncol = 2)
   
-  # 免疫很低 (明显低于 phi_I = 0.20)
-  p_YI <- rep(0.05, 5)
+  # 免疫很低 (明显低于 phi_I = 0.20，递增但都很低)
+  p_YI <- c(0.02, 0.05, 0.08, 0.10, 0.12)
   
   return(list(
     p_YI = p_YI,
@@ -229,7 +231,7 @@ create_low_imm_scenario <- function() {
     rho0 = 1.5,
     rho1 = 2.0,
     scenario_type = "low_immune",
-    description = "低免疫场景：I极端坏，T/E标准好"
+    description = "低免疫场景：I极端坏(递增)，T/E标准好(递增)"
   ))
 }
 
@@ -237,7 +239,9 @@ low_imm <- create_low_imm_scenario()
 cat("低免疫场景参数:\n")
 cat("  p_YI (免疫):", low_imm$p_YI, "\n")
 cat("  p_YT|I=0 (毒性):", low_imm$p_YT_given_I[,1], "\n")
+cat("  p_YT|I=1 (毒性):", low_imm$p_YT_given_I[,2], "\n")
 cat("  p_YE|I=0 (疗效):", low_imm$p_YE_given_I[,1], "\n")
+cat("  p_YE|I=1 (疗效):", low_imm$p_YE_given_I[,2], "\n")
 ```
 
 ## 5. 校准辅助函数 / Calibration Helper Functions
@@ -764,11 +768,13 @@ cat("文本报告已保存到:", report_file, "\n")
 
 ### A.2 场景设计原理
 
-| 场景     | 目的                   | T      | E      | I      |
-|----------|------------------------|--------|--------|--------|
-| 高毒性   | c_T 校准               | 极端坏 | 标准好 | 标准好 |
-| 低疗效   | c_E 校准               | 标准好 | 极端坏 | 标准好 |
-| 低免疫   | c_I 校准               | 标准好 | 标准好 | 极端坏 |
+| 场景   | 目的     | T (递增)             | E (递增)             | I (递增)             |
+|--------|----------|----------------------|----------------------|----------------------|
+| 高毒性 | c_T 校准 | 极端坏 [0.45→0.90]   | 标准好 [0.30→0.50]   | 标准好 [0.25→0.45]   |
+| 低疗效 | c_E 校准 | 标准好 [0.10→0.26]   | 极端坏 [0.02→0.12]   | 标准好 [0.25→0.45]   |
+| 低免疫 | c_I 校准 | 标准好 [0.10→0.26]   | 标准好 [0.30→0.50]   | 极端坏 [0.02→0.12]   |
+
+**设计原则**：所有参数都随剂量递增，与真实临床场景一致。"极端坏"参数明显超出/低于阈值边界，"标准好"参数在安全范围内。
 
 ### A.3 如何使用校准结果
 
