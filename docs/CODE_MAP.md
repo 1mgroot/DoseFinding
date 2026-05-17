@@ -95,12 +95,10 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   Early termination timing
 
 ## Documentation (`docs/`)
--   **`STATUS_AS_BUILT.md`**: Current implementation status (code-first, English)
-    -   What the repo does today (capabilities & limitations)
-    -   Canonical run paths (notebooks, scripts, APIs)
-    -   Workflow contract (ordering & invariants)
-    -   Configuration reality (default vs calibration configs)
-    -   Calibration and optimization systems
+-   **`README.md`**: Documentation index and recommended reading order
+-   **`CHATGPT_PROJECT_CONTEXT.md`**: Canonical project context packet for re-orientation and Q&A
+-   **`PROJECT_READALOUD_EXPLANATION.md`**: Plain-language Chinese read-aloud explanation
+-   **`PROJECT_READALOUD_MOBILE.html`**: Phone-friendly version of the read-aloud explanation
 -   **`STAT_METHODS_AS_BUILT.md`**: Statistical methods as implemented (code-first, Chinese/English)
     -   Data generation (Gumbel copula)
     -   Posterior & isotonic constraints (PAVA/BIVISO)
@@ -109,6 +107,7 @@ This document outlines the structure and purpose of each file in the DoseFinding
 -   **`CODE_MAP.md`**: This file - file structure and organization
 -   **`HOW_TO_RUN.md`**: Usage instructions and examples
 -   **`Design1.tex`, `Design2.tex`**: LaTeX design documents
+-   **`archive/`**: Historical summaries and duplicated older documentation
 
 ## Results (`results/`)
 -   **`plots/`**: Generated visualization outputs from notebooks

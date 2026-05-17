@@ -214,33 +214,38 @@ DoseFinding/
 │   │   ├── simulate_data.R           # Gumbel copula data generation
 │   │   └── model_utils.R             # Bayesian posteriors + PAVA/BIVISO
 │   ├── decision/                     # Decision-making logic
-<<<<<<< HEAD
 │   │   └── dose_decision.R           # Admissibility, utility, PoC, early termination
 │   ├── optimization/                 # Calibration & optimization tools
+│   │   ├── poc_calibration.R         # PoC calibration framework
 │   │   ├── poc_calibration_new.R     # PoC calibration system
+│   │   ├── early_termination_calibration.R  # Early termination calibration
 │   │   ├── parameter_optimization.R  # Parameter search framework
 │   │   └── run_optimization.R        # Optimization convenience wrappers
 │   └── utils/                        # Visualization & helpers
 │       ├── helpers.R                 # Core plotting functions
+│       ├── calibration_plots.R       # Calibration visualization
 │       └── plotting_extensions.R     # Publication-ready plots
 ├── notebooks/                        # Interactive Quarto notebooks
 │   ├── simulation_notebook.qmd       # Single trial simulation
 │   ├── poc_calibration_notebook.qmd  # PoC calibration workflow
 │   └── design_walkthrough.qmd        # Design documentation walkthrough
 ├── tests/                            # Test suite
-│   ├── test_main.R                   # Integration tests
-│   ├── test_dose_decision.R          # Decision logic tests
-│   ├── test_early_termination_poc.R  # Early termination & PoC tests
-│   └── test_workflow_order.R         # Workflow sequence verification
+│   └── test_*.R                      # Unit and integration tests
 ├── docs/                             # Documentation
-│   ├── STATUS_AS_BUILT.md            # Current implementation status
+│   ├── README.md                     # Documentation index
+│   ├── CHATGPT_PROJECT_CONTEXT.md    # Full project context packet
+│   ├── PROJECT_READALOUD_EXPLANATION.md  # Plain-language read-aloud guide
+│   ├── PROJECT_READALOUD_MOBILE.html # Phone-friendly read-aloud guide
 │   ├── STAT_METHODS_AS_BUILT.md      # Statistical methods (bilingual)
 │   ├── CODE_MAP.md                   # File structure guide
 │   ├── HOW_TO_RUN.md                 # Detailed usage instructions
 │   ├── Design1.tex                   # Design specification (LaTeX)
-│   └── Design2.tex                   # Design specification (LaTeX)
+│   ├── Design2.tex                   # Design specification (LaTeX)
+│   └── archive/                      # Historical/duplicated older docs
 ├── examples/                         # Example scripts
-│   └── plotting_demo.R               # Plotting examples
+│   └── *.R                           # Example workflows and demos
+├── results/                          # Generated outputs
+│   └── plots/                        # Generated plots
 └── DoseFinding.Rproj                 # RStudio project file
 ```
 
@@ -248,74 +253,14 @@ DoseFinding/
 
 Comprehensive documentation is available in the `docs/` directory:
 
+- **[docs/README.md](docs/README.md)** - Documentation index and recommended reading order
+- **[CHATGPT_PROJECT_CONTEXT.md](docs/CHATGPT_PROJECT_CONTEXT.md)** - Complete context packet for project Q&A
+- **[PROJECT_READALOUD_EXPLANATION.md](docs/PROJECT_READALOUD_EXPLANATION.md)** - Plain-language Chinese read-aloud explanation
+- **[PROJECT_READALOUD_MOBILE.html](docs/PROJECT_READALOUD_MOBILE.html)** - Phone-friendly read-aloud version
 - **[HOW_TO_RUN.md](docs/HOW_TO_RUN.md)** - Complete usage guide with examples for all workflows
-- **[STATUS_AS_BUILT.md](docs/STATUS_AS_BUILT.md)** - Current implementation status, API contracts, known limitations
 - **[STAT_METHODS_AS_BUILT.md](docs/STAT_METHODS_AS_BUILT.md)** - Statistical methods with code evidence (Chinese/English)
 - **[CODE_MAP.md](docs/CODE_MAP.md)** - File structure and organization
 - **[Design1.tex](docs/Design1.tex), [Design2.tex](docs/Design2.tex)** - Mathematical design specifications
-=======
-│   │   └── dose_decision.R           # Dose selection algorithms
-│   ├── optimization/                 # Parameter optimization
-│   │   ├── poc_calibration.R         # PoC calibration framework
-│   │   └── early_termination_calibration.R  # Early termination calibration
-│   └── utils/                        # Utility functions
-│       ├── helpers.R                 # Helper functions and plotting
-│       ├── plotting_extensions.R     # Plotting extensions
-│       └── calibration_plots.R       # Calibration visualization
-├── examples/                         # Example scripts
-│   ├── comprehensive_calibration_demo.R  # Comprehensive calibration demo
-│   ├── poc_calibration_demo.R        # PoC calibration demo
-│   ├── flat_scenario_demo.R          # Flat scenario demo
-│   └── bayesian_poc_demo.R           # Bayesian PoC demo
-├── tests/                            # Test files
-│   ├── test_comprehensive_calibration.R  # Comprehensive calibration tests
-│   ├── test_poc_calibration.R        # PoC calibration tests
-│   └── test_*.R                      # Other test files
-├── docs/                             # Documentation
-│   ├── PROJECT_OVERVIEW.md           # Project overview
-│   ├── TRIAL_DESIGN.md               # Trial design specification
-│   ├── NEXT_STEP_PLAN.md             # Implementation plan
-│   └── CALIBRATION_IMPLEMENTATION_SUMMARY.md  # Calibration implementation summary
-├── notebooks/                        # Interactive notebooks
-│   └── simulation_notebook.qmd       # Interactive simulation notebook
-└── results/                          # Generated outputs
-    └── plots/                        # Generated plots
-```
-
-## ✨ Key Features
-
-### 🎯 Trial Simulation
-- **Multi-stage Bayesian adaptive design** with interim analyses
-- **Utility-based dose selection** with customizable utility functions
-- **Early termination criteria** for safety and efficacy
-- **PoC validation** probability of correct selection validation
-- **Adaptive randomization** based on utility scores
-
-### 🔧 Calibration System
-- **PoC calibration** target: 10% detection rate
-- **Early termination calibration** target: 80% termination rate
-- **Performance visualization** calibration curves and confidence intervals
-- **Parameter optimization** systematic parameter tuning
-
-### 📊 Visualization
-- **Dose-response curves** toxicity, efficacy, and utility
-- **Posterior distribution plots** modern styling
-- **Calibration curves** threshold vs performance relationships
-- **Allocation analysis** participant distribution
-
-## 📚 Documentation
-
-### Quick Start
-- **QUICK_START.md** - 5-minute quick start guide
-- **PROJECT_OVERVIEW.md** - Complete project overview and usage
-
-### Detailed Documentation
-- **TRIAL_DESIGN.md** - Complete trial design specification
-- **NEXT_STEP_PLAN.md** - Implementation plan and status
-- **CALIBRATION_IMPLEMENTATION_SUMMARY.md** - Calibration system implementation summary
-
-## 🛠️ Requirements
->>>>>>> origin/main
 
 ## Complete Workflow (Production Use)
 
@@ -499,8 +444,8 @@ source("tests/test_early_termination_poc.R")
 ## 🤝 Support
 
 For questions, please check:
-1. **Quick Start**: `QUICK_START.md`
-2. **Project Overview**: `docs/PROJECT_OVERVIEW.md`
+1. **Documentation Index**: `docs/README.md`
+2. **Project Context**: `docs/CHATGPT_PROJECT_CONTEXT.md`
 3. **Example Scripts**: `examples/` directory
 4. **Interactive Notebook**: `notebooks/` directory
 5. **Test Files**: `tests/` directory
@@ -515,7 +460,7 @@ For questions or issues:
 1. Check documentation in `docs/`
 2. Review test files in `tests/` for usage examples
 3. Examine notebooks for interactive workflows
-4. Refer to `docs/STATUS_AS_BUILT.md` for implementation details
+4. Refer to `docs/STAT_METHODS_AS_BUILT.md` for implementation details
 
 ---
 

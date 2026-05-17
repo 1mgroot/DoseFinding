@@ -285,7 +285,7 @@ For production use, follow this complete workflow:
 
 1. Clone repository and set working directory
 2. Install required R packages (see below)
-3. Review `docs/TRIAL_DESIGN.md` for methodology
+3. Review `docs/README.md` for the current documentation map
 
 ### Phase 2: Parameter Optimization (Day 1)
 
@@ -505,11 +505,11 @@ results/optimization/
 
 ## Further Reading
 
-- **Methodology**: `docs/TRIAL_DESIGN.md` - Complete mathematical framework
-- **Optimization Guide**: `docs/OPTIMIZATION_AND_CALIBRATION_GUIDE.md` - Detailed optimization instructions
+- **Project Context**: `docs/CHATGPT_PROJECT_CONTEXT.md` - Complete project context and current status
+- **Methodology**: `docs/STAT_METHODS_AS_BUILT.md` - Statistical methods as implemented
+- **Original Design Specs**: `docs/Design1.tex`, `docs/Design2.tex` - Mathematical design drafts
 - **Code Structure**: `docs/CODE_MAP.md` - Code organization overview
-- **Naming Conventions**: `NAMING_CONVENTION.md` - Parameter naming guide
-- **Recent Updates**: `CALIBRATION_UPDATE_SUMMARY.md` - Latest changes
+- **Archived Planning Notes**: `docs/archive/` - Historical plans and calibration summaries
 
 ---
 
@@ -519,7 +519,7 @@ For questions or issues:
 1. Check existing documentation in `docs/`
 2. Review test files in `tests/` for examples
 3. Examine notebook code for usage patterns
-4. Refer to `TRIAL_DESIGN.md` for methodology clarification
+4. Refer to `docs/STAT_METHODS_AS_BUILT.md` for methodology clarification
 
 ## Version Information
 
