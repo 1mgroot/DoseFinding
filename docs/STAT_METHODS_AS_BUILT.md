@@ -58,7 +58,7 @@
 - 笔记本 / 校准：  
   - `simulation_notebook.qmd`：5 剂量、5 阶段、cohort=15，c_T=c_E=c_I=0.5，φ_T=0.35，φ_E=0.1 (simulation_notebook.qmd L37-L98) — **与默认配置对齐**。  
   - `poc_calibration_notebook.qmd`：5 剂量，c_T=c_E=0.3，c_I=0.2，null 情景校准，阈值更严格以控制 Type I 错误率 (poc_calibration_notebook.qmd L62-L120)。  
-  - `src/optimization/poc_calibration_new.R` base_config：5 剂量、校准专用阈值 (c_T=c_E=c_I=0.3) (poc_calibration_new.R L194-L220)。  
+  - `src/optimization/poc_calibration.R` base_config：5 剂量、校准专用阈值 (c_T=c_E=c_I=0.3)。  
 - 参数优化：`parameter_optimization.R` 测试多组参数组合：φ_T=[0.25-0.45], φ_E=[0.05-0.25], φ_I=[0.15-0.35], c_T/c_E/c_I=[0.6-0.95]。
 - 比较性：默认配置与 simulation notebook 已对齐；校准脚本使用适合 Type I 错误控制的严格阈值。
 
@@ -67,7 +67,7 @@
 - `src/core/simulate_data.R`: Gumbel copula data generator with optional seed (simulate_data_gumbel L9-L61).  
 - `src/core/model_utils.R`: posterior sampling, PAVA/BIVISO, marginals (apply_pava_on_samples L33-L48; apply_biviso_on_matrix L50-L99; compute_marginal_probability L101-L128).  
 - `src/decision/dose_decision.R`: utility calc, admissible set, adaptive allocation, PoC, final selection (functions above).  
-- `src/optimization/poc_calibration_new.R`: PoC calibration system (create_null_flat_scenario L16-L48; calibrate_c_poc L180-L322; generate_calibration_report L366-L590).
+- `src/optimization/poc_calibration.R`: PoC calibration system (`create_null_flat_scenario()`, `calibrate_c_poc()`, `generate_calibration_report()`).
 - `src/optimization/parameter_optimization.R`: parameter search framework (run_parameter_optimization L205-L249; create_optimization_plots L252-L326).
 - `src/utils/helpers.R` / `plotting_extensions.R`: 结果可视化，非核心算法。  
 - Notebooks:  
@@ -80,7 +80,7 @@
 - 单调约束：PAVA 保持剂量递增；BIVISO 保持剂量和免疫分组的二维单调性。  
 - 可行性判定：基于后验样本概率满足 φ/ c 阈值；无多重校正。  
 - **PoC 方法（后验样本法）**：使用后验样本直接计算成对比较概率 Pr(π_best > δ × π_competitor | D_n)；PoC=min{成对概率}。基于边际疗效后验样本；完全贝叶斯，无正态近似。PoC 可门控选择：若 PoC < c_poc，则不选最优剂量。  
-- **PoC 校准**：通过 null/flat 情景（所有剂量等概率在阈值处）校准 c_poc，目标：10% Type I 错误率（假阳性选择率）。校准方法：对多个 c_poc 候选值运行 1000+ 次模拟，选择最接近 10% PoC 检出率的 c_poc (poc_calibration_new.R L180-L322).  
+- **PoC 校准**：通过 null/flat 情景（所有剂量等概率在阈值处）校准 c_poc，目标：PoC 检出率不超过 10% Type I 错误率（假阳性选择率）。校准方法：对多个 c_poc 候选值运行 1000+ 次模拟，选择第一个满足控制目标的 c_poc；若候选值都不能满足，则报告控制未达成并选择最严格候选值。  
 - 效用：分层免疫的期望效用，utility_table 0–100 加权；自适应分配与最终选择都基于效用。
 
 ## 9. 随机性与可重复性 / Randomness
@@ -95,7 +95,7 @@
 
 ## 11. 已知偏差 vs 文档
 - PoC 公式/门控：代码**已更新**为后验样本法，计算 Pr(π_best > δ × π_competitor | D_n)；PoC 可门控选择（若不达标返回 NA）。**状态：RESOLVED**（dose_decision.R L310-L343, L364-L425）。  
-- PoC 校准系统：**已实现** null/flat 情景校准框架，目标 10% Type I 错误率。**状态：IMPLEMENTED**（poc_calibration_new.R）。  
+- PoC 校准系统：**已实现** null/flat 情景校准框架，目标 10% Type I 错误率。**状态：IMPLEMENTED**（poc_calibration.R）。  
 - Control arm / γ_j：未实现（代码无 γ_j/对照参数）。**状态：MISSING/OUT-OF-SCOPE**。  
 - 配置一致性：默认 config 与 simulation notebook 现已对齐（5 剂量，放宽阈值）；校准用更严格阈值适配 null 情景。**状态：RESOLVED**。
 

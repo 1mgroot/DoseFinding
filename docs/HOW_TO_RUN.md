@@ -163,11 +163,11 @@ Run simulations programmatically for automation or batch processing.
 
 4. **Access results**:
    ```r
-   result$selected_dose
+   result$final_od
    result$final_utility
-   result$data
-   result$early_termination
-   result$poc_results
+   result$poc_validated
+   result$terminated_early
+   result$all_data
    ```
 
 **Use case**: Batch simulations, automation, integration with other tools
@@ -231,13 +231,13 @@ results <- test_specific_params(
 
 Calibrate C_poc threshold programmatically.
 
-**Location**: `src/optimization/poc_calibration_new.R`
+**Location**: `src/optimization/poc_calibration.R`
 
 **Steps**:
 
 ```r
 source("src/core/config.R")
-source("src/optimization/poc_calibration_new.R")
+source("src/optimization/poc_calibration.R")
 
 # 1. Create null/flat scenario
 null_scenario <- create_null_flat_scenario(
@@ -253,7 +253,8 @@ calibration_results <- calibrate_c_poc(
   null_scenario = null_scenario,
   c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
   n_simulations = 1000,
-  base_config = trial_config
+  base_config = trial_config,
+  target_rate = 0.10
 )
 
 # 3. Generate report
@@ -348,7 +349,7 @@ install.packages(c(
 
 ### Optimization
 - `src/optimization/parameter_optimization.R` - Parameter search and testing
-- `src/optimization/poc_calibration_new.R` - PoC calibration system
+- `src/optimization/poc_calibration.R` - PoC calibration system
 - `src/optimization/run_optimization.R` - Optimization runner script
 
 ### Utilities
@@ -404,25 +405,25 @@ results/optimization/
 
 | Parameter | Description | Typical Range | Default |
 |-----------|-------------|---------------|---------|
-| `dose_levels` | Vector of dose levels | 3-7 doses | c(1,2,3) |
-| `n_stages` | Number of trial stages | 2-4 | 3 |
+| `dose_levels` | Vector of dose levels | 3-7 doses | c(1,2,3,4,5) |
+| `n_stages` | Number of trial stages | 2-5 | 5 |
 | `cohort_size` | Patients per stage | 10-20 | 15 |
 
 ### Threshold Parameters (φ)
 
 | Parameter | Description | Typical Range | Default |
 |-----------|-------------|---------------|---------|
-| `phi_T` | Toxicity threshold | 0.25-0.45 | 0.30 |
-| `phi_E` | Efficacy threshold | 0.10-0.30 | 0.25 |
+| `phi_T` | Toxicity threshold | 0.25-0.45 | 0.35 |
+| `phi_E` | Efficacy threshold | 0.10-0.30 | 0.10 |
 | `phi_I` | Immune threshold | 0.15-0.35 | 0.20 |
 
 ### Credibility Parameters (c)
 
 | Parameter | Description | Typical Range | Default |
 |-----------|-------------|---------------|---------|
-| `c_T` | Toxicity credibility | 0.7-0.95 | 0.8 |
-| `c_E` | Efficacy credibility | 0.6-0.9 | 0.7 |
-| `c_I` | Immune credibility | 0.6-0.9 | 0.7 |
+| `c_T` | Toxicity credibility | 0.3-0.95 | 0.5 |
+| `c_E` | Efficacy credibility | 0.3-0.9 | 0.5 |
+| `c_I` | Immune credibility | 0.3-0.9 | 0.5 |
 
 ### PoC Parameters
 
@@ -509,8 +510,6 @@ results/optimization/
 - **Methodology**: `docs/STAT_METHODS_AS_BUILT.md` - Statistical methods as implemented
 - **Original Design Specs**: `docs/Design1.tex`, `docs/Design2.tex` - Mathematical design drafts
 - **Code Structure**: `docs/CODE_MAP.md` - Code organization overview
-- **Archived Planning Notes**: `docs/archive/` - Historical plans and calibration summaries
-
 ---
 
 ## Support
@@ -521,13 +520,6 @@ For questions or issues:
 3. Examine notebook code for usage patterns
 4. Refer to `docs/STAT_METHODS_AS_BUILT.md` for methodology clarification
 
-## Version Information
+## Current Scope
 
-- **Last Updated**: October 2025
-- **Major Features**: 
-  - Multi-stage adaptive Bayesian design
-  - Utility-based dose selection
-  - Early termination with detailed logging
-  - PoC calibration system with Type I error control
-  - Parameter optimization framework
-  - Interactive notebooks for simulation and calibration
+The active project scope is the simulation engine, decision logic, PoC calibration, early termination calibration, parameter optimization scripts, notebooks, tests, and the current documentation in `docs/`. Rendered notebooks, plots, reports, and result files are generated artifacts and are not tracked.

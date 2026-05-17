@@ -5,6 +5,10 @@
 library(testthat)
 library(dplyr)
 
+if (basename(getwd()) == "tests") {
+  setwd("..")
+}
+
 # Source the functions to test
 source("src/core/simulate_data.R")
 source("src/core/config.R")
@@ -138,8 +142,8 @@ test_that("Flat scenario data generation works correctly", {
   expect_true("Y_E" %in% names(flat_data))
   expect_true("Y_T" %in% names(flat_data))
   
-  # Check that we have data for all doses
-  expect_equal(length(unique(flat_data$d)), 3)
+  # Check that we have data for all configured doses
+  expect_equal(length(unique(flat_data$d)), length(flat_scenario_config$dose_levels))
   
   # Check that each dose has the expected number of patients
   for (dose in unique(flat_data$d)) {
@@ -151,5 +155,3 @@ test_that("Flat scenario data generation works correctly", {
   validation <- validate_flat_scenario(flat_data, 0.20, 0.25, 0.05, tolerance = 0.2)
   expect_true(validation$success)
 })
-
-cat("All Bayesian PoC calculation tests passed!\n")

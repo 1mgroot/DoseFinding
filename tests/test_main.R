@@ -8,9 +8,14 @@ if (basename(getwd()) == "tests") {
 source("src/core/config.R")
 source("src/core/main.R")
 
+quiet_trial_config <- within(trial_config, {
+  verbose_logging <- FALSE
+  log_early_termination <- FALSE
+})
+
 test_that("run_trial_simulation returns expected structure", {
   result <- run_trial_simulation(
-    trial_config,
+    quiet_trial_config,
     p_YI,
     p_YT_given_I,
     p_YE_given_I,
@@ -29,7 +34,7 @@ test_that("run_trial_simulation returns expected structure", {
 
 test_that("allocation probabilities are well-formed when trial continues", {
   result <- run_trial_simulation(
-    trial_config,
+    quiet_trial_config,
     p_YI,
     p_YT_given_I,
     p_YE_given_I,

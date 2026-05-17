@@ -21,6 +21,8 @@ test_that("workflow produces equal allocation in stage 1 and valid probabilities
   test_config$c_T <- 0.5
   test_config$c_E <- 0.5
   test_config$c_I <- 0.5
+  test_config$verbose_logging <- FALSE
+  test_config$log_early_termination <- FALSE
 
   test_p_YI <- c(0.3, 0.5, 0.7)
   test_p_YT_given_I <- matrix(c(

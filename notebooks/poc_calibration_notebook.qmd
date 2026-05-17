@@ -32,7 +32,7 @@ source("src/core/simulate_data.R")
 source("src/core/model_utils.R")
 source("src/decision/dose_decision.R")
 source("src/core/main.R")
-source("src/optimization/poc_calibration_new.R")
+source("src/optimization/poc_calibration.R")
 ```
 
 ## Configuration

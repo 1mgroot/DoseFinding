@@ -5,6 +5,16 @@
 library(ggplot2)
 library(dplyr)
 
+normalize_poc_calibration_results <- function(calibration_results) {
+  if (exists("poc_calibration_results_table", mode = "function")) {
+    return(poc_calibration_results_table(calibration_results))
+  }
+  if (is.list(calibration_results) && "calibration_results" %in% names(calibration_results)) {
+    return(calibration_results$calibration_results)
+  }
+  calibration_results
+}
+
 plot_poc_calibration_curve <- function(calibration_results, target_rate = 0.10, save_path = NULL) {
   # Plot PoC calibration curve showing C_poc vs PoC detection rate
   #
@@ -17,23 +27,27 @@ plot_poc_calibration_curve <- function(calibration_results, target_rate = 0.10, 
   #   ggplot object: Calibration curve plot
   
   # Extract calibration data
-  if (is.list(calibration_results) && "calibration_results" %in% names(calibration_results)) {
-    data <- calibration_results$calibration_results
-    optimal_c_poc <- calibration_results$optimal_c_poc
+  data <- normalize_poc_calibration_results(calibration_results)
+  optimal_c_poc <- if (!is.null(calibration_results$optimal_c_poc)) {
+    calibration_results$optimal_c_poc
   } else {
-    data <- calibration_results
-    optimal_c_poc <- data$c_poc[which.min(abs(data$poc_detection_rate - target_rate))]
+    data$c_poc[which.min(abs(data$poc_detection_rate - target_rate))]
   }
+  if (!"poc_detection_rate_lower" %in% names(data) && "poc_se" %in% names(data)) {
+    data$poc_detection_rate_lower <- pmax(0, data$poc_detection_rate - 1.96 * data$poc_se)
+    data$poc_detection_rate_upper <- pmin(1, data$poc_detection_rate + 1.96 * data$poc_se)
+  }
+  optimal_point <- data[data$c_poc == optimal_c_poc, , drop = FALSE]
   
   p <- ggplot(data, aes(x = .data$c_poc)) +
-    geom_line(aes(y = .data$poc_detection_rate), color = "#009E73", size = 1.2) +
+    geom_line(aes(y = .data$poc_detection_rate), color = "#009E73", linewidth = 1.2) +
     geom_ribbon(aes(ymin = .data$poc_detection_rate_lower, ymax = .data$poc_detection_rate_upper), 
                 alpha = 0.3, fill = "#009E73") +
-    geom_hline(yintercept = target_rate, linetype = "dashed", color = "#E69F00", size = 1) +
+    geom_hline(yintercept = target_rate, linetype = "dashed", color = "#E69F00", linewidth = 1) +
     geom_vline(xintercept = optimal_c_poc, 
-               linetype = "dashed", color = "#56B4E9", size = 1) +
-    geom_point(aes(x = optimal_c_poc, y = data$poc_detection_rate[data$c_poc == optimal_c_poc]), 
-               color = "#CC79A7", size = 4, shape = 16) +
+               linetype = "dashed", color = "#56B4E9", linewidth = 1) +
+    geom_point(data = optimal_point, aes(x = .data$c_poc, y = .data$poc_detection_rate),
+               inherit.aes = FALSE, color = "#CC79A7", size = 4, shape = 16) +
     labs(
       title = "PoC Calibration Curve",
       subtitle = paste("Target detection rate:", target_rate, "| Optimal C_poc =", round(optimal_c_poc, 3)),
@@ -51,7 +65,7 @@ plot_poc_calibration_curve <- function(calibration_results, target_rate = 0.10, 
       axis.text = element_text(size = 11),
       plot.caption = element_text(size = 10, hjust = 0.5),
       panel.grid.minor = element_blank(),
-      panel.grid.major = element_line(color = "gray90", size = 0.5)
+      panel.grid.major = element_line(color = "gray90", linewidth = 0.5)
     )
   
   if (!is.null(save_path)) {
@@ -89,12 +103,12 @@ plot_early_termination_curve <- function(termination_results, target_rate = 0.80
   
   if (has_threshold) {
     p <- ggplot(data, aes(x = .data$threshold)) +
-      geom_line(aes(y = .data$termination_rate), color = "#E69F00", size = 1.2) +
+      geom_line(aes(y = .data$termination_rate), color = "#E69F00", linewidth = 1.2) +
       geom_ribbon(aes(ymin = .data$termination_rate_lower, ymax = .data$termination_rate_upper), 
                   alpha = 0.3, fill = "#E69F00") +
-      geom_hline(yintercept = target_rate, linetype = "dashed", color = "#009E73", size = 1) +
+      geom_hline(yintercept = target_rate, linetype = "dashed", color = "#009E73", linewidth = 1) +
       geom_vline(xintercept = optimal_threshold, 
-                 linetype = "dashed", color = "#56B4E9", size = 1) +
+                 linetype = "dashed", color = "#56B4E9", linewidth = 1) +
       geom_point(aes(x = optimal_threshold, y = data$termination_rate[data$threshold == optimal_threshold]), 
                  color = "#CC79A7", size = 4, shape = 16) +
       labs(
@@ -113,7 +127,7 @@ plot_early_termination_curve <- function(termination_results, target_rate = 0.80
         axis.text = element_text(size = 11),
         plot.caption = element_text(size = 10, hjust = 0.5),
         panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(color = "gray90", size = 0.5)
+        panel.grid.major = element_line(color = "gray90", linewidth = 0.5)
       )
   } else if (has_grid) {
     optimal_c_T <- if (!is.null(termination_results$optimal_c_T)) termination_results$optimal_c_T else NA_real_
@@ -151,7 +165,7 @@ plot_early_termination_curve <- function(termination_results, target_rate = 0.80
         axis.text = element_text(size = 11),
         plot.caption = element_text(size = 10, hjust = 0.5),
         panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(color = "gray90", size = 0.5)
+        panel.grid.major = element_line(color = "gray90", linewidth = 0.5)
       )
   } else {
     stop("Early termination calibration data must include 'threshold' or 'c_T' and 'c_E' columns.")
@@ -182,7 +196,7 @@ plot_threshold_performance_curves <- function(calibration_data, save_path = NULL
   
   # Add PoC calibration data
   if ("poc_calibration" %in% names(calibration_data)) {
-    poc_data <- calibration_data$poc_calibration$calibration_results
+    poc_data <- normalize_poc_calibration_results(calibration_data$poc_calibration)
     poc_data$metric <- "PoC Detection Rate"
     poc_data$threshold <- poc_data$c_poc
     poc_data$rate <- poc_data$poc_detection_rate
@@ -233,7 +247,7 @@ plot_threshold_performance_curves <- function(calibration_data, save_path = NULL
   
   # Create combined plot
   p <- ggplot(combined_data, aes(x = .data$threshold, y = .data$rate, color = .data$metric)) +
-    geom_line(size = 1.2) +
+    geom_line(linewidth = 1.2) +
     geom_ribbon(aes(ymin = .data$rate_lower, ymax = .data$rate_upper, fill = .data$metric), 
                 alpha = 0.3) +
     labs(
@@ -257,7 +271,7 @@ plot_threshold_performance_curves <- function(calibration_data, save_path = NULL
       legend.title = element_text(size = 12),
       legend.text = element_text(size = 11),
       panel.grid.minor = element_blank(),
-      panel.grid.major = element_line(color = "gray90", size = 0.5)
+      panel.grid.major = element_line(color = "gray90", linewidth = 0.5)
     )
   
   if (!is.null(save_path)) {
@@ -282,10 +296,14 @@ plot_calibration_summary <- function(calibration_results, save_path = NULL) {
   
   # Extract key information
   if (is.list(calibration_results) && "calibration_results" %in% names(calibration_results)) {
-    data <- calibration_results$calibration_results
+    data <- normalize_poc_calibration_results(calibration_results)
     optimal_value <- calibration_results$optimal_c_poc
     target_rate <- calibration_results$target_rate
-    achieved_rate <- calibration_results$optimal_rate
+    achieved_rate <- if (!is.null(calibration_results$achieved_rate)) {
+      calibration_results$achieved_rate
+    } else {
+      calibration_results$optimal_rate
+    }
   } else {
     stop("Invalid calibration results format")
   }

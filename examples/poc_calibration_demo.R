@@ -33,13 +33,14 @@ quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5)
 
 cat("Quick calibration results:\n")
 cat("  Optimal C_poc:", quick_results$optimal_c_poc, "\n")
-cat("  Achieved rate:", round(quick_results$optimal_rate, 3), "\n")
+cat("  Achieved rate:", round(quick_results$achieved_rate, 3), "\n")
 cat("  Target rate:", quick_results$target_rate, "\n")
-cat("  Number of C_poc values tested:", nrow(quick_results$calibration_results), "\n\n")
+quick_results_table <- poc_calibration_results_table(quick_results)
+cat("  Number of C_poc values tested:", nrow(quick_results_table), "\n\n")
 
 # 3. Show calibration results table
 cat("3. Calibration results table:\n")
-print(quick_results$calibration_results)
+print(quick_results_table)
 cat("\n")
 
 # 4. Demonstrate the calibration concept
@@ -53,8 +54,8 @@ cat("- Higher C_poc = more strict = lower detection rate\n\n")
 
 # 5. Show how different C_poc values affect detection
 cat("5. Effect of different C_poc values on detection rate:\n")
-for (i in 1:nrow(quick_results$calibration_results)) {
-  row <- quick_results$calibration_results[i, ]
+for (i in 1:nrow(quick_results_table)) {
+  row <- quick_results_table[i, ]
   cat(sprintf("  C_poc = %.2f: Detection rate = %.3f (95%% CI: [%.3f, %.3f])\n",
               row$c_poc, row$poc_detection_rate, 
               row$poc_detection_rate_lower, row$poc_detection_rate_upper))
