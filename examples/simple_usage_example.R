@@ -32,10 +32,15 @@ cat("  免疫反应阈值:", trial_config$phi_I, "\n")
 cat("  PoC阈值:", trial_config$c_poc, "\n")
 cat("  启用早期终止:", trial_config$enable_early_termination, "\n\n")
 
+# Use a quiet copy of the config so the example output stays focused.
+example_config <- trial_config
+example_config$verbose_logging <- FALSE
+example_config$log_early_termination <- FALSE
+
 # 运行试验仿真
 cat("正在运行试验仿真...\n")
 results <- run_trial_simulation(
-  trial_config = trial_config,
+  trial_config = example_config,
   p_YI = p_YI,
   p_YT_given_I = p_YT_given_I,
   p_YE_given_I = p_YE_given_I,
@@ -45,11 +50,20 @@ results <- run_trial_simulation(
 
 # 显示结果
 cat("=== 试验结果 ===\n")
-cat("最终选择的剂量:", results$final_dose, "\n")
+cat("最终选择的剂量:", results$final_od, "\n")
 cat("是否早期终止:", results$terminated_early, "\n")
-cat("PoC是否验证:", results$poc_validated, "\n")
+cat("PoC是否验证:", isTRUE(results$poc_validated), "\n")
 cat("总参与者数:", nrow(results$all_data), "\n")
-cat("可接受剂量集:", paste(results$admissible_set, collapse = ", "), "\n")
+if (!isTRUE(results$terminated_early) && !is.null(results$posterior_summaries)) {
+  admissible_set <- get_admissible_set(
+    results$posterior_summaries,
+    example_config,
+    verbose = FALSE
+  )
+  cat("可接受剂量集:", paste(admissible_set, collapse = ", "), "\n")
+} else {
+  cat("可接受剂量集: 早期终止后未计算最终可接受剂量集\n")
+}
 
 # 显示分配情况
 if (!is.null(results$all_data)) {
@@ -130,13 +144,13 @@ if (!is.null(results$posterior_summaries$imm)) {
 # 3. 试验总结
 cat("\n=== 试验总结 ===\n")
 cat("试验成功完成!\n")
-cat("最终选择的剂量:", results$final_dose, "\n")
+cat("最终选择的剂量:", results$final_od, "\n")
 if (results$terminated_early) {
   cat("试验因安全考虑而早期终止\n")
 } else {
   cat("试验按计划完成\n")
 }
-if (results$poc_validated) {
+if (isTRUE(results$poc_validated)) {
   cat("PoC验证通过\n")
 } else {
   cat("PoC验证未通过\n")

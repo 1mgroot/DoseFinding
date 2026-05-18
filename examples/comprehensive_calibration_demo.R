@@ -73,7 +73,8 @@ cat("========================\n")
 cat("Running PoC calibration (reduced simulations for demo)...\n")
 poc_calibration_results <- run_quick_calibration(
   target_rate = calibration_config$poc_target_rate,
-  n_simulations = 10  # Reduced to 10 for quick testing
+  n_simulations = 10,  # Reduced to 10 for quick testing
+  verbose = FALSE
 )
 
 # Validate PoC calibration
@@ -94,7 +95,7 @@ save_calibration_results(
 
 cat("PoC calibration completed!\n")
 cat("Optimal C_poc =", poc_calibration_results$optimal_c_poc, "\n")
-cat("Achieved rate =", round(poc_calibration_results$optimal_rate, 3), "\n")
+cat("Achieved rate =", round(poc_calibration_results$achieved_rate, 3), "\n")
 cat("Target rate =", poc_calibration_results$target_rate, "\n\n")
 
 # =============================================================================
@@ -106,13 +107,14 @@ cat("======================================\n")
 cat("NOTE: In truly unfavorable scenarios (low efficacy, high toxicity),\n")
 cat("100% early termination is EXPECTED behavior - all doses fail safety/efficacy criteria.\n")
 cat("This is correct biostat behavior, not a problem!\n")
-cat("For practical 80% termination rates, use moderate-favorable scenarios.\n\n")
+cat("For practical 80% termination rates, use moderately unfavorable scenarios.\n\n")
 
 # Run early termination calibration with reduced simulations for demo
 cat("Running early termination calibration (reduced simulations for demo)...\n")
 early_termination_results <- run_quick_early_termination_calibration(
   target_rate = calibration_config$early_termination_target_rate,
-  n_simulations = 10  # Reduced to 10 for quick testing
+  n_simulations = 10,  # Reduced to 10 for quick testing
+  verbose = FALSE
 )
 
 # Validate early termination calibration
@@ -132,7 +134,11 @@ save_early_termination_results(
 )
 
 cat("Early termination calibration completed!\n")
-cat("Optimal", early_termination_results$threshold_type, "=", early_termination_results$optimal_threshold, "\n")
+cat(sprintf(
+  "Optimal c_T = %.3f, c_E = %.3f\n",
+  early_termination_results$optimal_c_T,
+  early_termination_results$optimal_c_E
+))
 cat("Achieved rate =", round(early_termination_results$optimal_rate, 3), "\n")
 cat("Target rate =", early_termination_results$target_rate, "\n\n")
 
@@ -198,7 +204,10 @@ cat("Testing calibrated parameters in full trial simulation...\n")
 # Create config with calibrated parameters
 calibrated_config <- flat_scenario_config
 calibrated_config$c_poc <- poc_calibration_results$optimal_c_poc
-calibrated_config$c_T <- early_termination_results$optimal_threshold
+calibrated_config$c_T <- early_termination_results$optimal_c_T
+calibrated_config$c_E <- early_termination_results$optimal_c_E
+calibrated_config$verbose_logging <- FALSE
+calibrated_config$log_early_termination <- FALSE
 
 # Create flat probability matrices with correct dimensions
 flat_probs <- create_flat_probability_matrices(
@@ -225,8 +234,8 @@ save(test_results, file = file.path(output_dir, "calibrated_parameters_test.RDat
 cat("Integration test completed!\n")
 cat("Test simulation results:\n")
 cat("  Trial terminated early:", test_results$terminated_early, "\n")
-cat("  PoC validated:", test_results$poc_validated, "\n")
-cat("  Final dose selected:", test_results$final_dose, "\n")
+cat("  PoC validated:", isTRUE(test_results$poc_validated), "\n")
+cat("  Final dose selected:", test_results$final_od, "\n")
 cat("  Total participants:", nrow(test_results$all_data), "\n\n")
 
 # =============================================================================
@@ -238,21 +247,30 @@ cat("=======================\n")
 
 # Create summary report
 summary_report <- data.frame(
-  Parameter = c("C_poc (PoC)", "C_T (Early Termination)", "PoC Target Rate", "PoC Achieved Rate",
-                "Early Termination Target", "Early Termination Achieved"),
+  Parameter = c(
+    "C_poc (PoC)",
+    "c_T (Early Termination)",
+    "c_E (Early Termination)",
+    "PoC Target Rate",
+    "PoC Achieved Rate",
+    "Early Termination Target",
+    "Early Termination Achieved"
+  ),
   Value = c(
     round(poc_calibration_results$optimal_c_poc, 3),
-    round(early_termination_results$optimal_threshold, 3),
+    round(early_termination_results$optimal_c_T, 3),
+    round(early_termination_results$optimal_c_E, 3),
     calibration_config$poc_target_rate,
-    round(poc_calibration_results$optimal_rate, 3),
+    round(poc_calibration_results$achieved_rate, 3),
     calibration_config$early_termination_target_rate,
     round(early_termination_results$optimal_rate, 3)
   ),
   Status = c(
     "Calibrated",
     "Calibrated",
+    "Calibrated",
     "Target",
-    ifelse(abs(poc_calibration_results$optimal_rate - calibration_config$poc_target_rate) <= calibration_config$poc_tolerance, "✓ Achieved", "⚠ Needs Adjustment"),
+    ifelse(abs(poc_calibration_results$achieved_rate - calibration_config$poc_target_rate) <= calibration_config$poc_tolerance, "✓ Achieved", "⚠ Needs Adjustment"),
     "Target",
     ifelse(abs(early_termination_results$optimal_rate - calibration_config$early_termination_target_rate) <= calibration_config$early_termination_tolerance, "✓ Achieved", "⚠ Needs Adjustment")
   )

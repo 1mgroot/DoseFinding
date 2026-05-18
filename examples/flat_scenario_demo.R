@@ -119,7 +119,7 @@ rates_data <- plot_data %>%
 
 # Create plot
 p <- ggplot(rates_data, aes(x = Dose, y = Rate, color = Scenario)) +
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   geom_point(size = 3) +
   facet_wrap(~ Endpoint, scales = "free_y") +
   labs(

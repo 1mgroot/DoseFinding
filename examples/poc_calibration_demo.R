@@ -39,7 +39,7 @@ cat("Single simulation result (C_poc = 0.5):", result, "\n\n")
 cat("2. Running quick calibration (reduced simulations for demo)...\n")
 
 # Run quick calibration with very few simulations
-quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5)
+quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5, verbose = FALSE)
 
 cat("Quick calibration results:\n")
 cat("  Optimal C_poc:", quick_results$optimal_c_poc, "\n")

@@ -285,14 +285,22 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   
   cat("Validating calibrated early termination parameters...\n")
   
-  # Get the optimal config
+  # Get the optimal config. Quick calibration returns c_T and c_E jointly;
+  # older calibration paths return one threshold plus threshold_type.
   optimal_threshold <- calibration_results$optimal_threshold
+  optimal_c_T <- calibration_results$optimal_c_T
+  optimal_c_E <- calibration_results$optimal_c_E
   threshold_type <- calibration_results$threshold_type
   scenario_type <- calibration_results$scenario_type
   
   # Create config with optimal threshold
   config <- get("unfavorable_scenario_config", envir = .GlobalEnv)  # Use unfavorable scenario config as base
-  config[[threshold_type]] <- optimal_threshold
+  if (!is.null(optimal_c_T) && !is.null(optimal_c_E)) {
+    config$c_T <- optimal_c_T
+    config$c_E <- optimal_c_E
+  } else {
+    config[[threshold_type]] <- optimal_threshold
+  }
   
   # Run validation simulations
   validation_terminations <- replicate(n_validation_simulations, {
@@ -305,7 +313,11 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   validation_ci <- binom.test(sum(validation_terminations), n_validation_simulations)$conf.int
   
   cat(sprintf("Validation results:\n"))
-  cat(sprintf("  %s = %.3f\n", threshold_type, optimal_threshold))
+  if (!is.null(optimal_c_T) && !is.null(optimal_c_E)) {
+    cat(sprintf("  c_T = %.3f, c_E = %.3f\n", optimal_c_T, optimal_c_E))
+  } else {
+    cat(sprintf("  %s = %.3f\n", threshold_type, optimal_threshold))
+  }
   cat(sprintf("  Termination rate = %.3f (95%% CI: [%.3f, %.3f])\n", 
               validation_rate, validation_ci[1], validation_ci[2]))
   cat(sprintf("  Target rate = %.3f\n", calibration_results$target_rate))
@@ -313,6 +325,8 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   
   return(list(
     optimal_threshold = optimal_threshold,
+    optimal_c_T = optimal_c_T,
+    optimal_c_E = optimal_c_E,
     threshold_type = threshold_type,
     validation_rate = validation_rate,
     validation_ci = validation_ci,

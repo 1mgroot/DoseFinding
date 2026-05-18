@@ -17,12 +17,11 @@ source("src/optimization/poc_calibration.R")
 
 cat("=== Logging Control Example ===\n\n")
 
-# Example 1: Run calibration with minimal logging (default behavior)
+# Example 1: Run calibration with minimal logging
 cat("Example 1: Running PoC calibration with minimal logging\n")
 cat("This will run quietly without verbose output...\n\n")
 
-# The calibration functions now automatically use minimal logging
-# You can run calibration without seeing all the detailed workflow logs
+# Pass verbose = FALSE to suppress detailed workflow logs.
 quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 10, verbose = FALSE)
 
 cat("Calibration completed with minimal logging!\n\n")
