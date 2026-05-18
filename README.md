@@ -8,6 +8,25 @@ This R project simulates Bayesian adaptive dose-finding trials with three binary
 
 The current design uses a 5-dose, 5-stage trial by default, with 15 patients per stage. The simulator updates Bayesian posterior estimates after each stage, screens out unacceptable doses, adaptively allocates future patients by expected utility, can stop early when no dose remains acceptable, and applies a final Probability of Correct Selection (PoC) gate before selecting an optimal dose.
 
+## Current Status
+
+The project has been cleaned up and is runnable from the repository root.
+
+- Canonical documentation starts at [docs/README.md](docs/README.md) and [docs/CHATGPT_PROJECT_CONTEXT.md](docs/CHATGPT_PROJECT_CONTEXT.md).
+- Canonical PoC calibration code is [src/optimization/poc_calibration.R](src/optimization/poc_calibration.R).
+- Generated notebooks, plots, calibration output, and RStudio state are ignored by git.
+- Latest full local verification: `testthat::test_dir("tests")` passed with `FAIL 0 | WARN 0 | SKIP 0 | PASS 399`.
+
+The main remaining work is statistical design confirmation, not basic code cleanup.
+
+Before adding major new features, confirm with the project lead:
+
+1. Should the current no-control-arm implementation be treated as the official design, or should the control arm and `gamma_j` allocation idea from `Design2.tex` be implemented?
+2. Should PoC calibration target the design/PDF goal of familywise Type I error `0.05`, or the current code's null/flat PoC detection target `0.10`?
+3. What should final PoC compare: immune response, marginal efficacy, expected utility, or another endpoint?
+4. Which parameters should be production-calibrated: only `c_poc`, or also `c_T`, `c_E`, and `c_I`?
+5. Which operating characteristics should appear in the final report?
+
 ## Start Here
 
 For a full project re-orientation, read:
@@ -56,6 +75,8 @@ result$terminated_early
 ## Calibrate PoC
 
 `src/optimization/poc_calibration.R` is the canonical PoC calibration implementation.
+
+Important: the example below uses the current code's `target_rate = 0.10` convention for null/flat PoC detection. The original design notes/PDF mention familywise Type I error `0.05`, so the final production target should be confirmed before reporting final calibration results.
 
 ```r
 source("src/core/config.R")
@@ -119,3 +140,5 @@ testthat::test_dir("tests")
 ```
 
 Some calibration tests run small simulations and may take longer than ordinary unit tests.
+
+Latest full local run: `FAIL 0 | WARN 0 | SKIP 0 | PASS 399`.
