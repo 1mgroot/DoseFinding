@@ -6,7 +6,14 @@ library(ggplot2)
 
 # Source required functions relative to the project root.
 # NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script).
-project_root <- if (basename(getwd()) %in% c("notebooks", "tests")) ".." else "."
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- project_root_matches[[1]]
 source(file.path(project_root, "src/utils/helpers.R"))
 source(file.path(project_root, "src/core/simulate_data.R"))
 source(file.path(project_root, "src/core/model_utils.R"))

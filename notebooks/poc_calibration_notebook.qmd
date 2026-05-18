@@ -20,10 +20,16 @@ library(knitr)
 library(ggplot2)
 library(dplyr)
 
-# Set working directory to project root
-if (basename(getwd()) == "notebooks") {
-  setwd("..")
+# Find and use the project root
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
 }
+project_root <- normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE)
+setwd(project_root)
 
 # Source required functions
 source("src/utils/helpers.R")

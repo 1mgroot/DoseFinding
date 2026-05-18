@@ -392,9 +392,11 @@ results/calibration/
 ### Optimization Outputs
 ```
 results/optimization/
-├── quick_optimization_results.RData
-├── comprehensive_results.RData
-└── optimization_plots/            # Various analysis plots
+├── quick_optimization_results.rds
+├── comprehensive_optimization_results.rds
+├── comprehensive_optimization_plots.rds
+├── optimization_results.rds
+└── optimization_plots.rds
 ```
 
 ---

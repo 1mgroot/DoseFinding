@@ -5,9 +5,16 @@ library(purrr)
 library(ggplot2)
 library(Iso)
 
-# Source files - resolve relative to project root
-# NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script)
-project_root <- if (basename(getwd()) == "notebooks") ".." else "."
+# Source files relative to the project root.
+# NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script).
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- project_root_matches[[1]]
 source(file.path(project_root, "src/core/simulate_data.R"))
 source(file.path(project_root, "src/core/model_utils.R"))
 source(file.path(project_root, "src/utils/helpers.R"))
