@@ -1,5 +1,5 @@
 # Flat Scenario Generation Demo
-# This script demonstrates the flat scenario generation functions implemented in Phase 1
+# This script demonstrates flat/null scenario generation for calibration.
 
 # Load required libraries
 library(dplyr)
@@ -155,13 +155,13 @@ cat("\n")
 
 # 7. Summary
 cat("=== Summary ===\n")
-cat("✓ Flat scenario generation functions implemented successfully\n")
+cat("✓ Flat scenario generation functions are available and exercised here\n")
 cat("✓ Functions generate data with identical probabilities across doses\n")
 cat("✓ Validation function correctly identifies flat scenarios\n")
 cat("✓ Conditional efficacy calculation maintains marginal rates\n")
-cat("✓ Ready for Phase 2: Enhanced PoC calculation\n\n")
+cat("✓ These scenarios feed the PoC calibration workflow\n\n")
 
-cat("Next steps:\n")
-cat("- Implement Bayesian PoC calculation\n")
-cat("- Create calibration framework\n")
-cat("- Generate performance curves\n")
+cat("Related workflow:\n")
+cat("- Use src/optimization/poc_calibration.R to calibrate C_poc\n")
+cat("- Use notebooks/poc_calibration_notebook.qmd for an interactive calibration walkthrough\n")
+cat("- Generated plots and reports are written under results/\n")

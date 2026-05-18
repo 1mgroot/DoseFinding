@@ -1,5 +1,5 @@
 # Test Bayesian PoC Calculation Functions
-# This file tests the enhanced Bayesian PoC calculation implemented in Phase 2
+# This file tests the Bayesian PoC calculation used by final dose selection.
 
 # Load required libraries
 library(testthat)

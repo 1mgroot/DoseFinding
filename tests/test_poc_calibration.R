@@ -1,5 +1,5 @@
 # Test PoC Calibration Framework
-# This file tests the PoC calibration functions implemented in Phase 3
+# This file tests the PoC calibration functions.
 
 # Load required libraries
 library(testthat)

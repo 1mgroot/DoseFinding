@@ -1,5 +1,5 @@
 # PoC Calibration Framework Demo
-# This script demonstrates the PoC calibration framework implemented in Phase 3
+# This script demonstrates the PoC calibration framework.
 
 # Load required libraries
 library(dplyr)
@@ -103,11 +103,11 @@ cat("\n")
 
 # 8. Summary
 cat("=== Summary ===\n")
-cat("✓ PoC calibration framework implemented successfully\n")
+cat("✓ PoC calibration framework is available and exercised here\n")
 cat("✓ Functions for single simulation, calibration, and validation\n")
 cat("✓ Save/load functionality for calibration results\n")
 cat("✓ Proper handling of flat null scenarios\n")
-cat("✓ Ready for full calibration with more simulations\n\n")
+cat("✓ Small demo runs can be scaled up by increasing n_simulations\n\n")
 
 cat("Key features:\n")
 cat("- run_calibration_simulation(): Single simulation with flat scenario\n")
@@ -116,8 +116,8 @@ cat("- validate_calibration(): Validation with additional simulations\n")
 cat("- run_quick_calibration(): Quick testing with reduced simulations\n")
 cat("- save/load_calibration_results(): Persistence of results\n\n")
 
-cat("Next steps:\n")
+cat("Typical next steps:\n")
 cat("- Run full calibration with 10,000+ simulations per C_poc\n")
-cat("- Implement early termination calibration\n")
-cat("- Create visualization tools for calibration curves\n")
-cat("- Integrate with main trial simulation workflow\n")
+cat("- Validate the chosen C_poc under alternative null scenarios\n")
+cat("- Combine calibrated C_poc with early termination calibration\n")
+cat("- Use the calibrated parameters in production simulation runs\n")

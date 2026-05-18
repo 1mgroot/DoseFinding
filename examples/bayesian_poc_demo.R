@@ -1,5 +1,5 @@
 # Bayesian PoC Calculation Demo
-# This script demonstrates the enhanced Bayesian PoC calculation implemented in Phase 2
+# This script demonstrates the Bayesian PoC calculation used by final dose selection.
 
 # Load required libraries
 library(dplyr)
@@ -202,15 +202,15 @@ cat("\n")
 
 # 5. Summary
 cat("=== Summary ===\n")
-cat("✓ Enhanced Bayesian PoC calculation implemented successfully\n")
+cat("✓ Bayesian PoC calculation is available and exercised here\n")
 cat("✓ Replaced normal approximation with proper posterior sample calculation\n")
 cat("✓ Πᵢ parameter calculation using total probability formula\n")
 cat("✓ PoC calculation: Pr(Πᵢ < δ Πᵢⱼ | Dₙ) using posterior samples\n")
 cat("✓ Mathematical verification confirms correct implementation\n")
-cat("✓ Ready for Phase 3: Calibration framework\n\n")
+cat("✓ Calibration framework is available in src/optimization/poc_calibration.R\n\n")
 
-cat("Key improvements over previous implementation:\n")
+cat("Key implementation details:\n")
 cat("- Uses posterior samples instead of normal approximation\n")
 cat("- Proper Bayesian calculation of Πᵢ and Πᵢⱼ parameters\n")
 cat("- More accurate probability estimates\n")
-cat("- Better alignment with TRIAL_DESIGN.md specifications\n")
+cat("- Aligns with the design notes in docs/Design1.tex and docs/Design2.tex\n")

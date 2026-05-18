@@ -1,5 +1,5 @@
 # Test Flat Scenario Generation Functions
-# This file tests the flat scenario generation functions implemented in Phase 1
+# This file tests flat/null scenario generation for calibration.
 
 # Load required libraries
 library(testthat)

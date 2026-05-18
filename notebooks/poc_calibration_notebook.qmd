@@ -1,5 +1,5 @@
 ---
-title: "PoC Calibration Notebook - New Methodology"
+title: "PoC Calibration Notebook"
 format: pdf
 editor: visual
 ---
