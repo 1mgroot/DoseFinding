@@ -96,9 +96,6 @@ This document outlines the structure and purpose of each file in the DoseFinding
 
 ## Documentation (`docs/`)
 -   **`README.md`**: Documentation index and recommended reading order
--   **`CHATGPT_PROJECT_CONTEXT.md`**: Canonical project context packet for re-orientation and Q&A
--   **`PROJECT_READALOUD_EXPLANATION.md`**: Plain-language Chinese read-aloud explanation
--   **`PROJECT_READALOUD_MOBILE.html`**: Phone-friendly version of the read-aloud explanation
 -   **`STAT_METHODS_AS_BUILT.md`**: Statistical methods as implemented (code-first, Chinese/English)
     -   Data generation (Gumbel copula)
     -   Posterior & isotonic constraints (PAVA/BIVISO)

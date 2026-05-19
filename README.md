@@ -18,37 +18,30 @@ In plain terms: this project repeatedly simulates a clinical trial so we can
 study which dose looks best after balancing safety, efficacy, immune response,
 and strength of evidence.
 
-## Current Status
+## Repository Guide
 
-The project is cleaned up and runnable from the repository root.
+- Documentation index: [docs/README.md](docs/README.md)
+- Run guide: [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md)
+- Statistical methods: [docs/STAT_METHODS_AS_BUILT.md](docs/STAT_METHODS_AS_BUILT.md)
+- Code map: [docs/CODE_MAP.md](docs/CODE_MAP.md)
+- Main simulation entry point: `run_trial_simulation()` in
+  [src/core/main.R](src/core/main.R)
+- PoC calibration implementation:
+  [src/optimization/poc_calibration.R](src/optimization/poc_calibration.R)
 
-- Latest full local verification: `testthat::test_dir("tests")` passed with
-  `FAIL 0 | WARN 0 | SKIP 0 | PASS 399`.
-- Canonical project context is in
-  [docs/CHATGPT_PROJECT_CONTEXT.md](docs/CHATGPT_PROJECT_CONTEXT.md).
-- Documentation index is in [docs/README.md](docs/README.md).
-- Main simulation entry point is `run_trial_simulation()` in
-  [src/core/main.R](src/core/main.R).
-- Canonical PoC calibration implementation is
-  [src/optimization/poc_calibration.R](src/optimization/poc_calibration.R).
-- Generated notebooks, plots, calibration outputs, result files, and RStudio
-  state are ignored by git.
-
-The main remaining work is statistical design confirmation and production-scale
-operating characteristic simulation, not basic code repair.
+Generated notebooks, plots, calibration outputs, result files, and RStudio state
+are ignored by git.
 
 ## Start Here
 
-For re-orientation, read these in order:
+For a first pass through the repository, read these in order:
 
-1. [docs/CHATGPT_PROJECT_CONTEXT.md](docs/CHATGPT_PROJECT_CONTEXT.md) - full
-   project context packet, suitable to give another ChatGPT session.
-2. [docs/PROJECT_READALOUD_EXPLANATION.md](docs/PROJECT_READALOUD_EXPLANATION.md)
-   - plain-language Chinese explanation.
-3. [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md) - detailed run instructions.
-4. [docs/STAT_METHODS_AS_BUILT.md](docs/STAT_METHODS_AS_BUILT.md) - statistical
+1. [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md) - detailed run instructions.
+2. [docs/STAT_METHODS_AS_BUILT.md](docs/STAT_METHODS_AS_BUILT.md) - statistical
    methods as implemented in code.
-5. [docs/CODE_MAP.md](docs/CODE_MAP.md) - file-by-file code map.
+3. [docs/CODE_MAP.md](docs/CODE_MAP.md) - file-by-file code map.
+4. [docs/Design1.tex](docs/Design1.tex) and
+   [docs/Design2.tex](docs/Design2.tex) - original design drafts.
 
 The original design drafts are:
 
@@ -57,11 +50,14 @@ The original design drafts are:
 - [docs/Design2.tex](docs/Design2.tex): decision layer, including admissible
   doses, utility, adaptive allocation, early stopping, and final OD selection.
 
-Important: the current code implements the main adaptive dose-finding workflow,
-but the design drafts and PDFs still contain unresolved choices. In particular,
-confirm whether the final design should keep the current no-control-arm
-implementation or add the control-arm / `gamma_j` allocation idea from
-`Design2.tex`.
+Implementation scope:
+
+- The current R code implements a no-control-arm adaptive simulation workflow.
+- `Design2.tex` includes a control-arm / `gamma_j` allocation concept, but that
+  extension is not implemented in the current code.
+- The examples use `target_rate = 0.10` for null/flat PoC detection calibration.
+  Protocol-specific applications should set the calibration target required by
+  the study design.
 
 ## Install R Packages
 
@@ -86,12 +82,6 @@ Set the working directory to the repository root, then run:
 
 ```r
 testthat::test_dir("tests")
-```
-
-A recent full local run passed with:
-
-```text
-FAIL 0 | WARN 0 | SKIP 0 | PASS 399
 ```
 
 For a quick smoke test:
@@ -196,10 +186,9 @@ calibration_results$optimal_c_poc
 calibration_results$achieved_rate
 ```
 
-Important: current code examples use `target_rate = 0.10` for null/flat PoC
-detection. The design drafts and source PDFs also discuss familywise Type I error
-`0.05`. Confirm the final target before reporting production calibration
-results.
+The example uses `target_rate = 0.10` for null/flat PoC detection calibration.
+Adjust this target if the study protocol requires a different Type I error or
+selection-control criterion.
 
 ### 4. Calibrate Early Termination
 
@@ -341,21 +330,6 @@ DoseFinding/
 ├── examples/
 └── tests/
 ```
-
-## Open Questions for the Project Lead
-
-Before final production runs, confirm:
-
-1. Should the current no-control-arm implementation be the official design, or
-   should the control arm and `gamma_j` allocation idea from `Design2.tex` be
-   implemented?
-2. Should final PoC calibration target familywise Type I error `0.05`, or the
-   current code convention of null/flat detection rate `0.10`?
-3. What should final PoC compare: immune response, marginal efficacy, expected
-   utility, or another endpoint?
-4. Which parameters should be production-calibrated: only `c_poc`, or also
-   `c_T`, `c_E`, and `c_I`?
-5. Which operating characteristics are required in the final report?
 
 ## Troubleshooting
 

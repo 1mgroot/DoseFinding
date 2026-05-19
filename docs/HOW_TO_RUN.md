@@ -508,7 +508,6 @@ results/optimization/
 
 ## Further Reading
 
-- **Project Context**: `docs/CHATGPT_PROJECT_CONTEXT.md` - Complete project context and current status
 - **Methodology**: `docs/STAT_METHODS_AS_BUILT.md` - Statistical methods as implemented
 - **Original Design Specs**: `docs/Design1.tex`, `docs/Design2.tex` - Mathematical design drafts
 - **Code Structure**: `docs/CODE_MAP.md` - Code organization overview

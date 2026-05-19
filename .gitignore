@@ -35,6 +35,11 @@ results/
 *.jpeg
 *.svg
 
+# Local project handoff notes
+docs/CHATGPT_PROJECT_CONTEXT.md
+docs/PROJECT_READALOUD_EXPLANATION.md
+docs/PROJECT_READALOUD_MOBILE.html
+
 # IDE
 .vscode/
 .idea/
