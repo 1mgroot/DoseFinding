@@ -7,13 +7,21 @@ library(gridExtra)
 library(purrr)
 library(tidyr)
 
-# Source required functions - works from project root
-# NOTE: config.R should be sourced only once at the top level (e.g., notebook or main script)
-source("src/utils/helpers.R")
-source("src/core/simulate_data.R")
-source("src/core/model_utils.R")
-source("src/decision/dose_decision.R")
-source("src/core/main.R")
+# Source required functions from the project root.
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- project_root_matches[[1]]
+
+source(file.path(project_root, "src/utils/helpers.R"))
+source(file.path(project_root, "src/core/simulate_data.R"))
+source(file.path(project_root, "src/core/model_utils.R"))
+source(file.path(project_root, "src/decision/dose_decision.R"))
+source(file.path(project_root, "src/core/main.R"))
 
 # Define parameter grids for optimization
 create_parameter_grids <- function() {
@@ -151,6 +159,7 @@ run_parameter_combination <- function(params, data_params, n_simulations = 10) {
     delta_poc = 0.8,
     enable_early_termination = TRUE,
     log_early_termination = FALSE,  # Reduce output for batch runs
+    verbose_logging = FALSE,
     utility_table = params$utility_table
   )
   
@@ -364,8 +373,10 @@ main_optimization <- function() {
   best_params <- find_best_parameters(results)
   
   # Save results
-  saveRDS(results, "optimization_results.rds")
-  saveRDS(plots, "optimization_plots.rds")
+  output_dir <- file.path(project_root, "results/optimization")
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  saveRDS(results, file.path(output_dir, "optimization_results.rds"))
+  saveRDS(plots, file.path(output_dir, "optimization_plots.rds"))
   
   # Display plots
   print(plots$completion_rate)

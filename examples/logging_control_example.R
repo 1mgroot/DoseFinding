@@ -1,19 +1,28 @@
 # Example: How to use the new logging control feature
 # This example shows how to reduce logging during calibration
 
+# Find and use the project root so the example works from root or examples/.
+project_root_candidates <- c(".", "..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
+
 # Source the required files
 source("src/core/config.R")
 source("src/optimization/poc_calibration.R")
 
 cat("=== Logging Control Example ===\n\n")
 
-# Example 1: Run calibration with minimal logging (default behavior)
+# Example 1: Run calibration with minimal logging
 cat("Example 1: Running PoC calibration with minimal logging\n")
 cat("This will run quietly without verbose output...\n\n")
 
-# The calibration functions now automatically use minimal logging
-# You can run calibration without seeing all the detailed workflow logs
-quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 10)
+# Pass verbose = FALSE to suppress detailed workflow logs.
+quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 10, verbose = FALSE)
 
 cat("Calibration completed with minimal logging!\n\n")
 

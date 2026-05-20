@@ -1,9 +1,13 @@
 # Test PoC Calibration Framework
-# This file tests the PoC calibration functions implemented in Phase 3
+# This file tests the PoC calibration functions.
 
 # Load required libraries
 library(testthat)
 library(dplyr)
+
+if (basename(getwd()) == "tests") {
+  setwd("..")
+}
 
 # Source the functions to test
 source("src/core/simulate_data.R")
@@ -30,38 +34,42 @@ test_that("run_calibration_simulation produces valid results", {
 # Test 2: calibrate_c_poc function with small range
 test_that("calibrate_c_poc produces valid calibration results", {
   # Test with a small range and few simulations for speed
-  c_poc_range <- c(0.8, 0.9, 0.95)
+  c_poc_candidates <- c(0.8, 0.9, 0.95)
   n_simulations <- 10  # Very small for testing
+  null_scenario <- create_default_null_scenario(flat_scenario_config)
   
   results <- calibrate_c_poc(
+    null_scenario = null_scenario,
     target_rate = 0.10,
-    flat_scenario_config = flat_scenario_config,
+    base_config = flat_scenario_config,
     n_simulations = n_simulations,
-    c_poc_range = c_poc_range
+    c_poc_candidates = c_poc_candidates,
+    verbose = FALSE
   )
+  results_table <- poc_calibration_results_table(results)
   
   # Check structure
   expect_true(is.list(results))
   expect_true("calibration_results" %in% names(results))
   expect_true("optimal_c_poc" %in% names(results))
-  expect_true("optimal_rate" %in% names(results))
+  expect_true("achieved_rate" %in% names(results))
   expect_true("target_rate" %in% names(results))
   expect_true("n_simulations" %in% names(results))
   
-  # Check calibration_results data frame
-  expect_true(is.data.frame(results$calibration_results))
-  expect_equal(nrow(results$calibration_results), length(c_poc_range))
-  expect_true("c_poc" %in% names(results$calibration_results))
-  expect_true("poc_detection_rate" %in% names(results$calibration_results))
-  expect_true("poc_detection_rate_lower" %in% names(results$calibration_results))
-  expect_true("poc_detection_rate_upper" %in% names(results$calibration_results))
+  # Check calibration results table helper
+  expect_true(is.data.frame(results_table))
+  expect_equal(nrow(results_table), length(c_poc_candidates))
+  expect_true("c_poc" %in% names(results_table))
+  expect_true("poc_detection_rate" %in% names(results_table))
+  expect_true("poc_detection_rate_lower" %in% names(results_table))
+  expect_true("poc_detection_rate_upper" %in% names(results_table))
   
   # Check that detection rates are valid (0-1)
-  expect_true(all(results$calibration_results$poc_detection_rate >= 0))
-  expect_true(all(results$calibration_results$poc_detection_rate <= 1))
+  expect_true(all(results_table$poc_detection_rate >= 0))
+  expect_true(all(results_table$poc_detection_rate <= 1))
   
   # Check that optimal_c_poc is in the range
-  expect_true(results$optimal_c_poc %in% c_poc_range)
+  expect_true(results$optimal_c_poc %in% c_poc_candidates)
   
   # Check that target_rate is correct
   expect_equal(results$target_rate, 0.10)
@@ -110,19 +118,20 @@ test_that("validate_calibration produces valid validation results", {
 # Test 4: run_quick_calibration function
 test_that("run_quick_calibration produces valid results", {
   # Run quick calibration with very few simulations
-  results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5)
+  results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5, verbose = FALSE)
   
   # Check structure (same as calibrate_c_poc)
   expect_true(is.list(results))
   expect_true("calibration_results" %in% names(results))
   expect_true("optimal_c_poc" %in% names(results))
-  expect_true("optimal_rate" %in% names(results))
+  expect_true("achieved_rate" %in% names(results))
   expect_true("target_rate" %in% names(results))
   expect_true("n_simulations" %in% names(results))
   
   # Check that results are valid
-  expect_true(is.data.frame(results$calibration_results))
-  expect_true(nrow(results$calibration_results) > 0)
+  results_table <- poc_calibration_results_table(results)
+  expect_true(is.data.frame(results_table))
+  expect_true(nrow(results_table) > 0)
   expect_true(results$optimal_c_poc >= 0.7)
   expect_true(results$optimal_c_poc <= 0.95)
   expect_equal(results$target_rate, 0.10)
@@ -175,27 +184,28 @@ test_that("save and load calibration results work correctly", {
 test_that("calibration functions handle edge cases", {
   # Test with empty c_poc_range
   expect_error(calibrate_c_poc(
+    null_scenario = create_default_null_scenario(flat_scenario_config),
     target_rate = 0.10,
-    flat_scenario_config = flat_scenario_config,
+    base_config = flat_scenario_config,
     n_simulations = 1,
-    c_poc_range = numeric(0)
+    c_poc_candidates = numeric(0)
   ))
   
   # Test with invalid target_rate
   expect_error(calibrate_c_poc(
+    null_scenario = create_default_null_scenario(flat_scenario_config),
     target_rate = -0.1,
-    flat_scenario_config = flat_scenario_config,
+    base_config = flat_scenario_config,
     n_simulations = 1,
-    c_poc_range = c(0.8)
+    c_poc_candidates = c(0.8)
   ))
   
   # Test with invalid n_simulations
   expect_error(calibrate_c_poc(
+    null_scenario = create_default_null_scenario(flat_scenario_config),
     target_rate = 0.10,
-    flat_scenario_config = flat_scenario_config,
+    base_config = flat_scenario_config,
     n_simulations = 0,
-    c_poc_range = c(0.8)
+    c_poc_candidates = c(0.8)
   ))
 })
-
-cat("All PoC calibration tests passed!\n")

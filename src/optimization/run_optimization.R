@@ -2,7 +2,17 @@
 # This script provides a simple interface to run parameter optimization
 
 # Load the optimization system
-source("parameter_optimization.R")
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- project_root_matches[[1]]
+optimization_output_dir <- file.path(project_root, "results/optimization")
+
+source(file.path(project_root, "src/optimization/parameter_optimization.R"))
 
 # Function to run a quick optimization
 quick_optimization <- function(n_combinations = 20, n_simulations = 3) {
@@ -21,7 +31,8 @@ quick_optimization <- function(n_combinations = 20, n_simulations = 3) {
   best_params <- find_best_parameters(results)
   
   # Save results
-  saveRDS(results, "quick_optimization_results.rds")
+  dir.create(optimization_output_dir, showWarnings = FALSE, recursive = TRUE)
+  saveRDS(results, file.path(optimization_output_dir, "quick_optimization_results.rds"))
   
   # Display summary
   cat("\n=== Optimization Summary ===\n")
@@ -53,8 +64,9 @@ comprehensive_optimization <- function(n_combinations = 50, n_simulations = 5) {
   best_params <- find_best_parameters(results)
   
   # Save results
-  saveRDS(results, "comprehensive_optimization_results.rds")
-  saveRDS(plots, "comprehensive_optimization_plots.rds")
+  dir.create(optimization_output_dir, showWarnings = FALSE, recursive = TRUE)
+  saveRDS(results, file.path(optimization_output_dir, "comprehensive_optimization_results.rds"))
+  saveRDS(plots, file.path(optimization_output_dir, "comprehensive_optimization_plots.rds"))
   
   # Display summary
   cat("\n=== Optimization Summary ===\n")
@@ -70,7 +82,7 @@ comprehensive_optimization <- function(n_combinations = 50, n_simulations = 5) {
 }
 
 # Function to analyze existing results
-analyze_results <- function(results_file = "optimization_results.rds") {
+analyze_results <- function(results_file = file.path(optimization_output_dir, "optimization_results.rds")) {
   if (file.exists(results_file)) {
     results <- readRDS(results_file)
     
@@ -166,7 +178,3 @@ test_specific_params <- function(phi_T = 0.35, phi_E = 0.10, phi_I = 0.20,
 
 # 4. Analyze existing results
 # analyze_results()
-
-cat("Parameter optimization system loaded.\n")
-cat("To run optimization, uncomment one of the function calls at the bottom of this file.\n")
-cat("Recommended: Start with quick_optimization()\n")

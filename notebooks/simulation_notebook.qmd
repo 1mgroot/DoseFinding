@@ -16,8 +16,16 @@ This chunk loads the necessary libraries and source files.
 library(knitr)
 library(ggplot2)
 
-# Use absolute paths
-project_root <- "/Users/jz/Development/DoseFinding"
+# Find and use the project root
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE)
+setwd(project_root)
 cat("Project root:", project_root, "\n")
 
 # Source core files
@@ -103,7 +111,7 @@ trial_config$utility_table <- utility_table
 
 ## Simulation
 
-This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function. The simulation follows the workflow specified in TRIAL_DESIGN.md Section 7.1:
+This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function. The workflow implemented in `src/core/main.R` is:
 
 1.  **Stage 1**: Equal randomization to all dose levels
 2.  **Interim Analysis**: Update admissible set based on posterior probabilities

@@ -1,9 +1,19 @@
 # PoC Calibration Framework Demo
-# This script demonstrates the PoC calibration framework implemented in Phase 3
+# This script demonstrates the PoC calibration framework.
 
 # Load required libraries
 library(dplyr)
 library(ggplot2)
+
+# Find and use the project root so the example works from root or examples/.
+project_root_candidates <- c(".", "..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
 
 # Source the functions
 source("src/core/simulate_data.R")
@@ -29,17 +39,18 @@ cat("Single simulation result (C_poc = 0.5):", result, "\n\n")
 cat("2. Running quick calibration (reduced simulations for demo)...\n")
 
 # Run quick calibration with very few simulations
-quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5)
+quick_results <- run_quick_calibration(target_rate = 0.10, n_simulations = 5, verbose = FALSE)
 
 cat("Quick calibration results:\n")
 cat("  Optimal C_poc:", quick_results$optimal_c_poc, "\n")
-cat("  Achieved rate:", round(quick_results$optimal_rate, 3), "\n")
+cat("  Achieved rate:", round(quick_results$achieved_rate, 3), "\n")
 cat("  Target rate:", quick_results$target_rate, "\n")
-cat("  Number of C_poc values tested:", nrow(quick_results$calibration_results), "\n\n")
+quick_results_table <- poc_calibration_results_table(quick_results)
+cat("  Number of C_poc values tested:", nrow(quick_results_table), "\n\n")
 
 # 3. Show calibration results table
 cat("3. Calibration results table:\n")
-print(quick_results$calibration_results)
+print(quick_results_table)
 cat("\n")
 
 # 4. Demonstrate the calibration concept
@@ -53,8 +64,8 @@ cat("- Higher C_poc = more strict = lower detection rate\n\n")
 
 # 5. Show how different C_poc values affect detection
 cat("5. Effect of different C_poc values on detection rate:\n")
-for (i in 1:nrow(quick_results$calibration_results)) {
-  row <- quick_results$calibration_results[i, ]
+for (i in 1:nrow(quick_results_table)) {
+  row <- quick_results_table[i, ]
   cat(sprintf("  C_poc = %.2f: Detection rate = %.3f (95%% CI: [%.3f, %.3f])\n",
               row$c_poc, row$poc_detection_rate, 
               row$poc_detection_rate_lower, row$poc_detection_rate_upper))
@@ -92,11 +103,11 @@ cat("\n")
 
 # 8. Summary
 cat("=== Summary ===\n")
-cat("✓ PoC calibration framework implemented successfully\n")
+cat("✓ PoC calibration framework is available and exercised here\n")
 cat("✓ Functions for single simulation, calibration, and validation\n")
 cat("✓ Save/load functionality for calibration results\n")
 cat("✓ Proper handling of flat null scenarios\n")
-cat("✓ Ready for full calibration with more simulations\n\n")
+cat("✓ Small demo runs can be scaled up by increasing n_simulations\n\n")
 
 cat("Key features:\n")
 cat("- run_calibration_simulation(): Single simulation with flat scenario\n")
@@ -105,8 +116,8 @@ cat("- validate_calibration(): Validation with additional simulations\n")
 cat("- run_quick_calibration(): Quick testing with reduced simulations\n")
 cat("- save/load_calibration_results(): Persistence of results\n\n")
 
-cat("Next steps:\n")
+cat("Typical next steps:\n")
 cat("- Run full calibration with 10,000+ simulations per C_poc\n")
-cat("- Implement early termination calibration\n")
-cat("- Create visualization tools for calibration curves\n")
-cat("- Integrate with main trial simulation workflow\n")
+cat("- Validate the chosen C_poc under alternative null scenarios\n")
+cat("- Combine calibrated C_poc with early termination calibration\n")
+cat("- Use the calibrated parameters in production simulation runs\n")

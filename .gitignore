@@ -1,23 +1,12 @@
-# R
+# R / RStudio
 .Rhistory
 .Rapp.history
 .RData
 .Ruserdata
 .Rproj.user/
-.Rproj.user
 .Renviron
 .Rprofile
 .Rcheck/
-
-# RStudio
-.Rproj.user/
-.Rproj.user
-.Rhistory
-.Rapp.history
-.RData
-.Ruserdata
-.Renviron
-.Rprofile
 
 # Temporary files
 *.tmp
@@ -26,12 +15,17 @@
 .DS_Store
 Thumbs.db
 
-# Quarto cache
+# Quarto cache and generated render output
 *_cache/
+*_files/
+notebooks/*.html
+notebooks/*.pdf
+notebooks/results/
 
 # Output files
 *.log
 *.out
+*.rds
 
 # Results - ignore generated outputs
 results/
@@ -41,17 +35,18 @@ results/
 *.jpeg
 *.svg
 
+# Local project handoff notes
+docs/CHATGPT_PROJECT_CONTEXT.md
+docs/PROJECT_READALOUD_EXPLANATION.md
+docs/PROJECT_READALOUD_MOBILE.html
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Reference code
-refereceCode/
-
 # OS
-.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100

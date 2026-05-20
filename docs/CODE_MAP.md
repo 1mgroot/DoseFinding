@@ -36,13 +36,13 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   Evidence: L1-L425
 
 ### Optimization (`src/optimization/`)
--   **`poc_calibration_new.R`**: PoC calibration system using null/flat scenarios
+-   **`poc_calibration.R`**: PoC calibration system using null/flat scenarios
     -   `create_null_flat_scenario()`: Constructs scenarios where all doses identical (P_I=φ_I, P_E=φ_E for all doses)
     -   `calibrate_c_poc()`: Tests multiple c_poc candidates with 1000+ simulations each
     -   `plot_calibration_curve()`: Visualizes c_poc vs PoC detection rate
     -   `generate_calibration_report()`: Detailed text report with early termination analysis
     -   Target: ~10% Type I error rate (PoC detection in null scenario)
-    -   Evidence: L1-L591
+    -   Evidence: L1-L970
 -   **`parameter_optimization.R`**: Systematic parameter search framework
     -   `create_parameter_grids()`: Defines search space for phi_T, phi_E, phi_I, c_T, c_E, c_I, utility variants
     -   `run_parameter_optimization()`: Evaluates parameter combinations across multiple simulations
@@ -95,12 +95,7 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   Early termination timing
 
 ## Documentation (`docs/`)
--   **`STATUS_AS_BUILT.md`**: Current implementation status (code-first, English)
-    -   What the repo does today (capabilities & limitations)
-    -   Canonical run paths (notebooks, scripts, APIs)
-    -   Workflow contract (ordering & invariants)
-    -   Configuration reality (default vs calibration configs)
-    -   Calibration and optimization systems
+-   **`README.md`**: Documentation index and recommended reading order
 -   **`STAT_METHODS_AS_BUILT.md`**: Statistical methods as implemented (code-first, Chinese/English)
     -   Data generation (Gumbel copula)
     -   Posterior & isotonic constraints (PAVA/BIVISO)
@@ -109,10 +104,7 @@ This document outlines the structure and purpose of each file in the DoseFinding
 -   **`CODE_MAP.md`**: This file - file structure and organization
 -   **`HOW_TO_RUN.md`**: Usage instructions and examples
 -   **`Design1.tex`, `Design2.tex`**: LaTeX design documents
-
-## Results (`results/`)
--   **`plots/`**: Generated visualization outputs from notebooks
--   **`notebook_calibration/`**: Calibration reports and outputs
+Generated outputs such as rendered notebooks, plots, and calibration reports are ignored by git and should be regenerated from the notebooks or scripts when needed.
 
 ## Configuration Files
 -   **`.cursorrules`**: Cursor AI coding guidelines and project context

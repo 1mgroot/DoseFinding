@@ -1,9 +1,13 @@
 # Test Flat Scenario Generation Functions
-# This file tests the flat scenario generation functions implemented in Phase 1
+# This file tests flat/null scenario generation for calibration.
 
 # Load required libraries
 library(testthat)
 library(dplyr)
+
+if (basename(getwd()) == "tests") {
+  setwd("..")
+}
 
 # Source the functions to test
 source("src/core/simulate_data.R")
@@ -101,7 +105,7 @@ test_that("validate_flat_scenario correctly validates flat scenarios", {
     phi_I_lower = 0.20,
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
-    n_patients_per_dose = 100,  # Larger sample for more stable estimates
+    n_patients_per_dose = 200,  # Larger sample for more stable estimates
     seed = 123
   )
   
@@ -201,5 +205,3 @@ test_that("flat scenario generation is reproducible", {
   # Data should be identical
   expect_equal(data1, data2)
 })
-
-cat("All flat scenario generation tests passed!\n")

@@ -1,6 +1,16 @@
 # 绘图功能演示脚本
 # 展示如何使用新的图表功能
 
+# Find and use the project root so the example works from root or examples/.
+project_root_candidates <- c(".", "..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
+
 # 加载必要的库和函数
 source("src/utils/helpers.R")
 source("src/utils/plotting_extensions.R")
@@ -42,4 +52,3 @@ cat("  y_var = 'success_rate',\n")
 cat("  fill_var = 'method',\n")
 cat("  title = 'My Analysis'\n")
 cat(")\n")
-

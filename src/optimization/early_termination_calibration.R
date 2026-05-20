@@ -5,9 +5,15 @@
 library(dplyr)
 library(ggplot2)
 
-# Source required functions
-# Determine project root based on current working directory
-project_root <- if (basename(getwd()) == "notebooks") ".." else "."
+# Source required functions from the project root.
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- project_root_matches[[1]]
 
 source(file.path(project_root, "src/core/simulate_data.R"))
 source(file.path(project_root, "src/core/config.R"))
@@ -28,6 +34,8 @@ run_early_termination_simulation <- function(config, scenario_type = "unfavorabl
   #   logical: TRUE if trial terminated early in this simulation
   
   set.seed(seed)
+  config$verbose_logging <- FALSE
+  config$log_early_termination <- FALSE
   
   if (scenario_type == "unfavorable") {
     # Create unfavorable scenario where all doses are unsafe/inactive
@@ -167,7 +175,8 @@ calibrate_early_termination <- function(target_rate = 0.80,
                                        n_simulations = 1000,
                                        scenario_type = "unfavorable",
                                        threshold_range = seq(0.7, 0.99, by = 0.01),
-                                       threshold_type = "c_T") {
+                                       threshold_type = "c_T",
+                                       verbose = TRUE) {
   # Calibrate early termination parameters to achieve target termination rate.
   #
   # Args:
@@ -180,6 +189,14 @@ calibrate_early_termination <- function(target_rate = 0.80,
   #
   # Returns:
   #   list: Calibration results with optimal threshold and performance curves
+  if (!isTRUE(verbose)) {
+    quiet_connection <- textConnection("calibration_output", "w", local = TRUE)
+    sink(quiet_connection)
+    on.exit({
+      sink()
+      close(quiet_connection)
+    }, add = TRUE)
+  }
   
   cat("Starting early termination calibration...\n")
   cat("Target termination rate:", target_rate, "\n")
@@ -268,14 +285,22 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   
   cat("Validating calibrated early termination parameters...\n")
   
-  # Get the optimal config
+  # Get the optimal config. Quick calibration returns c_T and c_E jointly;
+  # older calibration paths return one threshold plus threshold_type.
   optimal_threshold <- calibration_results$optimal_threshold
+  optimal_c_T <- calibration_results$optimal_c_T
+  optimal_c_E <- calibration_results$optimal_c_E
   threshold_type <- calibration_results$threshold_type
   scenario_type <- calibration_results$scenario_type
   
   # Create config with optimal threshold
   config <- get("unfavorable_scenario_config", envir = .GlobalEnv)  # Use unfavorable scenario config as base
-  config[[threshold_type]] <- optimal_threshold
+  if (!is.null(optimal_c_T) && !is.null(optimal_c_E)) {
+    config$c_T <- optimal_c_T
+    config$c_E <- optimal_c_E
+  } else {
+    config[[threshold_type]] <- optimal_threshold
+  }
   
   # Run validation simulations
   validation_terminations <- replicate(n_validation_simulations, {
@@ -288,7 +313,11 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   validation_ci <- binom.test(sum(validation_terminations), n_validation_simulations)$conf.int
   
   cat(sprintf("Validation results:\n"))
-  cat(sprintf("  %s = %.3f\n", threshold_type, optimal_threshold))
+  if (!is.null(optimal_c_T) && !is.null(optimal_c_E)) {
+    cat(sprintf("  c_T = %.3f, c_E = %.3f\n", optimal_c_T, optimal_c_E))
+  } else {
+    cat(sprintf("  %s = %.3f\n", threshold_type, optimal_threshold))
+  }
   cat(sprintf("  Termination rate = %.3f (95%% CI: [%.3f, %.3f])\n", 
               validation_rate, validation_ci[1], validation_ci[2]))
   cat(sprintf("  Target rate = %.3f\n", calibration_results$target_rate))
@@ -296,6 +325,8 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   
   return(list(
     optimal_threshold = optimal_threshold,
+    optimal_c_T = optimal_c_T,
+    optimal_c_E = optimal_c_E,
     threshold_type = threshold_type,
     validation_rate = validation_rate,
     validation_ci = validation_ci,
@@ -304,7 +335,7 @@ validate_early_termination_calibration <- function(calibration_results, n_valida
   ))
 }
 
-run_quick_early_termination_calibration <- function(target_rate = 0.80, n_simulations = 100) {
+run_quick_early_termination_calibration <- function(target_rate = 0.80, n_simulations = 100, verbose = TRUE) {
   # Run a quick early termination calibration with reduced simulations for testing.
   #
   # NOTE: Since achieving 80% early termination with only c_T calibration is mathematically
@@ -317,6 +348,14 @@ run_quick_early_termination_calibration <- function(target_rate = 0.80, n_simula
   #
   # Returns:
   #   list: Quick calibration results
+  if (!isTRUE(verbose)) {
+    quiet_connection <- textConnection("calibration_output", "w", local = TRUE)
+    sink(quiet_connection)
+    on.exit({
+      sink()
+      close(quiet_connection)
+    }, add = TRUE)
+  }
   
   cat("Running quick early termination calibration (optimizing c_T and c_E jointly)...\n")
   

@@ -1,9 +1,19 @@
 # Bayesian PoC Calculation Demo
-# This script demonstrates the enhanced Bayesian PoC calculation implemented in Phase 2
+# This script demonstrates the Bayesian PoC calculation used by final dose selection.
 
 # Load required libraries
 library(dplyr)
 library(ggplot2)
+
+# Find and use the project root so the example works from root or examples/.
+project_root_candidates <- c(".", "..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
 
 # Source the functions
 source("src/core/simulate_data.R")
@@ -192,15 +202,15 @@ cat("\n")
 
 # 5. Summary
 cat("=== Summary ===\n")
-cat("✓ Enhanced Bayesian PoC calculation implemented successfully\n")
+cat("✓ Bayesian PoC calculation is available and exercised here\n")
 cat("✓ Replaced normal approximation with proper posterior sample calculation\n")
 cat("✓ Πᵢ parameter calculation using total probability formula\n")
 cat("✓ PoC calculation: Pr(Πᵢ < δ Πᵢⱼ | Dₙ) using posterior samples\n")
 cat("✓ Mathematical verification confirms correct implementation\n")
-cat("✓ Ready for Phase 3: Calibration framework\n\n")
+cat("✓ Calibration framework is available in src/optimization/poc_calibration.R\n\n")
 
-cat("Key improvements over previous implementation:\n")
+cat("Key implementation details:\n")
 cat("- Uses posterior samples instead of normal approximation\n")
 cat("- Proper Bayesian calculation of Πᵢ and Πᵢⱼ parameters\n")
 cat("- More accurate probability estimates\n")
-cat("- Better alignment with TRIAL_DESIGN.md specifications\n")
+cat("- Aligns with the design notes in docs/Design1.tex and docs/Design2.tex\n")

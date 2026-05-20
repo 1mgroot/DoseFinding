@@ -1,9 +1,19 @@
 # Flat Scenario Generation Demo
-# This script demonstrates the flat scenario generation functions implemented in Phase 1
+# This script demonstrates flat/null scenario generation for calibration.
 
 # Load required libraries
 library(dplyr)
 library(ggplot2)
+
+# Find and use the project root so the example works from root or examples/.
+project_root_candidates <- c(".", "..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
 
 # Source the functions
 source("src/core/simulate_data.R")
@@ -109,7 +119,7 @@ rates_data <- plot_data %>%
 
 # Create plot
 p <- ggplot(rates_data, aes(x = Dose, y = Rate, color = Scenario)) +
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) +
   geom_point(size = 3) +
   facet_wrap(~ Endpoint, scales = "free_y") +
   labs(
@@ -145,13 +155,13 @@ cat("\n")
 
 # 7. Summary
 cat("=== Summary ===\n")
-cat("✓ Flat scenario generation functions implemented successfully\n")
+cat("✓ Flat scenario generation functions are available and exercised here\n")
 cat("✓ Functions generate data with identical probabilities across doses\n")
 cat("✓ Validation function correctly identifies flat scenarios\n")
 cat("✓ Conditional efficacy calculation maintains marginal rates\n")
-cat("✓ Ready for Phase 2: Enhanced PoC calculation\n\n")
+cat("✓ These scenarios feed the PoC calibration workflow\n\n")
 
-cat("Next steps:\n")
-cat("- Implement Bayesian PoC calculation\n")
-cat("- Create calibration framework\n")
-cat("- Generate performance curves\n")
+cat("Related workflow:\n")
+cat("- Use src/optimization/poc_calibration.R to calibrate C_poc\n")
+cat("- Use notebooks/poc_calibration_notebook.qmd for an interactive calibration walkthrough\n")
+cat("- Generated plots and reports are written under results/\n")
