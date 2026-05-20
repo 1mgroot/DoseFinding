@@ -1,21 +1,63 @@
 ---
 title: "PoC Calibration Notebook"
-format: pdf
+format:
+  html:
+    toc: true
+    code-fold: true
+  pdf: default
+execute:
+  message: false
+  warning: false
 editor: visual
 ---
 
 ## Introduction
 
-This notebook implements the new PoC calibration methodology based on the email specification. The calibration uses null/flat scenarios to control Type I error rates.
+This notebook is the standard user interface for calibrating `c_poc`. Edit only the **User Settings** chunk, then click **Run All** or **Render** in RStudio. The setup, scenario construction, and backend calibration chunks run automatically.
+
+Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` for production-style calibration.
 
 ### Key Features
 
 -   **Null/Flat Scenario Construction**: Uses total probability formula for marginal efficacy calculation
 -   **C_poc Calibration**: Finds optimal threshold to achieve \~10% Type I error rate
 
+## User Settings
+
+Edit this chunk only for routine use.
+
+```{r user_settings}
+quick_mode <- TRUE
+
+poc_settings <- list(
+  dose_levels = c(1, 2, 3, 4, 5),
+  n_stages = 5,
+  cohort_size = 15,
+  null_p_I = 0.20,
+  null_p_E = 0.25,
+  null_p_T = 0.05,
+  tox_upper = 0.30,
+  phi_T = 0.30,
+  c_T = 0.2,
+  phi_E = 0.25,
+  c_E = 0.5,
+  phi_I = 0.20,
+  c_I = 0.35,
+  delta_poc = 0.8,
+  target_rate = 0.10,
+  c_poc_candidates = if (quick_mode) {
+    c(0.8, 0.9, 0.95)
+  } else {
+    c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95)
+  },
+  n_simulations = if (quick_mode) 5 else 1000
+)
+```
+
 ## Setup
 
 ```{r setup}
+#| echo: false
 library(knitr)
 library(ggplot2)
 library(dplyr)
@@ -65,35 +107,33 @@ source("src/optimization/poc_calibration.R")
 | **Relationship** | null_p_I = phi_I | null_p_E = phi_E | null_p_T \< phi_T | Null scenario |
 
 ```{r config}
-# Calibration parameters per email specification
-# Null scenario: true values equal thresholds for a true null scenario
+#| echo: false
 calibration_params <- list(
-  null_p_I = 0.20,      # NULL SCENARIO: True immune response rate (equals threshold phi_I=0.20)
-  null_p_E = 0.25,      # NULL SCENARIO: True efficacy rate (equals threshold phi_E=0.25)
-  null_p_T = 0.05,      # NULL SCENARIO: True toxicity rate (flat, safe level)
-  tox_upper = 0.30,     # Toxicity upper bound for scenario construction
-  n_simulations = 1000  # Number of simulations for calibration
+  null_p_I = poc_settings$null_p_I,
+  null_p_E = poc_settings$null_p_E,
+  null_p_T = poc_settings$null_p_T,
+  tox_upper = poc_settings$tox_upper,
+  n_simulations = poc_settings$n_simulations,
+  c_poc_candidates = poc_settings$c_poc_candidates,
+  target_rate = poc_settings$target_rate
 )
 
-# Trial configuration for calibration
-# These phi_* values are THRESHOLDS for admissibility checks (not true data values!)
 trial_config <- list(
-  dose_levels = c(1, 2, 3, 4, 5),
-  n_stages = 5,          # 5 total stages (1 equal + 4 adaptive)
-  cohort_size = 15,
-  phi_T = 0.30,          # THRESHOLD: Toxicity upper limit for admissibility
-  c_T = 0.2,             # PROBABILITY: P(Tox < phi_T) must exceed this
-  phi_E = 0.25,          # THRESHOLD: Efficacy lower limit for admissibility
-  c_E = 0.5,             # PROBABILITY: P(Eff > phi_E) must exceed this
-  phi_I = 0.20,          # THRESHOLD: Immune response lower limit for admissibility
-  c_I = 0.35,             # PROBABILITY: P(Imm > phi_I) must exceed this
-  delta_poc = 0.8,
+  dose_levels = poc_settings$dose_levels,
+  n_stages = poc_settings$n_stages,
+  cohort_size = poc_settings$cohort_size,
+  phi_T = poc_settings$phi_T,
+  c_T = poc_settings$c_T,
+  phi_E = poc_settings$phi_E,
+  c_E = poc_settings$c_E,
+  phi_I = poc_settings$phi_I,
+  c_I = poc_settings$c_I,
+  delta_poc = poc_settings$delta_poc,
   enable_early_termination = TRUE,
   log_early_termination = FALSE,
-  verbose_logging = FALSE  # Disable verbose logs in notebook
+  verbose_logging = FALSE
 )
 
-# Utility table
 utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
   E = c(0, 1),
   T = c(0, 1),
@@ -122,7 +162,9 @@ cat("  phi_I (immune threshold) =", trial_config$phi_I, "\n")
 cat("  phi_E (efficacy threshold) =", trial_config$phi_E, "\n")
 cat("  phi_T (toxicity threshold) =", trial_config$phi_T, "\n")
 cat("\nOther parameters:\n")
+cat("  Quick mode =", quick_mode, "\n")
 cat("  Simulations =", calibration_params$n_simulations, "\n")
+cat("  C_poc candidates =", paste(calibration_params$c_poc_candidates, collapse = ", "), "\n")
 ```
 
 ## Null/Flat Scenario Construction
@@ -130,10 +172,11 @@ cat("  Simulations =", calibration_params$n_simulations, "\n")
 This section demonstrates the construction of the null/flat scenario using the total probability formula.
 
 ```{r null_scenario}
+#| echo: false
 # Create null/flat scenario
 # Note: Using null_p_* (true values for data generation), NOT phi_* (thresholds)
 null_scenario <- create_null_flat_scenario(
-  n_doses = 5,
+  n_doses = length(poc_settings$dose_levels),
   phi_I = calibration_params$null_p_I,   # True immune response rate in null scenario
   phi_E = calibration_params$null_p_E,   # True efficacy rate in null scenario
   tox_upper = calibration_params$tox_upper,
@@ -195,9 +238,10 @@ print(p_null)
 
 This section runs the calibration process to find the optimal C_poc threshold.
 
-**Note on Output Verbosity:** - Debug output is minimal by default to avoid console overflow in RStudio - Only shows first 3 simulations for the first c_poc candidate - Set `debug_early_termination = TRUE` in the function call below for more detailed examples
+Quick mode uses fewer simulations and fewer candidates, so its result is only a smoke test. Use production mode before reporting final calibration values.
 
 ```{r calibration}
+#| echo: false
 # Run C_poc calibration
 cat("Starting C_poc calibration...\n")
 cat("This may take several minutes...\n")
@@ -205,11 +249,12 @@ start_time <- Sys.time()
 
 calibration_results <- calibrate_c_poc(
   null_scenario = null_scenario,
-  c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
+  c_poc_candidates = calibration_params$c_poc_candidates,
   n_simulations = calibration_params$n_simulations,
   base_config = trial_config,
-  debug_early_termination = FALSE,  # Set to TRUE for detailed early termination examples
-  max_debug_cases_per_candidate = 2  # Number of debug examples per c_poc (if debug enabled)
+  target_rate = calibration_params$target_rate,
+  debug_early_termination = FALSE,
+  max_debug_cases_per_candidate = 2
 )
 
 end_time <- Sys.time()
@@ -218,7 +263,7 @@ cat("\nC_poc Calibration Complete!\n")
 cat("Duration:", round(calibration_duration, 2), "minutes\n")
 cat("\nCalibration Results:\n")
 cat("Optimal C_poc:", calibration_results$optimal_c_poc, "\n")
-cat("Target PoC detection rate: 10%\n")
+cat("Target PoC detection rate:", calibration_params$target_rate, "\n")
 cat("Achieved PoC detection rate:", round(calibration_results$achieved_rate, 3), "\n")
 
 # Display calibration curve
@@ -256,6 +301,7 @@ cat("View the full report at:", report_path, "\n")
 After generating the report, you can view key sections here or open the full text file.
 
 ```{r report_summary}
+#| echo: false
 # Read and display key sections of the report
 if (file.exists(report_path)) {
   report_lines <- readLines(report_path)

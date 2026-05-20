@@ -1,526 +1,150 @@
-# How to Run the Bayesian Dose-Finding Trial Simulation
+# How to Run the DoseFinding Notebooks
 
-This guide explains the different ways to run simulations, optimize parameters, and calibrate the trial design.
+The standard user workflow is notebook-only. Routine users should not edit
+files in `src/` or call backend functions from the R console.
 
 ## Quick Start
 
-For first-time users, we recommend starting with the **Interactive Simulation Notebook** to understand how the trial works, then proceeding to **Parameter Optimization** and **PoC Calibration** for production use.
-
----
-
-## Running Methods
-
-### 1. Interactive Simulation Notebook (Recommended for Exploration)
-
-The simulation notebook provides an interactive environment to configure, run, and visualize trial simulations.
-
-**Location**: `notebooks/simulation_notebook.qmd`
-
-**Steps**:
-
-1. **Open the notebook** in RStudio:
-   ```r
-   # In RStudio, navigate to:
-   # File > Open File > notebooks/simulation_notebook.qmd
-   ```
-
-2. **Set working directory** to project root:
-   ```r
-   setwd("/path/to/DoseFinding")
-   ```
-
-3. **Configure trial parameters** in the Configuration section:
-   ```r
-   # Modify trial_config list
-   trial_config <- list(
-     dose_levels = c(1, 2, 3, 4, 5),
-     n_stages = 3,
-     cohort_size = 15,
-     phi_T = 0.30,  # Toxicity threshold
-     phi_E = 0.25,  # Efficacy threshold
-     phi_I = 0.20,  # Immune response threshold
-     c_T = 0.8,     # Toxicity credibility
-     c_E = 0.7,     # Efficacy credibility
-     c_I = 0.7,     # Immune response credibility
-     c_poc = 0.9,   # PoC threshold (should be calibrated)
-     enable_early_termination = TRUE,
-     log_early_termination = TRUE
-   )
-   ```
-
-4. **Define scenario probabilities**:
-   ```r
-   # Immune response probabilities by dose
-   p_YI <- c(0.2, 0.4, 0.6, 0.7, 0.8)
-   
-   # Toxicity and efficacy conditional probabilities
-   # Rows: doses, Columns: [I=0, I=1]
-   p_YT_given_I <- matrix(c(
-     0.05, 0.10,  # Dose 1
-     0.10, 0.15,  # Dose 2
-     0.15, 0.25,  # Dose 3
-     0.25, 0.35,  # Dose 4
-     0.35, 0.50   # Dose 5
-   ), ncol = 2, byrow = TRUE)
-   ```
-
-5. **Run code chunks sequentially** to:
-   - Source required files
-   - Run single or multiple trial simulations
-   - Generate visualizations
-   - View summary statistics
-
-**Outputs**:
-- Trial allocation plots
-- Dose-response curves
-- Selection frequency tables
-- Summary statistics
-
-**Use case**: Learning, scenario testing, single trial analysis
-
----
-
-### 2. PoC Calibration Notebook (Recommended for Calibration)
-
-The PoC calibration notebook guides you through calibrating the C_poc threshold using null/flat scenarios.
-
-**Location**: `notebooks/poc_calibration_notebook.qmd`
-
-**Steps**:
-
-1. **Open the notebook** in RStudio:
-   ```r
-   # File > Open File > notebooks/poc_calibration_notebook.qmd
-   ```
-
-2. **Set working directory** to project root:
-   ```r
-   setwd("/path/to/DoseFinding")
-   ```
-
-3. **Configure calibration parameters**:
-   ```r
-   calibration_params <- list(
-     null_p_I = 0.25,      # True immune response in null scenario
-     null_p_E = 0.30,      # True efficacy in null scenario
-     null_p_T = 0.05,      # True toxicity in null scenario
-     n_simulations = 1000  # Number of simulations per C_poc value
-   )
-   ```
+1. Open `DoseFinding.Rproj` in RStudio.
+2. Open a notebook from `notebooks/`.
+3. Edit only the **User Settings** chunk near the top.
+4. Leave `quick_mode <- TRUE` for a fast smoke test.
+5. Click **Run All** or **Render**.
+6. Review generated tables, plots, and files under `results/`.
 
-4. **Run calibration workflow**:
-   - Create null/flat scenario
-   - Test multiple C_poc candidates
-   - Generate calibration curves
-   - Review detailed report
-   - Select optimal C_poc value
-
-5. **Update trial config** with calibrated value:
-   ```r
-   trial_config$c_poc <- calibration_results$optimal_c_poc
-   trial_config$c_poc_calibrated <- TRUE
-   trial_config$calibration_date <- Sys.Date()
-   ```
-
-**Outputs**:
-- Calibration curve (C_poc vs detection rate)
-- Early termination analysis
-- Detailed calibration report (text file)
-- Combined performance curves
-
-**Use case**: Calibrating C_poc threshold for Type I error control (~10%)
-
----
+Switch `quick_mode <- FALSE` before running production-scale calibration or
+reporting final results.
 
-### 3. Direct R Script Execution
+## Notebook Decision Guide
 
-Run simulations programmatically for automation or batch processing.
+### 1. Run One Trial
 
-**Steps**:
+Use `notebooks/simulation_notebook.qmd`.
 
-1. **Source configuration**:
-   ```r
-   source("src/core/config.R")
-   ```
+This notebook is for learning the design, checking one scenario, and inspecting:
 
-2. **Source main simulation**:
-   ```r
-   source("src/core/main.R")
-   ```
-
-3. **Run trial simulation**:
-   ```r
-   result <- run_trial_simulation(
-     trial_config = trial_config,
-     p_YI = p_YI,
-     p_YT_given_I = p_YT_given_I,
-     p_YE_given_I = p_YE_given_I,
-     rho0 = 1.5,
-     rho1 = 2.0,
-     seed = 123  # Optional: for reproducibility
-   )
-   ```
-
-4. **Access results**:
-   ```r
-   result$final_od
-   result$final_utility
-   result$poc_validated
-   result$terminated_early
-   result$all_data
-   ```
-
-**Use case**: Batch simulations, automation, integration with other tools
-
----
-
-### 4. Parameter Optimization
-
-Systematically search for optimal trial parameters (φ and c values).
-
-**Location**: `src/optimization/parameter_optimization.R`
-
-**Quick Optimization** (2 hours):
-
-```r
-source("src/optimization/parameter_optimization.R")
+- final OD selection
+- early termination status
+- PoC validation status
+- posterior summaries
+- allocation by dose and stage
+- dose-response and allocation plots
 
-# Test 20 parameter combinations, 3 simulations each
-results <- quick_optimization()
-
-# Analyze results
-analyze_results(results)
-```
+Only edit the **User Settings** chunk. Common settings include dose levels,
+stage count, cohort size, thresholds, posterior credibility cutoffs, PoC values,
+scenario probabilities, and seed.
 
-**Comprehensive Optimization** (4-6 hours):
-
-```r
-# Test 50 parameter combinations, 5 simulations each
-results <- comprehensive_optimization()
+### 2. Calibrate PoC
 
-# Analyze results
-analyze_results(results)
-```
-
-**Test Specific Parameters**:
+Use `notebooks/poc_calibration_notebook.qmd`.
 
-```r
-results <- test_specific_params(
-  phi_T = 0.30,
-  phi_E = 0.15,
-  phi_I = 0.20,
-  c_T = 0.8,
-  c_E = 0.7,
-  c_I = 0.7,
-  utility_type = "balanced"
-)
-```
-
-**Outputs**:
-- Completion rate vs parameters
-- Correct selection rate vs parameters
-- Utility vs parameters
-- Sensitivity analysis plots
-- Top 10 parameter combinations
-
-**Use case**: Finding optimal trial design parameters
-
----
-
-### 5. PoC Calibration Script
-
-Calibrate C_poc threshold programmatically.
-
-**Location**: `src/optimization/poc_calibration.R`
-
-**Steps**:
-
-```r
-source("src/core/config.R")
-source("src/optimization/poc_calibration.R")
-
-# 1. Create null/flat scenario
-null_scenario <- create_null_flat_scenario(
-  n_doses = 5,
-  phi_I = 0.25,      # Above threshold
-  phi_E = 0.30,      # Above threshold
-  tox_upper = 0.30,
-  tox_flat = 0.05
-)
-
-# 2. Run calibration
-calibration_results <- calibrate_c_poc(
-  null_scenario = null_scenario,
-  c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
-  n_simulations = 1000,
-  base_config = trial_config,
-  target_rate = 0.10
-)
-
-# 3. Generate report
-generate_calibration_report(
-  calibration_results = calibration_results,
-  null_scenario = null_scenario,
-  base_config = trial_config,
-  file_path = "results/calibration/calibration_report.txt"
-)
-
-# 4. Use optimal C_poc
-optimal_c_poc <- calibration_results$optimal_c_poc
-```
-
-**Outputs**:
-- Calibration results (RData)
-- Calibration curve plot
-- Detailed text report
-
-**Use case**: Batch calibration, reproducible workflows
-
----
-
-## Complete Workflow
-
-For production use, follow this complete workflow:
-
-### Phase 1: Initial Setup
-
-1. Clone repository and set working directory
-2. Install required R packages (see below)
-3. Review `docs/README.md` for the current documentation map
-
-### Phase 2: Parameter Optimization (Day 1)
-
-1. Run `quick_optimization()` to identify promising parameter regions
-2. Analyze results and select top 3-5 combinations
-3. Test specific combinations with `test_specific_params()`
-4. Update `src/core/config.R` with optimized parameters
-
-### Phase 3: PoC Calibration (Day 2)
-
-1. Open `notebooks/poc_calibration_notebook.qmd`
-2. Set null scenario parameters (null_p_I, null_p_E, null_p_T)
-3. Run calibration with 1000+ simulations
-4. Review calibration report and curves
-5. Update config with calibrated C_poc value
-
-### Phase 4: Validation (Day 3)
-
-1. Open `notebooks/simulation_notebook.qmd`
-2. Test on multiple scenarios:
-   - Signal scenarios (dose 3, 5 optimal)
-   - Null scenarios (no dose optimal)
-   - Edge cases (all toxic, all ineffective)
-3. Verify performance metrics:
-   - Type I error ≈ 10% in null scenarios
-   - Power ≥ 50% in signal scenarios
-   - Early termination < 80%
-4. Document final configuration
-
----
-
-## Required R Packages
-
-```r
-# Install required packages
-install.packages(c(
-  "dplyr",        # Data manipulation
-  "tidyr",        # Data tidying
-  "ggplot2",      # Visualization
-  "gridExtra",    # Multiple plots
-  "purrr",        # Functional programming
-  "isotone",      # PAVA algorithm
-  "Iso",          # Isotonic regression
-  "copula"        # Copula functions (for data simulation)
-))
-```
-
----
-
-## File Structure
-
-### Core Simulation
-- `src/core/config.R` - Trial configuration and parameters
-- `src/core/main.R` - Main simulation function
-- `src/core/simulate_data.R` - Data generation with Gumbel copula
-- `src/core/model_utils.R` - Bayesian posterior calculations
-
-### Decision Making
-- `src/decision/dose_decision.R` - Admissibility, utility, PoC, early termination
-
-### Optimization
-- `src/optimization/parameter_optimization.R` - Parameter search and testing
-- `src/optimization/poc_calibration.R` - PoC calibration system
-- `src/optimization/run_optimization.R` - Optimization runner script
-
-### Utilities
-- `src/utils/helpers.R` - Plotting and helper functions
-- `src/utils/plotting_extensions.R` - Extended plotting capabilities
-
-### Notebooks
-- `notebooks/simulation_notebook.qmd` - Interactive simulation
-- `notebooks/poc_calibration_notebook.qmd` - Interactive calibration
-
-### Tests
-- `tests/test_main.R` - Main function tests
-- `tests/test_dose_decision.R` - Decision logic tests
-- `tests/test_workflow_order.R` - Workflow verification
-- `tests/test_early_termination_poc.R` - Early termination and PoC tests
-
----
+This notebook calibrates `c_poc` under a null/flat scenario. It generates:
+
+- calibration curve
+- candidate-level PoC detection rates
+- early termination summaries
+- detailed text report under `results/notebook_calibration/`
+
+Quick mode uses a small number of simulations for smoke testing. Production mode
+uses the larger candidate grid and simulation count defined in the **User
+Settings** chunk.
+
+### 3. Calibrate Early Termination Thresholds
+
+Use `notebooks/threshold_calibration_notebook.qmd`.
+
+This notebook calibrates:
+
+- `c_T` for toxicity-driven early stopping
+- `c_E` for efficacy-driven early stopping
+- `c_I` for immune-response-driven early stopping
+
+It reports recommended thresholds, early stop rates, validation summaries, and a
+saved report under `results/threshold_calibration/`.
+
+### 4. Understand the Design
+
+Use `notebooks/design_walkthrough.qmd`.
+
+This notebook is explanatory. It connects `Design1.tex` and `Design2.tex` to the
+implemented simulation behavior. It is not required for routine analyses.
 
 ## Output Files
 
-### Simulation Outputs
-```
+Generated outputs are intentionally ignored by git. Common locations:
+
+```text
 results/
 ├── plots/
-│   ├── trial_summary_*.png       # Single trial visualizations
-│   ├── dose_response_curves.png  # Dose-response relationships
-│   └── obd_selection_*.png       # Selection frequency plots
-└── Rplots.pdf                     # Additional plots
+├── notebook_calibration/
+└── threshold_calibration/
 ```
 
-### Calibration Outputs
-```
-results/calibration/
-├── calibration_results.RData      # Complete calibration data
-├── calibration_report.txt         # Detailed text report
-├── poc_calibration_curve.png      # Calibration curve
-└── combined_performance_curves.png # Performance trade-offs
-```
+Regenerate these files from the notebooks when needed.
 
-### Optimization Outputs
-```
-results/optimization/
-├── quick_optimization_results.rds
-├── comprehensive_optimization_results.rds
-├── comprehensive_optimization_plots.rds
-├── optimization_results.rds
-└── optimization_plots.rds
-```
+## Common User Settings
 
----
+Trial scale:
 
-## Common Parameters
+- `dose_levels`: dose labels used by the design.
+- `n_stages`: number of trial stages.
+- `cohort_size`: patients enrolled per stage.
 
-### Trial Design Parameters
+Clinical thresholds:
 
-| Parameter | Description | Typical Range | Default |
-|-----------|-------------|---------------|---------|
-| `dose_levels` | Vector of dose levels | 3-7 doses | c(1,2,3,4,5) |
-| `n_stages` | Number of trial stages | 2-5 | 5 |
-| `cohort_size` | Patients per stage | 10-20 | 15 |
+- `phi_T`: maximum acceptable toxicity.
+- `phi_E`: minimum acceptable efficacy.
+- `phi_I`: minimum acceptable immune response.
 
-### Threshold Parameters (φ)
+Posterior credibility cutoffs:
 
-| Parameter | Description | Typical Range | Default |
-|-----------|-------------|---------------|---------|
-| `phi_T` | Toxicity threshold | 0.25-0.45 | 0.35 |
-| `phi_E` | Efficacy threshold | 0.10-0.30 | 0.10 |
-| `phi_I` | Immune threshold | 0.15-0.35 | 0.20 |
+- `c_T`: required confidence that toxicity is acceptable.
+- `c_E`: required confidence that efficacy is acceptable.
+- `c_I`: required confidence that immune response is acceptable.
 
-### Credibility Parameters (c)
+PoC settings:
 
-| Parameter | Description | Typical Range | Default |
-|-----------|-------------|---------------|---------|
-| `c_T` | Toxicity credibility | 0.3-0.95 | 0.5 |
-| `c_E` | Efficacy credibility | 0.3-0.9 | 0.5 |
-| `c_I` | Immune credibility | 0.3-0.9 | 0.5 |
+- `c_poc`: final evidence threshold.
+- `delta_poc`: pairwise comparison margin.
+- `target_rate`: null/flat PoC detection target.
 
-### PoC Parameters
+Simulation truth:
 
-| Parameter | Description | Typical Range | Default |
-|-----------|-------------|---------------|---------|
-| `c_poc` | PoC threshold | 0.5-0.95 | 0.9 (should calibrate) |
-| `delta_poc` | PoC comparison threshold | 0.7-0.9 | 0.8 |
-
-### Control Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `enable_early_termination` | Enable early stopping | TRUE |
-| `log_early_termination` | Detailed termination logs | TRUE |
-| `verbose_logging` | Print detailed progress | TRUE |
-
----
-
-## Tips and Best Practices
-
-### For Beginners
-1. Start with `notebooks/simulation_notebook.qmd`
-2. Run single trial with default parameters
-3. Modify one parameter at a time
-4. Observe how changes affect outcomes
-
-### For Parameter Tuning
-1. Use `quick_optimization()` first (2 hours)
-2. Focus on promising regions
-3. Test specific combinations
-4. Document parameter rationale
-
-### For Calibration
-1. Set null_p values above thresholds to compensate for PAVA bias
-2. Use ≥1000 simulations per C_poc value
-3. Review detailed calibration report
-4. Target ~10% Type I error rate
-
-### For Large Simulations
-1. Set `verbose_logging = FALSE` to reduce output
-2. Save intermediate results frequently
-3. Use reproducible seeds: `seed = 10000 * i + j`
-4. Monitor memory usage
-
-### For Reproducibility
-1. Always record parameter settings
-2. Use fixed seeds for critical runs
-3. Save trial_config with results
-4. Version control configuration files
-
----
+- `p_YI`: true immune response probabilities by dose.
+- `p_YT_given_I`: true toxicity probabilities by dose and immune status.
+- `p_YE_given_I`: true efficacy probabilities by dose and immune status.
+- `rho0`, `rho1`: toxicity-efficacy dependence parameters.
 
 ## Troubleshooting
 
-### Common Issues
+If R cannot find files, open `DoseFinding.Rproj` first and rerun the notebook.
+The notebooks also try to locate the project root automatically.
 
-**Issue**: "Cannot find file"
-- **Solution**: Ensure working directory is set to project root
-- **Check**: `getwd()` should show `.../DoseFinding`
-- **Fix**: `setwd("/path/to/DoseFinding")`
+If calibration takes too long, keep `quick_mode <- TRUE` while checking setup.
+Use production mode only when the notebook runs successfully in quick mode.
 
-**Issue**: "Package not found"
-- **Solution**: Install missing packages
-- **Check**: `installed.packages()`
-- **Fix**: `install.packages("package_name")`
+If a trial terminates early too often, review `phi_T`, `phi_E`, `phi_I`,
+`c_T`, `c_E`, and `c_I` in the notebook's **User Settings** chunk.
 
-**Issue**: "Trials terminate early too often"
-- **Solution**: Parameters too strict
-- **Fix**: Lower c values, increase φ_I and φ_E, decrease φ_T
+If PoC passes too often in null/flat scenarios, increase `c_poc`, raise the
+candidate grid, or revisit the protocol's PoC target definition.
 
-**Issue**: "PoC detection rate too high (>20%)"
-- **Solution**: C_poc threshold too low
-- **Fix**: Increase C_poc value
+## Advanced Developer Use
 
-**Issue**: "Calibration takes too long"
-- **Solution**: Reduce simulations for initial testing
-- **Fix**: Start with n_simulations = 100, then increase to 1000+
+The backend functions in `src/` remain available for scripts, tests, and
+development. For examples of direct function usage, inspect the files in
+`examples/` and `tests/`. This is not the standard user path.
 
----
+## Validation
 
-## Further Reading
+Run the full test suite from the repository root:
 
-- **Methodology**: `docs/STAT_METHODS_AS_BUILT.md` - Statistical methods as implemented
-- **Original Design Specs**: `docs/Design1.tex`, `docs/Design2.tex` - Mathematical design drafts
-- **Code Structure**: `docs/CODE_MAP.md` - Code organization overview
----
+```bash
+Rscript -e 'testthat::test_dir("tests")'
+```
 
-## Support
+Run a whitespace check before committing:
 
-For questions or issues:
-1. Check existing documentation in `docs/`
-2. Review test files in `tests/` for examples
-3. Examine notebook code for usage patterns
-4. Refer to `docs/STAT_METHODS_AS_BUILT.md` for methodology clarification
-
-## Current Scope
-
-The active project scope is the simulation engine, decision logic, PoC calibration, early termination calibration, parameter optimization scripts, notebooks, tests, and the current documentation in `docs/`. Rendered notebooks, plots, reports, and result files are generated artifacts and are not tracked.
+```bash
+git diff --check
+```

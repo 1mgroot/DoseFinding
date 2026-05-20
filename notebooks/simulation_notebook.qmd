@@ -1,18 +1,63 @@
 ---
 title: "Bayesian Dose-Finding Trial Simulation"
-format: pdf
+format:
+  html:
+    toc: true
+    code-fold: true
+  pdf: default
+execute:
+  message: false
+  warning: false
 editor: visual
 ---
 
 ## Introduction
 
-This document provides an interactive way to run the Bayesian dose-finding trial simulation. You can modify the simulation parameters in the "Configuration" section and then run the code chunks to see the results.
+This notebook is the standard user interface for running one Bayesian dose-finding trial simulation. Edit only the **User Settings** chunk, then click **Run All** or **Render** in RStudio. The setup and backend simulation chunks run automatically.
 
-## Setup
+Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` when you want the full default stage count.
 
-This chunk loads the necessary libraries and source files.
+## User Settings
+
+Edit this chunk only for routine use.
+
+```{r user_settings}
+quick_mode <- TRUE
+dose_levels <- c(1, 2, 3, 4, 5)
+
+simulation_settings <- list(
+  dose_levels = dose_levels,
+  n_stages = if (quick_mode) 3 else 5,
+  cohort_size = 15,
+  phi_T = 0.30,
+  c_T = 0.2,
+  phi_E = 0.25,
+  c_E = 0.5,
+  phi_I = 0.20,
+  c_I = 0.35,
+  c_poc = 0.95,
+  delta_poc = 0.8,
+  seed = 123,
+  p_YI = c(0.10, 0.30, 0.50, 0.60, 0.70),
+  p_YT_given_I = matrix(c(
+    0.05, 0.10, 0.12, 0.18, 0.25,
+    0.08, 0.12, 0.15, 0.25, 0.35
+  ), nrow = length(dose_levels), ncol = 2),
+  p_YE_given_I = matrix(c(
+    0.10, 0.20, 0.35, 0.45, 0.50,
+    0.30, 0.50, 0.70, 0.80, 0.75
+  ), nrow = length(dose_levels), ncol = 2),
+  rho0 = 1.5,
+  rho1 = 2
+)
+```
+
+## Internal Setup
+
+This chunk loads the backend code automatically.
 
 ```{r setup}
+#| echo: false
 library(knitr)
 library(ggplot2)
 
@@ -38,58 +83,35 @@ source(file.path(project_root, "src/decision/dose_decision.R"))
 source(file.path(project_root, "src/core/main.R"))
 ```
 
-## Configuration
+## Internal Configuration
 
-Modify the simulation parameters in this section. These parameters are aligned with `poc_calibration_notebook.qmd` for consistent Type I error control.
+This chunk converts the user settings into the backend trial configuration.
 
 ```{r config}
-# Trial configuration
-# Parameters aligned with poc_calibration_notebook.qmd for consistency
-
+#| echo: false
 trial_config <- list(
-  dose_levels = c(1, 2, 3, 4, 5),
-  n_stages = 5,
-  cohort_size = 15,
-  phi_T = 0.30,
-  c_T = 0.2,
-  phi_E = 0.25,
-  c_E = 0.5,
-  phi_I = 0.20,
-  c_I = 0.35,
-  # PoC parameters (c_poc calibrated via poc_calibration_notebook.qmd)
-  c_poc = 0.95,
-  delta_poc = 0.8,
-  # Early termination parameters
+  dose_levels = simulation_settings$dose_levels,
+  n_stages = simulation_settings$n_stages,
+  cohort_size = simulation_settings$cohort_size,
+  phi_T = simulation_settings$phi_T,
+  c_T = simulation_settings$c_T,
+  phi_E = simulation_settings$phi_E,
+  c_E = simulation_settings$c_E,
+  phi_I = simulation_settings$phi_I,
+  c_I = simulation_settings$c_I,
+  c_poc = simulation_settings$c_poc,
+  delta_poc = simulation_settings$delta_poc,
   enable_early_termination = TRUE,
   log_early_termination = FALSE,
   verbose_logging = FALSE
 )
-#cohort size may vary on diff stage (future work)
 
-# Data simulation parameters (designed for a more interesting trial)
-p_YI <- c(0.10, 0.30, 0.50, 0.60, 0.70) # Immune response probability
+p_YI <- simulation_settings$p_YI
+p_YT_given_I <- simulation_settings$p_YT_given_I
+p_YE_given_I <- simulation_settings$p_YE_given_I
+rho0 <- simulation_settings$rho0
+rho1 <- simulation_settings$rho1
 
-p_YT_given_I <- matrix(c(
-  # I=0 (No Immune Response)
-  0.05, 0.10, 0.12, 0.18, 0.25,
-  # I=1 (Immune Response)
-  0.08, 0.12, 0.15, 0.25, 0.35
-), nrow = 5, ncol = 2)
-
-p_YE_given_I <- matrix(c(
-  # I=0 (No Immune Response)ƒ
-  0.10, 0.20, 0.35, 0.45, 0.50, 
-  # I=1 (Immune Response)
-  0.30, 0.50, 0.70, 0.80, 0.75  
-), nrow = 5, ncol = 2)
-
-rho0 <- 1.5
-rho1 <- 2
-
-# Utility table
-# Rows: Efficacy (0, 1)
-# Columns: Toxicity (0, 1)
-# Slices: Immune Response (0, 1)
 utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
   E = c(0, 1),
   T = c(0, 1),
@@ -111,7 +133,7 @@ trial_config$utility_table <- utility_table
 
 ## Simulation
 
-This chunk runs the multi-stage trial simulation by calling the `run_trial_simulation` function. The workflow implemented in `src/core/main.R` is:
+This chunk runs the backend simulation automatically. The workflow is:
 
 1.  **Stage 1**: Equal randomization to all dose levels
 2.  **Interim Analysis**: Update admissible set based on posterior probabilities
@@ -120,7 +142,16 @@ This chunk runs the multi-stage trial simulation by calling the `run_trial_simul
 5.  **Final Selection**: Choose OD with highest utility from admissible set + PoC validation
 
 ```{r simulation}
-results <- run_trial_simulation(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1)
+#| echo: false
+results <- run_trial_simulation(
+  trial_config,
+  p_YI,
+  p_YT_given_I,
+  p_YE_given_I,
+  rho0,
+  rho1,
+  seed = simulation_settings$seed
+)
 ```
 
 ## Results
@@ -128,6 +159,9 @@ results <- run_trial_simulation(trial_config, p_YI, p_YT_given_I, p_YE_given_I, 
 This chunk prints the final optimal dose and displays the plots.
 
 ```{r results}
+#| echo: false
+dir.create("results/plots", recursive = TRUE, showWarnings = FALSE)
+
 # Print final results
 cat("
 --- Final Results ---
@@ -205,7 +239,11 @@ allocation_summary <- results$all_data %>%
   mutate(
     d = factor(d),
     stage_num = as.integer(stage),
-    stage = factor(stage_num, levels = 1:5, labels = paste("Stage", 1:5))
+    stage = factor(
+      stage_num,
+      levels = seq_len(trial_config$n_stages),
+      labels = paste("Stage", seq_len(trial_config$n_stages))
+    )
   )
 
 # Plot 1: Allocation by dose level and stage with modern styling
