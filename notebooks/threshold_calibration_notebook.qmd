@@ -30,8 +30,8 @@ This notebook implements independent calibration of the three threshold paramete
 
 **Key Settings**:
 
--   `enable_early_termination = TRUE` (required)
--   Early termination triggers when admissible set becomes empty at any stage before final recommendation
+- `enable_early_termination = TRUE` (required)
+- Early termination triggers when admissible set becomes empty at any stage before final recommendation
 
 ## User Settings
 
@@ -40,7 +40,7 @@ Edit this chunk only for routine use.
 ```{r user_settings}
 #| echo: true
 
-quick_mode <- TRUE
+quick_mode <- FALSE
 
 threshold_settings <- list(
   dose_levels = c(1, 2, 3, 4, 5),
@@ -838,17 +838,17 @@ This notebook uses the following calibration approach:
 ### A.2 Scenario Design Principles
 
 | Scenario | Purpose | T (increasing) | E (increasing) | I (increasing) |
-|----|----|----|----|----|
+|---------------|---------------|---------------|---------------|---------------|
 | High Toxicity | c_T calibration | Elevated \[0.32→0.50\] | Meets \[0.30→0.50\] | Meets \[0.25→0.45\] |
 | Low Efficacy | c_E calibration | Safe \[0.10→0.26\] | Low \[0.12→0.22\] | Meets \[0.25→0.45\] |
 | Low Immune | c_I calibration | Safe \[0.10→0.26\] | Meets \[0.30→0.50\] | Low \[0.08→0.18\] |
 
 **Design Principles**:
 
--   All parameters increase with dose, matching realistic clinical dose-response patterns
--   "Unfavorable" parameters are **slightly** above/below threshold boundaries (not extreme)
--   "Favorable" parameters are well within acceptable ranges
--   Values closer to thresholds produce moderate ESR (\~60-70%) rather than extreme ESR (\~100%)
+- All parameters increase with dose, matching realistic clinical dose-response patterns
+- "Unfavorable" parameters are **slightly** above/below threshold boundaries (not extreme)
+- "Favorable" parameters are well within acceptable ranges
+- Values closer to thresholds produce moderate ESR (\~60-70%) rather than extreme ESR (\~100%)
 
 ### A.3 How to Use Calibration Results
 

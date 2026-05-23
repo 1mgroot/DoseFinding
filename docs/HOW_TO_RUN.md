@@ -44,10 +44,19 @@ This notebook calibrates `c_poc` under a null/flat scenario. It generates:
 - candidate-level PoC detection rates
 - early termination summaries
 - detailed text report under `results/notebook_calibration/`
+- readable calibration history under `results/notebook_calibration/`
 
-Quick mode uses a small number of simulations for smoke testing. Production mode
-uses the larger candidate grid and simulation count defined in the **User
-Settings** chunk.
+The notebook is prefilled for a focused validation run around the current
+candidate region. It uses common random numbers so `c_poc` candidates are
+compared on the same simulated trial streams. Set `quick_mode <- TRUE` when you
+only want a fast smoke test.
+
+If no tested `c_poc` controls the null PoC detection rate, that usually means
+the current candidate grid or tuning cutoffs are not strict enough. First test
+higher `c_poc` values. If control still fails, set `run_parameter_search <- TRUE`
+to test grids of `c_T`, `c_E`, and `c_I`. Keep the dose levels, stage count,
+cohort size, clinical `phi_*` thresholds, utility table, and null scenario fixed
+unless you are deliberately changing the study design.
 
 ### 3. Calibrate Early Termination Thresholds
 
@@ -107,6 +116,17 @@ PoC settings:
 - `c_poc`: final evidence threshold.
 - `delta_poc`: pairwise comparison margin.
 - `target_rate`: null/flat PoC detection target.
+- `append_history_log`: whether to append each run to a readable Markdown log.
+- `history_log_path`: path to the keep-growing PoC calibration history file.
+- `calibration_seed`: base seed for reproducible PoC calibration.
+- `use_common_random_numbers`: compares `c_poc` candidates with the same
+  simulation seeds so rankings are less noisy.
+- `run_parameter_search`: optional batch search over `c_T`, `c_E`, and `c_I`.
+- `parameter_search_grid`: cutoff grid used by the optional search.
+- `parameter_search_progress`: whether to print workload, row progress, and ETA
+  while the optional search is running.
+- `parameter_search_progress_seconds`: approximate time interval for extra
+  "still running" messages during long search nodes.
 
 Simulation truth:
 

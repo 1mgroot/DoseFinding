@@ -194,6 +194,35 @@ log_early_termination_context <- function(debug_info, config) {
 }
 
 # Main calibration function for C_poc
+poc_format_duration <- function(seconds) {
+  if (is.null(seconds) || length(seconds) == 0 || is.na(seconds) || is.infinite(seconds)) {
+    return("unknown")
+  }
+  seconds <- max(0, as.numeric(seconds))
+  hours <- floor(seconds / 3600)
+  minutes <- floor((seconds %% 3600) / 60)
+  secs <- round(seconds %% 60)
+  if (hours > 0) {
+    return(sprintf("%dh %02dm %02ds", hours, minutes, secs))
+  }
+  if (minutes > 0) {
+    return(sprintf("%dm %02ds", minutes, secs))
+  }
+  sprintf("%ds", secs)
+}
+
+poc_progress_log <- function(..., enabled = TRUE) {
+  if (!isTRUE(enabled)) {
+    return(invisible(NULL))
+  }
+  cat(
+    paste0("[", format(Sys.time(), "%H:%M:%S"), "] ", paste0(..., collapse = ""), "\n"),
+    file = stderr()
+  )
+  flush.console()
+  invisible(NULL)
+}
+
 calibrate_c_poc <- function(
   null_scenario,
   c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
@@ -202,7 +231,13 @@ calibrate_c_poc <- function(
   target_rate = 0.10,
   debug_early_termination = FALSE,  # Changed default to FALSE to reduce console output
   max_debug_cases_per_candidate = 2,  # Reduced from 3 to 2
-  verbose = TRUE
+  verbose = TRUE,
+  progress = FALSE,
+  progress_interval_seconds = 300,
+  progress_prefix = NULL,
+  store_simulation_results = TRUE,
+  common_random_numbers = TRUE,
+  calibration_seed = 10000
 ) {
   if (missing(null_scenario) || is.null(null_scenario)) {
     stop("null_scenario is required. Use create_null_flat_scenario() to create one.")
@@ -219,6 +254,29 @@ calibrate_c_poc <- function(
   if (!is.numeric(target_rate) || length(target_rate) != 1 || target_rate <= 0 || target_rate >= 1) {
     stop("target_rate must be between 0 and 1.")
   }
+  if (!is.numeric(progress_interval_seconds) || length(progress_interval_seconds) != 1 || progress_interval_seconds < 1) {
+    stop("progress_interval_seconds must be a positive number of seconds.")
+  }
+  if (!is.logical(store_simulation_results) || length(store_simulation_results) != 1) {
+    stop("store_simulation_results must be TRUE or FALSE.")
+  }
+  if (!is.logical(common_random_numbers) || length(common_random_numbers) != 1) {
+    stop("common_random_numbers must be TRUE or FALSE.")
+  }
+  if (!is.null(calibration_seed) && (
+    !is.numeric(calibration_seed) ||
+      length(calibration_seed) != 1 ||
+      is.na(calibration_seed) ||
+      calibration_seed < 0
+  )) {
+    stop("calibration_seed must be NULL or a non-negative number.")
+  }
+  if (!is.null(calibration_seed)) {
+    calibration_seed <- as.numeric(calibration_seed)
+  }
+  if (isTRUE(common_random_numbers) && is.null(calibration_seed)) {
+    stop("calibration_seed cannot be NULL when common_random_numbers is TRUE.")
+  }
   if (!isTRUE(verbose)) {
     quiet_connection <- textConnection("calibration_output", "w", local = TRUE)
     sink(quiet_connection)
@@ -231,6 +289,24 @@ calibrate_c_poc <- function(
   cat("Starting C_poc calibration...\n")
   cat("Testing", length(c_poc_candidates), "C_poc values\n")
   cat("Simulations per value:", n_simulations, "\n")
+  cat(
+    "Seed strategy:",
+    if (isTRUE(common_random_numbers)) {
+      "common random numbers across C_poc candidates"
+    } else {
+      "independent seeds across C_poc candidates"
+    },
+    "\n"
+  )
+  cat("Calibration seed:", if (is.null(calibration_seed)) "NULL" else calibration_seed, "\n")
+  calibration_started_at <- Sys.time()
+  next_progress_at <- calibration_started_at + progress_interval_seconds
+  total_calibration_simulations <- length(c_poc_candidates) * n_simulations
+  progress_label <- if (!is.null(progress_prefix) && nchar(progress_prefix) > 0) {
+    paste0(progress_prefix, " ")
+  } else {
+    ""
+  }
 
   # Default configuration if not provided
   if (is.null(base_config)) {
@@ -297,6 +373,19 @@ calibrate_c_poc <- function(
   cat("\n")
 
   calibration_results <- list()
+  candidate_seed_stride <- 100000
+
+  simulation_seed <- function(candidate_index, simulation_index) {
+    if (is.null(calibration_seed)) {
+      return(NULL)
+    }
+    candidate_offset <- if (isTRUE(common_random_numbers)) {
+      0
+    } else {
+      (candidate_index - 1) * candidate_seed_stride
+    }
+    calibration_seed + candidate_offset + simulation_index
+  }
 
   for (i in seq_along(c_poc_candidates)) {
     c_poc <- c_poc_candidates[i]
@@ -309,20 +398,29 @@ calibrate_c_poc <- function(
     config$log_early_termination <- FALSE
 
     # Run simulations
-    simulation_results <- list()
+    simulation_results <- if (isTRUE(store_simulation_results)) list() else NULL
     poc_detection_count <- 0
+    early_termination_count <- 0
+    n_completed <- 0
     debug_count <- 0
 
-    # Use a large base seed (10000 * c_poc_index) to ensure different seeds for different c_poc values
-    base_seed <- 10000 * i
-
     for (sim in 1:n_simulations) {
-      # Each simulation gets a unique seed: base_seed + sim
-      result <- run_single_calibration_simulation(config, null_scenario, seed = base_seed + sim)
-      simulation_results[[sim]] <- result
+      result <- run_single_calibration_simulation(
+        config,
+        null_scenario,
+        seed = simulation_seed(i, sim)
+      )
+      if (isTRUE(store_simulation_results)) {
+        simulation_results[[sim]] <- result
+      }
 
       # Count PoC detection: ONLY when trial completes AND P_final is non-empty
       # Early terminated trials MUST have poc_validated = FALSE
+      if (result$metrics$terminated_early) {
+        early_termination_count <- early_termination_count + 1
+      } else {
+        n_completed <- n_completed + 1
+      }
       if (!result$metrics$terminated_early && result$metrics$poc_validated) {
         poc_detection_count <- poc_detection_count + 1
       }
@@ -352,16 +450,37 @@ calibrate_c_poc <- function(
         log_early_termination_context(result$debug_info, config)
         debug_count <- debug_count + 1
       }
+
+      now <- Sys.time()
+      if (isTRUE(progress) && now >= next_progress_at) {
+        completed_calibration_simulations <- (i - 1) * n_simulations + sim
+        elapsed_seconds <- as.numeric(difftime(now, calibration_started_at, units = "secs"))
+        eta_seconds <- if (completed_calibration_simulations > 0) {
+          elapsed_seconds / completed_calibration_simulations *
+            (total_calibration_simulations - completed_calibration_simulations)
+        } else {
+          NA_real_
+        }
+        poc_progress_log(
+          progress_label,
+          "still running: c_poc ", c_poc, " (", i, "/", length(c_poc_candidates), "), ",
+          "simulation ", sim, "/", n_simulations, "; ",
+          completed_calibration_simulations, "/", total_calibration_simulations,
+          " calibration simulations done; elapsed ", poc_format_duration(elapsed_seconds),
+          "; ETA ", poc_format_duration(eta_seconds),
+          enabled = TRUE
+        )
+        next_progress_at <- now + progress_interval_seconds
+      }
     }
 
     # Calculate metrics
     # PoC detection rate across ALL simulations (including early terminated = FALSE)
     poc_detection_rate <- poc_detection_count / n_simulations
-    early_termination_rate <- mean(sapply(simulation_results, function(x) x$metrics$terminated_early))
+    early_termination_rate <- early_termination_count / n_simulations
     completion_rate <- 1 - early_termination_rate
 
     # Among completed trials, what fraction had PoC validated?
-    n_completed <- sum(!sapply(simulation_results, function(x) x$metrics$terminated_early))
     poc_rate_among_completed <- if (n_completed > 0) poc_detection_count / n_completed else 0
 
     # Monte Carlo standard error for PoC detection rate
@@ -379,7 +498,13 @@ calibrate_c_poc <- function(
       early_termination_rate = early_termination_rate,
       completion_rate = completion_rate,
       poc_rate_among_completed = poc_rate_among_completed,
-      simulation_results = simulation_results
+      n_simulations = n_simulations,
+      n_completed = n_completed,
+      early_termination_count = early_termination_count,
+      simulation_results_stored = isTRUE(store_simulation_results),
+      common_random_numbers = common_random_numbers,
+      calibration_seed = calibration_seed,
+      simulation_results = if (isTRUE(store_simulation_results)) simulation_results else list()
     )
 
     cat("  PoC detection rate:", round(poc_detection_rate, 3),
@@ -388,6 +513,23 @@ calibrate_c_poc <- function(
     cat("  Early termination rate:", round(early_termination_rate, 3), "\n")
     cat("  Completion rate:", round(completion_rate, 3), "\n")
     cat("  PoC rate among completed trials:", round(poc_rate_among_completed, 3), "\n")
+
+    if (isTRUE(progress)) {
+      completed_calibration_simulations <- i * n_simulations
+      elapsed_seconds <- as.numeric(difftime(Sys.time(), calibration_started_at, units = "secs"))
+      eta_seconds <- elapsed_seconds / completed_calibration_simulations *
+        (total_calibration_simulations - completed_calibration_simulations)
+      poc_progress_log(
+        progress_label,
+        "finished c_poc ", c_poc, " (", i, "/", length(c_poc_candidates), "); ",
+        "PoC rate ", round(poc_detection_rate, 3),
+        ", completion ", round(completion_rate, 3),
+        "; ", completed_calibration_simulations, "/", total_calibration_simulations,
+        " calibration simulations done; elapsed ", poc_format_duration(elapsed_seconds),
+        "; ETA ", poc_format_duration(eta_seconds),
+        enabled = TRUE
+      )
+    }
 
     # Sanity check: PoC rate should not exceed completion rate
     if (poc_detection_rate > completion_rate + 1e-6) {
@@ -452,7 +594,7 @@ calibrate_c_poc <- function(
       status_str <- if (control_achieved) "← OPTIMAL" else "← SELECTED*"
     }
 
-    cat(sprintf("%-10.2f | %-7.3f %-12s | %-25s | %-15s\n",
+    cat(sprintf("%-10.4f | %-7.3f %-12s | %-25s | %-15s\n",
                 res$c_poc,
                 res$poc_detection_rate,
                 ci_str,
@@ -498,6 +640,8 @@ calibrate_c_poc <- function(
     optimal_rate = poc_rates[optimal_idx],
     control_achieved = control_achieved,
     c_poc_candidates = c_poc_candidates,
+    common_random_numbers = common_random_numbers,
+    calibration_seed = calibration_seed,
     poc_detection_rates = poc_rates,
     n_simulations = n_simulations
   ))
@@ -536,7 +680,11 @@ poc_calibration_results_table <- function(calibration_results) {
       poc_se = value_or(res, "poc_se"),
       completion_rate = value_or(res, "completion_rate"),
       poc_rate_among_completed = value_or(res, "poc_rate_among_completed"),
-      n_simulations = length(value_or(res, "simulation_results", list())),
+      n_simulations = value_or(
+        res,
+        "n_simulations",
+        length(value_or(res, "simulation_results", list()))
+      ),
       stringsAsFactors = FALSE
     )
   })
@@ -672,6 +820,573 @@ load_calibration_results <- function(file_path = "results/poc_calibration_result
   }
   load(file_path)
   calibration_results
+}
+
+poc_format_percent <- function(x, digits = 1) {
+  if (is.null(x) || length(x) == 0) {
+    return("NA")
+  }
+  if (length(x) > 1) {
+    return(paste(vapply(x, poc_format_percent, character(1), digits = digits), collapse = ", "))
+  }
+  if (is.na(x)) {
+    return("NA")
+  }
+  sprintf(paste0("%.", digits, "f%%"), x * 100)
+}
+
+poc_format_value <- function(x, digits = 3) {
+  if (is.null(x) || length(x) == 0) {
+    return("NA")
+  }
+  if (length(x) > 1) {
+    return(paste(vapply(x, poc_format_value, character(1), digits = digits), collapse = ", "))
+  }
+  if (is.logical(x)) {
+    return(if (isTRUE(x)) "TRUE" else "FALSE")
+  }
+  if (is.numeric(x)) {
+    if (is.na(x)) {
+      return("NA")
+    }
+    return(format(round(x, digits), nsmall = min(digits, 3), trim = TRUE))
+  }
+  as.character(x)
+}
+
+poc_config_markdown_lines <- function(base_config, null_scenario) {
+  config_fields <- c(
+    "dose_levels", "n_stages", "cohort_size",
+    "phi_T", "c_T", "phi_E", "c_E", "phi_I", "c_I",
+    "delta_poc", "enable_early_termination"
+  )
+
+  config_lines <- c("Trial/config parameters:")
+  for (field in config_fields) {
+    if (!is.null(base_config[[field]])) {
+      config_lines <- c(
+        config_lines,
+        paste0("- `", field, "`: ", poc_format_value(base_config[[field]]))
+      )
+    }
+  }
+
+  scenario_lines <- c(
+    "Null scenario:",
+    paste0("- description: ", if (!is.null(null_scenario$description)) null_scenario$description else "NA"),
+    paste0("- `p_YI`: ", poc_format_value(null_scenario$p_YI)),
+    paste0("- `p_YT_given_I[, 1]`: ", poc_format_value(null_scenario$p_YT_given_I[, 1])),
+    paste0("- `p_YT_given_I[, 2]`: ", poc_format_value(null_scenario$p_YT_given_I[, 2])),
+    paste0("- `p_YE_given_I[, 1]`: ", poc_format_value(null_scenario$p_YE_given_I[, 1])),
+    paste0("- `p_YE_given_I[, 2]`: ", poc_format_value(null_scenario$p_YE_given_I[, 2])),
+    paste0("- `rho0`: ", poc_format_value(null_scenario$rho0)),
+    paste0("- `rho1`: ", poc_format_value(null_scenario$rho1))
+  )
+
+  c(config_lines, "", scenario_lines)
+}
+
+append_poc_calibration_log <- function(
+  calibration_results,
+  null_scenario,
+  base_config,
+  file_path = "results/notebook_calibration/poc_calibration_history.md",
+  run_label = NULL,
+  notes = NULL
+) {
+  if (missing(calibration_results) || is.null(calibration_results)) {
+    stop("calibration_results is required.")
+  }
+  if (missing(null_scenario) || is.null(null_scenario)) {
+    stop("null_scenario is required.")
+  }
+  if (missing(base_config) || is.null(base_config)) {
+    stop("base_config is required.")
+  }
+  if (!is.character(file_path) || length(file_path) != 1 || nchar(file_path) == 0) {
+    stop("file_path must be a non-empty string.")
+  }
+
+  dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+
+  result_table <- poc_calibration_results_table(calibration_results)
+  for (column in c(
+    "poc_detection_rate_lower", "poc_detection_rate_upper",
+    "completion_rate", "poc_rate_among_completed"
+  )) {
+    if (!column %in% names(result_table)) {
+      result_table[[column]] <- NA_real_
+    }
+  }
+  result_table$control_achieved <- result_table$poc_detection_rate <= calibration_results$target_rate
+  result_table$is_selected <- result_table$c_poc == calibration_results$optimal_c_poc
+
+  status <- if (isTRUE(calibration_results$control_achieved)) {
+    "CONTROL ACHIEVED"
+  } else {
+    "CONTROL NOT ACHIEVED"
+  }
+
+  run_title <- if (!is.null(run_label) && nchar(run_label) > 0) {
+    paste0(" - ", run_label)
+  } else {
+    ""
+  }
+
+  header_lines <- character(0)
+  if (!file.exists(file_path) || file.info(file_path)$size == 0) {
+    header_lines <- c(
+      "# PoC Calibration History",
+      "",
+      "This file is appended by PoC calibration runs. Each entry records the tested parameters and outcome so future runs can avoid repeating unhelpful grids.",
+      ""
+    )
+  }
+
+  summary_lines <- c(
+    paste0("## ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), run_title),
+    "",
+    paste0("- Status: ", status),
+    paste0("- Target Type I error: ", poc_format_percent(calibration_results$target_rate)),
+    paste0("- Selected `c_poc`: ", poc_format_value(calibration_results$optimal_c_poc, digits = 4)),
+    paste0("- Achieved PoC detection rate: ", poc_format_percent(calibration_results$achieved_rate)),
+    paste0("- Simulations per candidate: ", poc_format_value(calibration_results$n_simulations)),
+    paste0(
+      "- Seed strategy: ",
+      if (isTRUE(calibration_results$common_random_numbers)) {
+        "common random numbers across `c_poc` candidates"
+      } else {
+        "independent seeds across `c_poc` candidates"
+      },
+      "; calibration seed = ",
+      if (is.null(calibration_results$calibration_seed)) "NULL" else poc_format_value(calibration_results$calibration_seed, digits = 0)
+    )
+  )
+
+  if (!is.null(notes) && nchar(notes) > 0) {
+    summary_lines <- c(summary_lines, paste0("- Notes: ", notes))
+  }
+
+  table_lines <- c(
+    "",
+    "| c_poc | PoC detection | 95% CI | Completion | PoC among completed | Meets target? | Selected? |",
+    "|---:|---:|---:|---:|---:|:---:|:---:|"
+  )
+
+  for (i in seq_len(nrow(result_table))) {
+    row <- result_table[i, , drop = FALSE]
+    ci <- if (!is.na(row$poc_detection_rate_lower) && !is.na(row$poc_detection_rate_upper)) {
+      paste0(
+        poc_format_percent(row$poc_detection_rate_lower),
+        " to ",
+        poc_format_percent(row$poc_detection_rate_upper)
+      )
+    } else {
+      "NA"
+    }
+    table_lines <- c(
+      table_lines,
+      paste(
+        "",
+        poc_format_value(row$c_poc, digits = 4),
+        poc_format_percent(row$poc_detection_rate),
+        ci,
+        poc_format_percent(row$completion_rate),
+        poc_format_percent(row$poc_rate_among_completed),
+        if (isTRUE(row$control_achieved)) "yes" else "no",
+        if (isTRUE(row$is_selected)) "yes" else "no",
+        "",
+        sep = " | "
+      )
+    )
+  }
+
+  recommendation_lines <- character(0)
+  if (!isTRUE(calibration_results$control_achieved)) {
+    recommendation_lines <- c(
+      "",
+      "Parameter note: no tested `c_poc` controlled the null PoC detection rate. Next runs should test higher `c_poc` values and/or tune `c_T`, `c_E`, and `c_I` while keeping the clinical scenario definition fixed."
+    )
+  }
+
+  log_lines <- c(
+    header_lines,
+    summary_lines,
+    "",
+    poc_config_markdown_lines(base_config, null_scenario),
+    table_lines,
+    recommendation_lines,
+    ""
+  )
+
+  write(log_lines, file = file_path, append = TRUE)
+  invisible(file_path)
+}
+
+default_poc_parameter_search_grid <- function() {
+  expand.grid(
+    c_T = c(0.20, 0.35, 0.50, 0.65),
+    c_E = c(0.50, 0.65, 0.80),
+    c_I = c(0.35, 0.50, 0.65),
+    KEEP.OUT.ATTRS = FALSE,
+    stringsAsFactors = FALSE
+  )
+}
+
+append_poc_parameter_search_log <- function(
+  search_results,
+  file_path = "results/notebook_calibration/poc_parameter_search_history.md",
+  run_label = NULL,
+  notes = NULL
+) {
+  if (missing(search_results) || is.null(search_results$summary)) {
+    stop("search_results must be returned by run_poc_parameter_search().")
+  }
+  if (!is.character(file_path) || length(file_path) != 1 || nchar(file_path) == 0) {
+    stop("file_path must be a non-empty string.")
+  }
+
+  dir.create(dirname(file_path), showWarnings = FALSE, recursive = TRUE)
+
+  summary_table <- search_results$summary
+  run_title <- if (!is.null(run_label) && nchar(run_label) > 0) {
+    paste0(" - ", run_label)
+  } else {
+    ""
+  }
+
+  header_lines <- character(0)
+  if (!file.exists(file_path) || file.info(file_path)$size == 0) {
+    header_lines <- c(
+      "# PoC Parameter Search History",
+      "",
+      "This file is appended by batch PoC parameter searches. It records the tested cutoff grids and ranked outcomes.",
+      ""
+    )
+  }
+
+  best <- summary_table[1, , drop = FALSE]
+  summary_lines <- c(
+    paste0("## ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), run_title),
+    "",
+    paste0("- Tested variables: ", paste(search_results$tested_variables, collapse = ", ")),
+    paste0("- Fixed variables: ", paste(search_results$fixed_parameters, collapse = ", ")),
+    paste0(
+      "- Candidate `c_poc` values: ",
+      paste(vapply(search_results$c_poc_candidates, poc_format_value, character(1), digits = 4), collapse = ", ")
+    ),
+    paste0("- Simulations per `c_poc`: ", search_results$n_simulations),
+    paste0("- Target Type I error: ", poc_format_percent(search_results$target_rate)),
+    paste0(
+      "- Seed strategy: ",
+      if (isTRUE(search_results$common_random_numbers)) {
+        "common random numbers within each parameter row"
+      } else {
+        "independent seeds across `c_poc` candidates"
+      },
+      "; base calibration seed = ",
+      if (is.null(search_results$calibration_seed)) "NULL" else poc_format_value(search_results$calibration_seed, digits = 0)
+    ),
+    paste0(
+      "- Best ranked setting: row ", best$search_id,
+      ", selected `c_poc` = ", poc_format_value(best$optimal_c_poc, digits = 4),
+      ", achieved rate = ", poc_format_percent(best$achieved_rate),
+      ", control achieved = ", if (isTRUE(best$control_achieved)) "yes" else "no"
+    )
+  )
+
+  if (!is.null(notes) && nchar(notes) > 0) {
+    summary_lines <- c(summary_lines, paste0("- Notes: ", notes))
+  }
+
+  parameter_columns <- intersect(
+    c("c_T", "c_E", "c_I", "delta_poc"),
+    names(summary_table)
+  )
+  table_header <- paste(
+    c("rank", "search_id", parameter_columns, "selected c_poc", "PoC detection", "completion", "control"),
+    collapse = " | "
+  )
+  table_rule <- paste(rep("---", length(strsplit(table_header, " \\| ")[[1]])), collapse = " | ")
+  table_lines <- c("", paste0("| ", table_header, " |"), paste0("| ", table_rule, " |"))
+
+  for (i in seq_len(nrow(summary_table))) {
+    row <- summary_table[i, , drop = FALSE]
+    param_values <- vapply(parameter_columns, function(col) poc_format_value(row[[col]]), character(1))
+    table_lines <- c(
+      table_lines,
+      paste0(
+        "| ",
+        paste(
+          c(
+            i,
+            row$search_id,
+            param_values,
+            poc_format_value(row$optimal_c_poc, digits = 4),
+            poc_format_percent(row$achieved_rate),
+            poc_format_percent(row$completion_rate),
+            if (isTRUE(row$control_achieved)) "yes" else "no"
+          ),
+          collapse = " | "
+        ),
+        " |"
+      )
+    )
+  }
+
+  write(c(header_lines, summary_lines, table_lines, ""), file = file_path, append = TRUE)
+  invisible(file_path)
+}
+
+run_poc_parameter_search <- function(
+  null_scenario,
+  base_config,
+  search_grid = default_poc_parameter_search_grid(),
+  c_poc_candidates = c(0.90, 0.95, 0.97, 0.98, 0.99, 0.995),
+  n_simulations = 100,
+  target_rate = 0.10,
+  log_file = "results/notebook_calibration/poc_parameter_search_history.md",
+  append_log = TRUE,
+  run_label = NULL,
+  verbose = TRUE,
+  progress = verbose,
+  progress_interval_seconds = 300,
+  common_random_numbers = TRUE,
+  calibration_seed = 10000
+) {
+  if (missing(null_scenario) || is.null(null_scenario)) {
+    stop("null_scenario is required.")
+  }
+  if (missing(base_config) || is.null(base_config)) {
+    stop("base_config is required.")
+  }
+  if (is.list(search_grid) && !is.data.frame(search_grid)) {
+    search_grid <- expand.grid(search_grid, KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
+  }
+  if (!is.data.frame(search_grid) || nrow(search_grid) == 0) {
+    stop("search_grid must be a non-empty data frame or list.")
+  }
+
+  allowed_variables <- c("c_T", "c_E", "c_I", "delta_poc")
+  invalid_variables <- setdiff(names(search_grid), allowed_variables)
+  if (length(invalid_variables) > 0) {
+    stop(
+      "search_grid can only tune these variables: ",
+      paste(allowed_variables, collapse = ", "),
+      ". Invalid variables: ",
+      paste(invalid_variables, collapse = ", ")
+    )
+  }
+  if (!is.numeric(n_simulations) || length(n_simulations) != 1 || n_simulations < 1) {
+    stop("n_simulations must be a positive integer.")
+  }
+  if (!is.numeric(progress_interval_seconds) || length(progress_interval_seconds) != 1 || progress_interval_seconds < 1) {
+    stop("progress_interval_seconds must be a positive number of seconds.")
+  }
+  if (!is.logical(common_random_numbers) || length(common_random_numbers) != 1) {
+    stop("common_random_numbers must be TRUE or FALSE.")
+  }
+  if (!is.null(calibration_seed) && (
+    !is.numeric(calibration_seed) ||
+      length(calibration_seed) != 1 ||
+      is.na(calibration_seed) ||
+      calibration_seed < 0
+  )) {
+    stop("calibration_seed must be NULL or a non-negative number.")
+  }
+  if (!is.null(calibration_seed)) {
+    calibration_seed <- as.numeric(calibration_seed)
+  }
+  if (isTRUE(common_random_numbers) && is.null(calibration_seed)) {
+    stop("calibration_seed cannot be NULL when common_random_numbers is TRUE.")
+  }
+
+  fixed_parameters <- setdiff(
+    c(
+      "dose_levels", "n_stages", "cohort_size",
+      "phi_T", "phi_E", "phi_I",
+      "c_T", "c_E", "c_I", "delta_poc",
+      "utility_table", "null_scenario", "rho0", "rho1"
+    ),
+    names(search_grid)
+  )
+
+  details <- vector("list", nrow(search_grid))
+  summary_rows <- vector("list", nrow(search_grid))
+  search_started_at <- Sys.time()
+  simulations_per_row <- length(c_poc_candidates) * n_simulations
+  total_search_simulations <- nrow(search_grid) * simulations_per_row
+  row_seed_stride <- 10000000
+
+  if (isTRUE(progress)) {
+    poc_progress_log(
+      "PoC parameter search workload: ",
+      nrow(search_grid), " parameter rows × ",
+      length(c_poc_candidates), " c_poc candidates × ",
+      n_simulations, " simulations = ",
+      total_search_simulations, " trial simulations. ",
+      if (isTRUE(common_random_numbers)) {
+        "Using common random numbers within each parameter row. "
+      } else {
+        "Using independent seeds across C_poc candidates. "
+      },
+      "Progress will be printed at row/candidate boundaries and about every ",
+      poc_format_duration(progress_interval_seconds), " during long nodes.",
+      enabled = TRUE
+    )
+  }
+
+  for (i in seq_len(nrow(search_grid))) {
+    row_values <- as.list(search_grid[i, , drop = FALSE])
+    config <- base_config
+    for (name in names(row_values)) {
+      config[[name]] <- row_values[[name]]
+    }
+
+    if (isTRUE(verbose)) {
+      cat("\n=== PoC parameter search row", i, "of", nrow(search_grid), "===\n")
+      cat(
+        paste(
+          paste0(names(row_values), "=", unlist(row_values, use.names = FALSE)),
+          collapse = ", "
+        ),
+        "\n"
+      )
+    }
+    if (isTRUE(progress)) {
+      elapsed_seconds <- as.numeric(difftime(Sys.time(), search_started_at, units = "secs"))
+      completed_search_simulations <- (i - 1) * simulations_per_row
+      eta_seconds <- if (completed_search_simulations > 0) {
+        elapsed_seconds / completed_search_simulations *
+          (total_search_simulations - completed_search_simulations)
+      } else {
+        NA_real_
+      }
+      poc_progress_log(
+        "Starting search row ", i, "/", nrow(search_grid), " (",
+        paste(paste0(names(row_values), "=", unlist(row_values, use.names = FALSE)), collapse = ", "),
+        "); row workload ", simulations_per_row, " trial simulations; overall ",
+        completed_search_simulations, "/", total_search_simulations,
+        " done; elapsed ", poc_format_duration(elapsed_seconds),
+        "; ETA ", poc_format_duration(eta_seconds),
+        enabled = TRUE
+      )
+    }
+
+    row_calibration_seed <- if (is.null(calibration_seed)) {
+      NULL
+    } else {
+      calibration_seed + (i - 1) * row_seed_stride
+    }
+
+    calibration <- calibrate_c_poc(
+      null_scenario = null_scenario,
+      c_poc_candidates = c_poc_candidates,
+      n_simulations = n_simulations,
+      base_config = config,
+      target_rate = target_rate,
+      debug_early_termination = FALSE,
+      verbose = FALSE,
+      progress = progress,
+      progress_interval_seconds = progress_interval_seconds,
+      progress_prefix = paste0("[search row ", i, "/", nrow(search_grid), "]"),
+      store_simulation_results = FALSE,
+      common_random_numbers = common_random_numbers,
+      calibration_seed = row_calibration_seed
+    )
+
+    result_table <- poc_calibration_results_table(calibration)
+    selected_idx <- which(result_table$c_poc == calibration$optimal_c_poc)[1]
+    selected_row <- result_table[selected_idx, , drop = FALSE]
+
+    summary_row <- data.frame(
+      search_id = i,
+      optimal_c_poc = calibration$optimal_c_poc,
+      achieved_rate = calibration$achieved_rate,
+      target_rate = calibration$target_rate,
+      control_achieved = calibration$control_achieved,
+      completion_rate = selected_row$completion_rate,
+      poc_rate_among_completed = selected_row$poc_rate_among_completed,
+      n_simulations = n_simulations,
+      stringsAsFactors = FALSE
+    )
+    summary_row <- cbind(search_grid[i, , drop = FALSE], summary_row)
+    summary_row$ranking_gap <- if (isTRUE(calibration$control_achieved)) {
+      target_rate - calibration$achieved_rate
+    } else {
+      calibration$achieved_rate - target_rate
+    }
+
+    details[[i]] <- list(
+      search_id = i,
+      tested_parameters = row_values,
+      config = config,
+      calibration_results = calibration,
+      candidate_table = result_table,
+      calibration_seed = row_calibration_seed
+    )
+    summary_rows[[i]] <- summary_row
+
+    if (isTRUE(progress)) {
+      elapsed_seconds <- as.numeric(difftime(Sys.time(), search_started_at, units = "secs"))
+      completed_search_simulations <- i * simulations_per_row
+      eta_seconds <- elapsed_seconds / completed_search_simulations *
+        (total_search_simulations - completed_search_simulations)
+      poc_progress_log(
+        "Finished search row ", i, "/", nrow(search_grid), "; selected c_poc ",
+        calibration$optimal_c_poc, "; achieved rate ", round(calibration$achieved_rate, 3),
+        "; completion ", round(selected_row$completion_rate, 3),
+        "; control ", if (isTRUE(calibration$control_achieved)) "yes" else "no",
+        "; overall ", completed_search_simulations, "/", total_search_simulations,
+        " trial simulations done; elapsed ", poc_format_duration(elapsed_seconds),
+        "; ETA ", poc_format_duration(eta_seconds),
+        enabled = TRUE
+      )
+    }
+  }
+
+  summary_table <- do.call(rbind, summary_rows)
+  summary_table <- summary_table[order(
+    !summary_table$control_achieved,
+    summary_table$ranking_gap,
+    -summary_table$completion_rate
+  ), , drop = FALSE]
+  rownames(summary_table) <- NULL
+
+  search_results <- list(
+    summary = summary_table,
+    details = details,
+    tested_variables = names(search_grid),
+    fixed_parameters = fixed_parameters,
+    c_poc_candidates = c_poc_candidates,
+    n_simulations = n_simulations,
+    target_rate = target_rate,
+    common_random_numbers = common_random_numbers,
+    calibration_seed = calibration_seed,
+    row_seed_stride = row_seed_stride
+  )
+
+  if (isTRUE(append_log)) {
+    append_poc_parameter_search_log(
+      search_results = search_results,
+      file_path = log_file,
+      run_label = run_label
+    )
+  }
+
+  if (isTRUE(progress)) {
+    poc_progress_log(
+      "PoC parameter search complete; total elapsed ",
+      poc_format_duration(as.numeric(difftime(Sys.time(), search_started_at, units = "secs"))),
+      ". Best row: ", search_results$summary$search_id[1],
+      ", selected c_poc ", search_results$summary$optimal_c_poc[1],
+      ", achieved rate ", round(search_results$summary$achieved_rate[1], 3),
+      ", control ", if (isTRUE(search_results$summary$control_achieved[1])) "yes" else "no",
+      enabled = TRUE
+    )
+  }
+
+  search_results
 }
 
 # Create calibration curve plot

@@ -412,11 +412,11 @@ cat("✅ Multi-scenario analysis completed!\n")
 
 This notebook demonstrates the Bayesian dose-finding trial simulation with modern, publication-ready visualizations. The plots include:
 
--   **Dose-response curves** with toxicity, efficacy, and utility
--   **Posterior summaries** with modern styling
--   **Allocation analysis** showing participant distribution
--   **Method comparisons** for performance evaluation
--   **Multi-scenario analysis** for parameter sensitivity
+- **Dose-response curves** with toxicity, efficacy, and utility
+- **Posterior summaries** with modern styling
+- **Allocation analysis** showing participant distribution
+- **Method comparisons** for performance evaluation
+- **Multi-scenario analysis** for parameter sensitivity
 
 For PoC calibration and early termination calibration, see the dedicated `poc_calibration_notebook.qmd`.
 

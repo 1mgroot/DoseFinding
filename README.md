@@ -29,9 +29,9 @@ to edit files in `src/` or call backend functions directly for routine use.
 4. Click **Run All** or **Render**.
 5. Review the tables, plots, and generated files under `results/`.
 
-Each workflow notebook starts in `quick_mode <- TRUE` for a fast smoke test. Set
-`quick_mode <- FALSE` before running production-scale calibration or reporting
-final results.
+The PoC calibration notebook is prefilled for a focused validation run around
+the current candidate region. Set `quick_mode <- TRUE` when you only want a fast
+smoke test.
 
 ## Notebook Decision Guide
 
@@ -39,7 +39,9 @@ final results.
   run one adaptive trial and inspect allocation, posterior summaries, and final
   OD selection.
 - [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd):
-  calibrate `c_poc` under a null/flat scenario.
+  calibrate `c_poc` under a null/flat scenario and append a readable calibration
+  history under `results/notebook_calibration/`. Its default settings run a
+  focused validation of the current candidate region with common random numbers.
 - [notebooks/threshold_calibration_notebook.qmd](notebooks/threshold_calibration_notebook.qmd):
   calibrate `c_T`, `c_E`, and `c_I` for early termination behavior.
 - [notebooks/design_walkthrough.qmd](notebooks/design_walkthrough.qmd):
@@ -111,6 +113,9 @@ The simulation notebook runs this workflow automatically:
 The calibration notebooks use the same backend engine but expose only the
 settings users usually need: dose levels, stage count, cohort size, scenario
 probabilities, thresholds, candidate grids, target rates, and simulation count.
+The PoC calibration notebook also has an optional parameter-search switch for
+testing grids of `c_T`, `c_E`, and `c_I` while keeping the clinical scenario and
+trial structure fixed.
 
 ## Main Parameters
 
@@ -138,6 +143,20 @@ Final evidence gate:
 
 - `delta_poc`: pairwise comparison margin used by PoC.
 - `c_poc`: required PoC probability for final selection.
+
+PoC calibration tracking:
+
+- `append_history_log`: appends each PoC calibration run to a readable Markdown
+  history file.
+- `history_log_path`: location of that keep-growing history file.
+- `calibration_seed`: base seed used for reproducible PoC calibration.
+- `use_common_random_numbers`: compares `c_poc` candidates with the same
+  simulation seeds, reducing Monte Carlo noise in candidate ranking.
+- `run_parameter_search`: optional batch search over posterior credibility
+  cutoffs.
+- `parameter_search_grid`: grid of `c_T`, `c_E`, and `c_I` values to test.
+- `parameter_search_progress`: prints workload, row progress, and ETA during
+  optional batch searches.
 
 Practical rule of thumb: `p_*` values define the simulated world; `phi_*` values
 define clinical acceptability; `c_*` values define how much posterior confidence

@@ -19,15 +19,15 @@ Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` for product
 
 ### Key Features
 
--   **Null/Flat Scenario Construction**: Uses total probability formula for marginal efficacy calculation
--   **C_poc Calibration**: Finds optimal threshold to achieve \~10% Type I error rate
+- **Null/Flat Scenario Construction**: Uses total probability formula for marginal efficacy calculation
+- **C_poc Calibration**: Finds optimal threshold to achieve \~10% Type I error rate
 
 ## User Settings
 
 Edit this chunk only for routine use.
 
 ```{r user_settings}
-quick_mode <- TRUE
+quick_mode <- FALSE
 
 poc_settings <- list(
   dose_levels = c(1, 2, 3, 4, 5),
@@ -38,19 +38,48 @@ poc_settings <- list(
   null_p_T = 0.05,
   tox_upper = 0.30,
   phi_T = 0.30,
-  c_T = 0.2,
+  c_T = 0.55,
   phi_E = 0.25,
-  c_E = 0.5,
+  c_E = 0.45,
   phi_I = 0.20,
-  c_I = 0.35,
+  c_I = 0.70,
   delta_poc = 0.8,
   target_rate = 0.10,
+  calibration_seed = 10000,
+  use_common_random_numbers = TRUE,
   c_poc_candidates = if (quick_mode) {
     c(0.8, 0.9, 0.95)
   } else {
-    c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95)
+    c(0.995, 0.997, 0.998, 0.999, 0.9995, 1.0)
   },
-  n_simulations = if (quick_mode) 5 else 1000
+  n_simulations = if (quick_mode) 5 else 500,
+  append_history_log = TRUE,
+  history_log_path = "results/notebook_calibration/poc_calibration_history.md",
+  run_parameter_search = TRUE,
+  parameter_search_grid = if (quick_mode) {
+    expand.grid(
+      c_T = c(0.2, 0.5),
+      c_E = c(0.5, 0.8),
+      c_I = c(0.35, 0.65),
+      KEEP.OUT.ATTRS = FALSE
+    )
+  } else {
+    data.frame(
+      c_T = c(0.55, 0.55, 0.55),
+      c_E = c(0.45, 0.50, 0.55),
+      c_I = c(0.70, 0.70, 0.70)
+    )
+  },
+  parameter_search_c_poc_candidates = if (quick_mode) {
+    c(0.9, 0.95, 0.99)
+  } else {
+    c(0.995, 0.997, 0.998, 0.999, 0.9995, 1.0)
+  },
+  parameter_search_n_simulations = if (quick_mode) 3 else 500,
+  parameter_search_seed = 10000,
+  parameter_search_log_path = "results/notebook_calibration/poc_parameter_search_history.md",
+  parameter_search_progress = TRUE,
+  parameter_search_progress_seconds = if (quick_mode) 60 else 300
 )
 ```
 
@@ -90,18 +119,18 @@ source("src/optimization/poc_calibration.R")
 **Two different types of parameters with clear naming:**
 
 1.  **`null_p_*`** = True probability values in the NULL scenario (used to generate data)
-    -   `null_p_I` = True immune response rate (e.g., 0.25)
-    -   `null_p_E` = True efficacy rate (e.g., 0.30)
-    -   `null_p_T` = True toxicity rate (e.g., 0.05)
+    - `null_p_I` = True immune response rate (e.g., 0.25)
+    - `null_p_E` = True efficacy rate (e.g., 0.30)
+    - `null_p_T` = True toxicity rate (e.g., 0.05)
 2.  **`phi_*`** = Admissibility thresholds (used for decision making)
-    -   `phi_I` = Immune response threshold for admissibility (e.g., 0.20)
-    -   `phi_E` = Efficacy threshold for admissibility (e.g., 0.25)
-    -   `phi_T` = Toxicity threshold for admissibility (e.g., 0.30)
+    - `phi_I` = Immune response threshold for admissibility (e.g., 0.20)
+    - `phi_E` = Efficacy threshold for admissibility (e.g., 0.25)
+    - `phi_T` = Toxicity threshold for admissibility (e.g., 0.30)
 
 **Example**: We set `null_p_I = 0.20` (true value) = `phi_I = 0.20` (threshold) for a true null scenario.
 
 | Parameter Type | Immune | Efficacy | Toxicity | Purpose |
-|---------------|---------------|---------------|---------------|---------------|
+|----|----|----|----|----|
 | **Null Scenario** | null_p_I = 0.20 | null_p_E = 0.25 | null_p_T = 0.05 | Generate data |
 | **Thresholds** | phi_I = 0.20 | phi_E = 0.25 | phi_T = 0.30 | Make decisions |
 | **Relationship** | null_p_I = phi_I | null_p_E = phi_E | null_p_T \< phi_T | Null scenario |
@@ -165,6 +194,13 @@ cat("\nOther parameters:\n")
 cat("  Quick mode =", quick_mode, "\n")
 cat("  Simulations =", calibration_params$n_simulations, "\n")
 cat("  C_poc candidates =", paste(calibration_params$c_poc_candidates, collapse = ", "), "\n")
+cat("  Calibration seed =", poc_settings$calibration_seed, "\n")
+cat("  Common random numbers =", poc_settings$use_common_random_numbers, "\n")
+cat("  Append history log =", poc_settings$append_history_log, "\n")
+cat("  History log path =", poc_settings$history_log_path, "\n")
+cat("  Run optional parameter search =", poc_settings$run_parameter_search, "\n")
+cat("  Parameter search progress log =", poc_settings$parameter_search_progress, "\n")
+cat("  Parameter search progress interval =", poc_settings$parameter_search_progress_seconds, "seconds\n")
 ```
 
 ## Null/Flat Scenario Construction
@@ -196,15 +232,16 @@ print(round(null_scenario$p_YE_given_I, 3))
 
 # Verify marginal efficacy calculation
 cat("\nMarginal Efficacy Verification:\n")
-for (dose in 1:5) {
-  marginal_eff <- null_scenario$p_YE_given_I[dose, 1] * (1 - null_scenario$p_YI[dose]) + 
-                  null_scenario$p_YE_given_I[dose, 2] * null_scenario$p_YI[dose]
-  cat("Dose", dose, "marginal efficacy:", round(marginal_eff, 3), "\n")
+dose_labels <- poc_settings$dose_levels
+for (dose_idx in seq_along(dose_labels)) {
+  marginal_eff <- null_scenario$p_YE_given_I[dose_idx, 1] * (1 - null_scenario$p_YI[dose_idx]) +
+                  null_scenario$p_YE_given_I[dose_idx, 2] * null_scenario$p_YI[dose_idx]
+  cat("Dose", dose_labels[dose_idx], "marginal efficacy:", round(marginal_eff, 3), "\n")
 }
 
 # Create visualization of null scenario
 null_plot_data <- data.frame(
-  Dose = 1:5,
+  Dose = dose_labels,
   Immune_Response = null_scenario$p_YI,
   Toxicity_I0 = null_scenario$p_YT_given_I[, 1],
   Toxicity_I1 = null_scenario$p_YT_given_I[, 2],
@@ -254,7 +291,9 @@ calibration_results <- calibrate_c_poc(
   base_config = trial_config,
   target_rate = calibration_params$target_rate,
   debug_early_termination = FALSE,
-  max_debug_cases_per_candidate = 2
+  max_debug_cases_per_candidate = 2,
+  common_random_numbers = poc_settings$use_common_random_numbers,
+  calibration_seed = poc_settings$calibration_seed
 )
 
 end_time <- Sys.time()
@@ -294,6 +333,49 @@ generate_calibration_report(
 )
 cat("Report generated successfully!\n")
 cat("View the full report at:", report_path, "\n")
+
+if (isTRUE(poc_settings$append_history_log)) {
+  history_path <- append_poc_calibration_log(
+    calibration_results = calibration_results,
+    null_scenario = null_scenario,
+    base_config = trial_config,
+    file_path = poc_settings$history_log_path,
+    run_label = if (quick_mode) "quick mode" else "production mode"
+  )
+  cat("Calibration history appended to:", history_path, "\n")
+}
+```
+
+## Optional Parameter Search
+
+This section is skipped unless `run_parameter_search <- TRUE` in **User Settings**. It tests a grid of `c_T`, `c_E`, and `c_I` values while keeping the trial structure, clinical thresholds, utility table, and null scenario fixed.
+
+```{r optional_parameter_search}
+#| echo: false
+if (isTRUE(poc_settings$run_parameter_search)) {
+  cat("Starting optional PoC parameter search...\n")
+  search_results <- run_poc_parameter_search(
+    null_scenario = null_scenario,
+    base_config = trial_config,
+    search_grid = poc_settings$parameter_search_grid,
+    c_poc_candidates = poc_settings$parameter_search_c_poc_candidates,
+    n_simulations = poc_settings$parameter_search_n_simulations,
+    target_rate = calibration_params$target_rate,
+    log_file = poc_settings$parameter_search_log_path,
+    append_log = TRUE,
+    run_label = if (quick_mode) "quick mode" else "production mode",
+    verbose = TRUE,
+    progress = poc_settings$parameter_search_progress,
+    progress_interval_seconds = poc_settings$parameter_search_progress_seconds,
+    common_random_numbers = poc_settings$use_common_random_numbers,
+    calibration_seed = poc_settings$parameter_search_seed
+  )
+  cat("\nTop ranked parameter settings:\n")
+  print(head(search_results$summary, 10))
+  cat("\nParameter search history appended to:", poc_settings$parameter_search_log_path, "\n")
+} else {
+  cat("Optional parameter search skipped. Set run_parameter_search <- TRUE in User Settings to run it.\n")
+}
 ```
 
 ## View Report Summary
