@@ -158,6 +158,12 @@ PoC calibration tracking:
 - `parameter_search_progress`: prints workload, row progress, and ETA during
   optional batch searches.
 
+Current calibrated defaults:
+
+- `c_T = 0.55`, `c_E = 0.50`, `c_I = 0.70`
+- `c_poc = 0.995`, `delta_poc = 0.8`
+- focused CRN validation target: null/flat PoC detection near `10%`
+
 Practical rule of thumb: `p_*` values define the simulated world; `phi_*` values
 define clinical acceptability; `c_*` values define how much posterior confidence
 is required before the trial acts.

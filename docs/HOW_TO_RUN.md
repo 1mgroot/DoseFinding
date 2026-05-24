@@ -128,6 +128,12 @@ PoC settings:
 - `parameter_search_progress_seconds`: approximate time interval for extra
   "still running" messages during long search nodes.
 
+Current calibrated defaults:
+
+- `c_T = 0.55`, `c_E = 0.50`, `c_I = 0.70`
+- `c_poc = 0.995`, `delta_poc = 0.8`
+- The focused PoC search is set up to target about `10%` null/flat PoC detection.
+
 Simulation truth:
 
 - `p_YI`: true immune response probabilities by dose.

@@ -40,7 +40,7 @@ poc_settings <- list(
   phi_T = 0.30,
   c_T = 0.55,
   phi_E = 0.25,
-  c_E = 0.45,
+  c_E = 0.50,
   phi_I = 0.20,
   c_I = 0.70,
   delta_poc = 0.8,

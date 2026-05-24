@@ -53,14 +53,14 @@
 8) 末尾做最终选择 + PoC (main.R L148-L167).
 
 ## 6. 配置与参数 / Configuration Reality
-- 默认 config：5 剂量，5 阶段，cohort=15，φ_T=0.35/c_T=0.5，φ_E=0.1/c_E=0.5，φ_I=0.2/c_I=0.5，c_poc=0.9，delta_poc=0.8，utility_table 如定义。
-  证据：`src/core/config.R L8-L64`.
+- 当前校准默认值：5 剂量，5 阶段，cohort=15，φ_T=0.30/c_T=0.55，φ_E=0.25/c_E=0.50，φ_I=0.20/c_I=0.70，c_poc=0.995，delta_poc=0.8，utility_table 如定义。
+  证据：`src/core/config.R` 与 notebook User Settings。
 - 笔记本 / 校准：
-  - `simulation_notebook.qmd`：5 剂量、5 阶段、cohort=15，c_T=c_E=c_I=0.5，φ_T=0.35，φ_E=0.1 (simulation_notebook.qmd L37-L98) — **与默认配置对齐**。
-  - `poc_calibration_notebook.qmd`：5 剂量，c_T=c_E=0.3，c_I=0.2，null 情景校准，阈值更严格以控制 Type I 错误率 (poc_calibration_notebook.qmd L62-L120)。
-  - `src/optimization/poc_calibration.R` base_config：5 剂量、校准专用阈值 (c_T=c_E=c_I=0.3)。
+  - `simulation_notebook.qmd`：默认使用当前校准值 c_T=0.55、c_E=0.50、c_I=0.70、c_poc=0.995。
+  - `poc_calibration_notebook.qmd`：默认进行 focused CRN validation；参数搜索区域围绕 c_T=0.55、c_E=0.45/0.50/0.55、c_I=0.70，目标 null/flat PoC detection 约 10%。
+  - `threshold_calibration_notebook.qmd`：候选范围围绕当前校准值，用于重新检查早停阈值。
 - 参数优化：`parameter_optimization.R` 测试多组参数组合：φ_T=[0.25-0.45], φ_E=[0.05-0.25], φ_I=[0.15-0.35], c_T/c_E/c_I=[0.6-0.95]。
-- 比较性：默认配置与 simulation notebook 已对齐；校准脚本使用适合 Type I 错误控制的严格阈值。
+- 比较性：默认配置、simulation notebook、PoC calibration notebook 已对齐；校准脚本仍可用于重新探索 Type I 错误控制。
 
 ## 7. 主要文件与函数角色 / File-Level Roles
 - `src/core/main.R`: orchestrates full trial workflow; returns all artifacts (run_trial_simulation L15-L167).
