@@ -838,7 +838,7 @@ This notebook uses the following calibration approach:
 ### A.2 Scenario Design Principles
 
 | Scenario | Purpose | T (increasing) | E (increasing) | I (increasing) |
-|---------------|---------------|---------------|---------------|---------------|
+|----|----|----|----|----|
 | High Toxicity | c_T calibration | Elevated \[0.32→0.50\] | Meets \[0.30→0.50\] | Meets \[0.25→0.45\] |
 | Low Efficacy | c_E calibration | Safe \[0.10→0.26\] | Low \[0.12→0.22\] | Meets \[0.25→0.45\] |
 | Low Immune | c_I calibration | Safe \[0.10→0.26\] | Meets \[0.30→0.50\] | Low \[0.08→0.18\] |
