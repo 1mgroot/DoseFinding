@@ -78,6 +78,53 @@ test_that("calibrate_c_poc produces valid calibration results", {
   expect_equal(results$n_simulations, n_simulations)
 })
 
+test_that("calibrate_c_poc reuses simulation seeds across c_poc candidates", {
+  original_runner <- get("run_single_calibration_simulation", envir = .GlobalEnv)
+  on.exit(assign("run_single_calibration_simulation", original_runner, envir = .GlobalEnv), add = TRUE)
+
+  calls <- data.frame(c_poc = numeric(), seed = numeric())
+  assign(
+    "run_single_calibration_simulation",
+    function(config, scenario_params, seed = NULL) {
+      calls <<- rbind(calls, data.frame(c_poc = config$c_poc, seed = seed))
+      list(
+        metrics = list(
+          terminated_early = FALSE,
+          termination_stage = NA_integer_,
+          final_od = 1L,
+          poc_validated = seed %% 2 == 0,
+          poc_probability = 0.5
+        ),
+        debug_info = list(posterior_summaries = NULL),
+        success = TRUE
+      )
+    },
+    envir = .GlobalEnv
+  )
+
+  results <- calibrate_c_poc(
+    null_scenario = create_default_null_scenario(flat_scenario_config),
+    target_rate = 0.10,
+    base_config = flat_scenario_config,
+    n_simulations = 3,
+    c_poc_candidates = c(0.90, 0.95),
+    verbose = FALSE,
+    store_simulation_results = FALSE,
+    common_random_numbers = TRUE,
+    calibration_seed = 500
+  )
+
+  expect_equal(calls$c_poc, c(rep(0.90, 3), rep(0.95, 3)))
+  expect_equal(calls$seed, c(501, 502, 503, 501, 502, 503))
+  expect_true(results$common_random_numbers)
+  expect_equal(results$calibration_seed, 500)
+  expect_true(all(vapply(
+    results$calibration_results,
+    function(candidate) isTRUE(candidate$common_random_numbers),
+    logical(1)
+  )))
+})
+
 # Test 3: validate_calibration function
 test_that("validate_calibration produces valid validation results", {
   # Create mock calibration results
@@ -208,4 +255,121 @@ test_that("calibration functions handle edge cases", {
     n_simulations = 0,
     c_poc_candidates = c(0.8)
   ))
+})
+
+test_that("PoC calibration history log appends readable run summaries", {
+  test_file <- tempfile("poc-calibration-history-", fileext = ".md")
+  on.exit(unlink(test_file), add = TRUE)
+
+  mock_results <- list(
+    calibration_results = data.frame(
+      c_poc = c(0.90, 0.99),
+      poc_detection_rate = c(0.22, 0.12),
+      poc_detection_rate_lower = c(0.15, 0.07),
+      poc_detection_rate_upper = c(0.30, 0.20),
+      poc_se = c(0.04, 0.03),
+      completion_rate = c(0.80, 0.75),
+      poc_rate_among_completed = c(0.275, 0.16),
+      n_simulations = c(100, 100)
+    ),
+    optimal_c_poc = 0.99,
+    target_rate = 0.10,
+    achieved_rate = 0.12,
+    optimal_rate = 0.12,
+    control_achieved = FALSE,
+    c_poc_candidates = c(0.90, 0.99),
+    n_simulations = 100,
+    common_random_numbers = TRUE,
+    calibration_seed = 123
+  )
+
+  null_scenario <- create_null_flat_scenario(n_doses = 2)
+  base_config <- within(flat_scenario_config, {
+    dose_levels <- c(1, 2)
+  })
+
+  append_poc_calibration_log(
+    calibration_results = mock_results,
+    null_scenario = null_scenario,
+    base_config = base_config,
+    file_path = test_file,
+    run_label = "test run 1"
+  )
+  append_poc_calibration_log(
+    calibration_results = mock_results,
+    null_scenario = null_scenario,
+    base_config = base_config,
+    file_path = test_file,
+    run_label = "test run 2"
+  )
+
+  log_lines <- readLines(test_file)
+  expect_equal(sum(grepl("^## ", log_lines)), 2)
+  expect_true(any(grepl("CONTROL NOT ACHIEVED", log_lines, fixed = TRUE)))
+  expect_true(any(grepl("| c_poc | PoC detection |", log_lines, fixed = TRUE)))
+  expect_true(any(grepl("test run 2", log_lines, fixed = TRUE)))
+})
+
+test_that("PoC parameter search validates grids and returns ranked summaries", {
+  test_file <- tempfile("poc-parameter-search-", fileext = ".md")
+  on.exit(unlink(test_file), add = TRUE)
+
+  null_scenario <- create_default_null_scenario(flat_scenario_config)
+  search_grid <- data.frame(
+    c_T = c(0.20, 0.50),
+    c_E = c(0.50, 0.50),
+    c_I = c(0.35, 0.35)
+  )
+
+  search_results <- run_poc_parameter_search(
+    null_scenario = null_scenario,
+    base_config = flat_scenario_config,
+    search_grid = search_grid,
+    c_poc_candidates = c(0.95),
+    n_simulations = 1,
+    target_rate = 0.10,
+    log_file = test_file,
+    append_log = TRUE,
+    verbose = FALSE
+  )
+
+  expect_true(file.exists(test_file))
+  expect_true(is.list(search_results))
+  expect_true(is.data.frame(search_results$summary))
+  expect_equal(nrow(search_results$summary), nrow(search_grid))
+  expect_equal(length(search_results$details), nrow(search_grid))
+  expect_true(search_results$common_random_numbers)
+  expect_equal(search_results$calibration_seed, 10000)
+  expect_equal(search_results$details[[1]]$calibration_seed, 10000)
+  expect_true(all(c(
+    "search_id", "optimal_c_poc", "achieved_rate",
+    "control_achieved", "completion_rate", "ranking_gap"
+  ) %in% names(search_results$summary)))
+
+  expect_error(
+    run_poc_parameter_search(
+      null_scenario = null_scenario,
+      base_config = flat_scenario_config,
+      search_grid = data.frame(cohort_size = 15),
+      c_poc_candidates = c(0.95),
+      n_simulations = 1,
+      append_log = FALSE,
+      verbose = FALSE
+    ),
+    "Invalid variables"
+  )
+
+  expect_error(
+    run_poc_parameter_search(
+      null_scenario = null_scenario,
+      base_config = flat_scenario_config,
+      search_grid = search_grid,
+      c_poc_candidates = c(0.95),
+      n_simulations = 1,
+      append_log = FALSE,
+      verbose = FALSE,
+      common_random_numbers = "yes"
+    ),
+    "common_random_numbers"
+  )
 })

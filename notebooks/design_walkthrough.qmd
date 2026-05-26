@@ -1,10 +1,20 @@
 ---
 title: "Design Walkthrough: From Theory to Implementation"
-format: pdf
+format:
+  html:
+    toc: true
+    code-fold: true
+  pdf: default
+execute:
+  echo: false
+  message: false
+  warning: false
 editor: visual
 ---
 
 ## Introduction
+
+This notebook is an explanatory walkthrough, not a routine run notebook. Open it when you want to understand how the design maps to the implementation; routine users should start with `simulation_notebook.qmd`, then use the calibration notebooks as needed.
 
 This notebook demonstrates that our Bayesian dose-finding trial implementation fully realizes the mathematical design specified in `Design1.tex` and `Design2.tex`. We walk through each component of the design, showing:
 

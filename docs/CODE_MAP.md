@@ -96,11 +96,6 @@ This document outlines the structure and purpose of each file in the DoseFinding
 
 ## Documentation (`docs/`)
 -   **`README.md`**: Documentation index and recommended reading order
--   **`STAT_METHODS_AS_BUILT.md`**: Statistical methods as implemented (code-first, Chinese/English)
-    -   Data generation (Gumbel copula)
-    -   Posterior & isotonic constraints (PAVA/BIVISO)
-    -   Decision logic (utility, admissibility, PoC)
-    -   Calibration & optimization methodology
 -   **`CODE_MAP.md`**: This file - file structure and organization
 -   **`HOW_TO_RUN.md`**: Usage instructions and examples
 -   **`Design1.tex`, `Design2.tex`**: LaTeX design documents

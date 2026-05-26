@@ -10,11 +10,11 @@ trial_config <- list(
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
   cohort_size = 15,
-  phi_T = 0.35, c_T = 0.5,   # Toxicity threshold and probability cutoff
-  phi_E = 0.1,  c_E = 0.5,   # Efficacy threshold and probability cutoff
-  phi_I = 0.20, c_I = 0.5,   # Immune response threshold and probability cutoff
+  phi_T = 0.30, c_T = 0.55,  # Toxicity threshold and probability cutoff
+  phi_E = 0.25, c_E = 0.50,  # Efficacy threshold and probability cutoff
+  phi_I = 0.20, c_I = 0.70,  # Immune response threshold and probability cutoff
   # PoC parameters
-  c_poc = 0.9,
+  c_poc = 0.995,
   delta_poc = 0.8,  # Threshold for PoC comparison
   # Early termination parameters
   enable_early_termination = TRUE,
