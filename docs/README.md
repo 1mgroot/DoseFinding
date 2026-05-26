@@ -6,16 +6,13 @@ simulation framework.
 ## Recommended Reading Order
 
 1. `HOW_TO_RUN.md`
-2. `STAT_METHODS_AS_BUILT.md`
-3. `CODE_MAP.md`
-4. `Design1.tex` and `Design2.tex`
+2. `CODE_MAP.md`
+3. `Design1.tex` and `Design2.tex`
 
 ## Document Map
 
 - `HOW_TO_RUN.md`: how to run simulations, calibration, optimization, and
   notebooks.
-- `STAT_METHODS_AS_BUILT.md`: statistical methods as implemented in the current
-  code.
 - `CODE_MAP.md`: file-by-file code organization.
 - `Design1.tex`: original model-layer design, focused on immune response,
   toxicity, efficacy, and their probability structure.
@@ -26,6 +23,5 @@ simulation framework.
 ## Source of Truth
 
 If documentation and code disagree, treat the current code as the implementation
-source of truth. `STAT_METHODS_AS_BUILT.md` describes the implemented method;
-`Design1.tex` and `Design2.tex` are design drafts and may include ideas that are
-not implemented.
+source of truth. `Design1.tex` and `Design2.tex` are design drafts and may
+include ideas that are not implemented.

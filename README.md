@@ -176,8 +176,6 @@ For notebook smoke testing, open each notebook in RStudio with
 
 - [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md): detailed notebook workflow and
   troubleshooting.
-- [docs/STAT_METHODS_AS_BUILT.md](docs/STAT_METHODS_AS_BUILT.md): statistical
-  method as implemented in the current code.
 - [docs/CODE_MAP.md](docs/CODE_MAP.md): file-by-file code organization.
 - [docs/Design1.tex](docs/Design1.tex): original model-layer design draft.
 - [docs/Design2.tex](docs/Design2.tex): original decision-layer design draft.
