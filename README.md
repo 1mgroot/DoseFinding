@@ -30,9 +30,9 @@ Current calibrated defaults:
 - `c_poc = 0.995`
 - `delta_poc = 0.8`
 
-The PoC calibration notebook is set up for a focused null/flat validation run
-targeting about `10%` null PoC detection, using common random numbers to reduce
-Monte Carlo noise when comparing `c_poc` candidates.
+The threshold calibration notebook is set up to tune `c_T`, `c_I`, and `c_E`
+separately before PoC calibration. The PoC calibration notebook then treats
+those values as fixed inputs while targeting about `10%` null PoC detection.
 
 ## Quick Start
 
@@ -53,13 +53,13 @@ run one adaptive trial and inspect allocation, posterior summaries, early
 termination, PoC validation, and final OD selection.
 
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)
-to calibrate `c_poc` under a null/flat scenario. This notebook also appends a
-readable calibration history under `results/notebook_calibration/` and includes
-an optional parameter search over `c_T`, `c_E`, and `c_I`.
+to calibrate `c_poc` under a null/flat scenario. This notebook appends a
+readable calibration history under `results/notebook_calibration/`.
 
 Use [notebooks/threshold_calibration_notebook.qmd](notebooks/threshold_calibration_notebook.qmd)
-to tune `c_T`, `c_E`, and `c_I` for early termination behavior under unfavorable
-scenarios.
+to tune `c_T`, `c_I`, and `c_E` separately before PoC calibration. It uses
+endpoint-specific unfavorable scenarios and selects values by targeting the
+final admissible set missing rate.
 
 Use [notebooks/design_walkthrough.qmd](notebooks/design_walkthrough.qmd) to
 understand how the design documents map to the implementation. It is
@@ -68,10 +68,11 @@ explanatory and not required for routine runs.
 Recommended order for a new analysis:
 
 1. Run the simulation notebook in quick mode.
-2. Run PoC calibration in quick mode.
-3. Run PoC calibration in production mode.
-4. Run threshold calibration if early stopping needs tuning.
-5. Return to the simulation notebook with the calibrated values.
+2. Run threshold calibration in quick mode.
+3. Run threshold calibration in production mode if the quick run looks right.
+4. Copy the calibrated `c_T`, `c_I`, and `c_E` into PoC calibration.
+5. Run PoC calibration in quick mode, then production mode.
+6. Return to the simulation notebook with the calibrated values.
 
 ## Main Workflow
 

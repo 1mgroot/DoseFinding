@@ -41,8 +41,8 @@ test_that("workflow notebooks keep backend calls outside the user settings chunk
     "source\\s*\\(",
     "run_trial_simulation\\s*\\(",
     "calibrate_c_poc\\s*\\(",
-    "run_poc_parameter_search\\s*\\(",
-    "run_quick_early_termination_calibration\\s*\\("
+    "calibrate_separate_thresholds\\s*\\(",
+    "run_poc_parameter_search\\s*\\("
   )
 
   for (path in workflow_notebooks) {
@@ -86,7 +86,7 @@ test_that("PoC calibration notebook defaults protect the current calibrated run"
   expect_true(trial_config$c_poc %in% poc_settings$c_poc_candidates)
   expect_true(trial_config$c_poc %in% poc_settings$parameter_search_c_poc_candidates)
   expect_true(poc_settings$append_history_log)
-  expect_true(poc_settings$run_parameter_search)
+  expect_false(poc_settings$run_parameter_search)
   expect_true(poc_settings$use_common_random_numbers)
   expect_equal(poc_settings$calibration_seed, 10000)
   expect_equal(poc_settings$parameter_search_seed, poc_settings$calibration_seed)
@@ -106,7 +106,7 @@ test_that("threshold calibration notebook includes calibrated defaults in its gr
   settings <- evaluate_user_settings(workflow_notebooks[["threshold_calibration"]])
   threshold_settings <- settings$threshold_settings
 
-  expect_false(settings$quick_mode)
+  expect_true(settings$quick_mode)
   expect_equal(threshold_settings$dose_levels, trial_config$dose_levels)
   expect_equal(threshold_settings$cohort_size, trial_config$cohort_size)
   expect_equal(threshold_settings$phi_T, trial_config$phi_T)
@@ -114,9 +114,19 @@ test_that("threshold calibration notebook includes calibrated defaults in its gr
   expect_equal(threshold_settings$phi_I, trial_config$phi_I)
   expect_equal(threshold_settings$c_poc, trial_config$c_poc)
   expect_equal(threshold_settings$delta_poc, trial_config$delta_poc)
+  expect_equal(threshold_settings$rho0, trial_config$rho0)
+  expect_equal(threshold_settings$rho1, trial_config$rho1)
+  expect_equal(threshold_settings$c_T_start, trial_config$c_T)
+  expect_equal(threshold_settings$c_E_start, trial_config$c_E)
+  expect_equal(threshold_settings$c_I_start, trial_config$c_I)
   expect_true(trial_config$c_T %in% threshold_settings$c_T_candidates)
   expect_true(trial_config$c_E %in% threshold_settings$c_E_candidates)
   expect_true(trial_config$c_I %in% threshold_settings$c_I_candidates)
-  expect_equal(threshold_settings$n_sim_per_candidate, 500)
-  expect_equal(threshold_settings$validation_n_sim, 500)
+  expect_equal(threshold_settings$target_missing_range, c(0.80, 0.90))
+  expect_equal(threshold_settings$high_tox_p_I, 0.30)
+  expect_equal(threshold_settings$high_tox_marginal_p_T, c(0.35, 0.60))
+  expect_equal(threshold_settings$low_immune_p_I, c(0.10, 0.15))
+  expect_equal(threshold_settings$low_eff_marginal_p_E, c(0.10, 0.20))
+  expect_equal(threshold_settings$n_sim_per_candidate, 5)
+  expect_true(threshold_settings$append_history_log)
 })

@@ -34,11 +34,28 @@ Only edit the **User Settings** chunk. Common settings include dose levels,
 stage count, cohort size, thresholds, posterior credibility cutoffs, PoC values,
 scenario probabilities, and seed.
 
-### 2. Calibrate PoC
+### 2. Calibrate Thresholds
+
+Use `notebooks/threshold_calibration_notebook.qmd`.
+
+This notebook calibrates `c_T`, `c_I`, and `c_E` separately before PoC
+calibration. It generates:
+
+- endpoint-specific unfavorable scenarios
+- candidate-level final admissible set missing rates
+- recommended `c_T`, `c_I`, and `c_E`
+- readable calibration history under `results/threshold_calibration/`
+- saved RDS and CSV summaries under `results/threshold_calibration/`
+
+The default target is a final admissible set missing rate of 80%-90%. Set
+`quick_mode <- TRUE` when you only want a fast smoke test.
+
+### 3. Calibrate PoC
 
 Use `notebooks/poc_calibration_notebook.qmd`.
 
-This notebook calibrates `c_poc` under a null/flat scenario. It generates:
+This notebook calibrates `c_poc` under a null/flat scenario after `c_T`, `c_I`,
+and `c_E` have been selected. It generates:
 
 - calibration curve
 - candidate-level PoC detection rates
@@ -48,28 +65,11 @@ This notebook calibrates `c_poc` under a null/flat scenario. It generates:
 
 The notebook is prefilled for a focused validation run around the current
 candidate region. It uses common random numbers so `c_poc` candidates are
-compared on the same simulated trial streams. Set `quick_mode <- TRUE` when you
-only want a fast smoke test.
+compared on the same simulated trial streams.
 
-If no tested `c_poc` controls the null PoC detection rate, that usually means
-the current candidate grid or tuning cutoffs are not strict enough. First test
-higher `c_poc` values. If control still fails, set `run_parameter_search <- TRUE`
-to test grids of `c_T`, `c_E`, and `c_I`. Keep the dose levels, stage count,
-cohort size, clinical `phi_*` thresholds, utility table, and null scenario fixed
-unless you are deliberately changing the study design.
-
-### 3. Calibrate Early Termination Thresholds
-
-Use `notebooks/threshold_calibration_notebook.qmd`.
-
-This notebook calibrates:
-
-- `c_T` for toxicity-driven early stopping
-- `c_E` for efficacy-driven early stopping
-- `c_I` for immune-response-driven early stopping
-
-It reports recommended thresholds, early stop rates, validation summaries, and a
-saved report under `results/threshold_calibration/`.
+If no tested `c_poc` controls the null PoC detection rate, first test higher
+`c_poc` values. The optional PoC parameter search is now an advanced diagnostic,
+not the standard way to tune `c_T`, `c_I`, or `c_E`.
 
 ### 4. Understand the Design
 
@@ -110,6 +110,8 @@ Posterior credibility cutoffs:
 - `c_T`: required confidence that toxicity is acceptable.
 - `c_E`: required confidence that efficacy is acceptable.
 - `c_I`: required confidence that immune response is acceptable.
+- `target_missing_range`: threshold calibration target for the final admissible
+  set missing rate under endpoint-specific unfavorable scenarios.
 
 PoC settings:
 
@@ -121,7 +123,8 @@ PoC settings:
 - `calibration_seed`: base seed for reproducible PoC calibration.
 - `use_common_random_numbers`: compares `c_poc` candidates with the same
   simulation seeds so rankings are less noisy.
-- `run_parameter_search`: optional batch search over `c_T`, `c_E`, and `c_I`.
+- `run_parameter_search`: advanced diagnostic batch search over fixed `c_T`,
+  `c_E`, and `c_I` grids. This is not the standard threshold calibration path.
 - `parameter_search_grid`: cutoff grid used by the optional search.
 - `parameter_search_progress`: whether to print workload, row progress, and ETA
   while the optional search is running.
@@ -150,7 +153,8 @@ If calibration takes too long, keep `quick_mode <- TRUE` while checking setup.
 Use production mode only when the notebook runs successfully in quick mode.
 
 If a trial terminates early too often, review `phi_T`, `phi_E`, `phi_I`,
-`c_T`, `c_E`, and `c_I` in the notebook's **User Settings** chunk.
+`c_T`, `c_E`, and `c_I` in the notebook's **User Settings** chunk, then rerun
+the threshold calibration notebook before recalibrating `c_poc`.
 
 If PoC passes too often in null/flat scenarios, increase `c_poc`, raise the
 candidate grid, or revisit the protocol's PoC target definition.

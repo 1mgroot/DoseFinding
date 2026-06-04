@@ -418,6 +418,6 @@ This notebook demonstrates the Bayesian dose-finding trial simulation with moder
 - **Method comparisons** for performance evaluation
 - **Multi-scenario analysis** for parameter sensitivity
 
-For PoC calibration and early termination calibration, see the dedicated `poc_calibration_notebook.qmd`.
+For threshold calibration and PoC calibration, see the dedicated `threshold_calibration_notebook.qmd` and `poc_calibration_notebook.qmd`.
 
 All plots use consistent color schemes and professional styling suitable for academic publications and regulatory submissions.
