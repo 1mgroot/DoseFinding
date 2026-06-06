@@ -60,20 +60,7 @@ poc_settings <- list(
   append_history_log = TRUE,
   history_log_path = "results/notebook_calibration/poc_calibration_history.md",
   run_parameter_search = FALSE,
-  parameter_search_grid = if (quick_mode) {
-    expand.grid(
-      c_T = c(0.2, 0.5),
-      c_E = c(0.5, 0.8),
-      c_I = c(0.35, 0.65),
-      KEEP.OUT.ATTRS = FALSE
-    )
-  } else {
-    data.frame(
-      c_T = c(0.55, 0.55, 0.55),
-      c_E = c(0.45, 0.50, 0.55),
-      c_I = c(0.70, 0.70, 0.70)
-    )
-  },
+  parameter_search_grid = NULL,
   parameter_search_c_poc_candidates = if (quick_mode) {
     c(0.9, 0.95, 0.99)
   } else {
@@ -196,6 +183,27 @@ if (isTRUE(poc_settings$use_threshold_calibration_results)) {
   }
 }
 
+if (is.null(poc_settings$parameter_search_grid)) {
+  poc_settings$parameter_search_grid <- data.frame(
+    c_T = poc_settings$c_T,
+    c_E = poc_settings$c_E,
+    c_I = poc_settings$c_I
+  )
+} else {
+  required_grid_columns <- c("c_T", "c_E", "c_I")
+  missing_grid_columns <- setdiff(
+    required_grid_columns,
+    names(poc_settings$parameter_search_grid)
+  )
+  if (length(missing_grid_columns) > 0) {
+    stop(
+      "parameter_search_grid is missing columns: ",
+      paste(missing_grid_columns, collapse = ", ")
+    )
+  }
+  poc_settings$parameter_search_grid <- poc_settings$parameter_search_grid[, required_grid_columns]
+}
+
 threshold_input_table <- data.frame(
   parameter = c("c_T", "c_I", "c_E"),
   current_value = c(poc_settings$c_T, poc_settings$c_I, poc_settings$c_E),
@@ -209,6 +217,10 @@ threshold_input_table <- data.frame(
 
 kable(threshold_input_table, caption = "Threshold values used for PoC calibration")
 cat("\nThreshold source:", threshold_source, "\n")
+cat(
+  "Optional parameter search grid uses these calibrated/fallback thresholds",
+  "unless User Settings overrides it.\n"
+)
 ```
 
 ```{r config}

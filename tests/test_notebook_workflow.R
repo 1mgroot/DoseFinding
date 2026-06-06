@@ -97,14 +97,7 @@ test_that("PoC calibration notebook defaults protect the current calibrated run"
   expect_equal(poc_settings$parameter_search_seed, poc_settings$calibration_seed)
   expect_equal(poc_settings$n_simulations, 500)
   expect_equal(poc_settings$parameter_search_n_simulations, 500)
-  expect_equal(
-    poc_settings$parameter_search_grid,
-    data.frame(
-      c_T = c(0.55, 0.55, 0.55),
-      c_E = c(0.45, 0.50, 0.55),
-      c_I = c(0.70, 0.70, 0.70)
-    )
-  )
+  expect_null(poc_settings$parameter_search_grid)
 })
 
 test_that("threshold calibration notebook includes calibrated defaults in its grids", {
@@ -156,7 +149,8 @@ test_that("PoC calibration notebook can reuse saved threshold calibration result
     threshold_calibration_results_path = threshold_file,
     c_T = 0.55,
     c_I = 0.70,
-    c_E = 0.50
+    c_E = 0.50,
+    parameter_search_grid = NULL
   )
   env$kable <- function(...) invisible(NULL)
 
@@ -165,6 +159,10 @@ test_that("PoC calibration notebook can reuse saved threshold calibration result
   expect_equal(env$poc_settings$c_T, 0.61)
   expect_equal(env$poc_settings$c_I, 0.72)
   expect_equal(env$poc_settings$c_E, 0.53)
+  expect_equal(
+    env$poc_settings$parameter_search_grid,
+    data.frame(c_T = 0.61, c_E = 0.53, c_I = 0.72)
+  )
 })
 
 test_that("threshold calibration notebook displays parameter explanations", {

@@ -135,7 +135,9 @@ PoC settings:
   saved threshold calibration RDS before calibrating `c_poc`.
 - `threshold_calibration_results_path`: path to the saved threshold calibration
   RDS file.
-- `parameter_search_grid`: cutoff grid used by the optional search.
+- `parameter_search_grid`: cutoff grid used by the optional search. Leave this
+  as `NULL` for routine use; the notebook will use the calibrated `c_T`, `c_E`,
+  and `c_I` values automatically.
 - `parameter_search_progress`: whether to print workload, row progress, and ETA
   while the optional search is running.
 - `parameter_search_progress_seconds`: approximate time interval for extra
