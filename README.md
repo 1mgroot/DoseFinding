@@ -31,8 +31,9 @@ Current calibrated defaults:
 - `delta_poc = 0.8`
 
 The threshold calibration notebook is set up to tune `c_T`, `c_I`, and `c_E`
-separately before PoC calibration. The PoC calibration notebook then treats
-those values as fixed inputs while targeting about `10%` null PoC detection.
+separately before PoC calibration. The PoC calibration notebook then reads the
+saved threshold calibration results by default and treats those values as fixed
+inputs while targeting about `10%` null PoC detection.
 
 ## Quick Start
 
@@ -53,8 +54,10 @@ run one adaptive trial and inspect allocation, posterior summaries, early
 termination, PoC validation, and final OD selection.
 
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)
-to calibrate `c_poc` under a null/flat scenario. This notebook appends a
-readable calibration history under `results/notebook_calibration/`.
+to calibrate `c_poc` under a null/flat scenario. By default, it uses the saved
+`results/threshold_calibration/threshold_calibration_results.rds` file from the
+threshold calibration notebook before running PoC calibration. It also appends
+a readable calibration history under `results/notebook_calibration/`.
 
 Use [notebooks/threshold_calibration_notebook.qmd](notebooks/threshold_calibration_notebook.qmd)
 to tune `c_T`, `c_I`, and `c_E` separately before PoC calibration. It uses
@@ -70,8 +73,8 @@ Recommended order for a new analysis:
 1. Run the simulation notebook in quick mode.
 2. Run threshold calibration in quick mode.
 3. Run threshold calibration in production mode if the quick run looks right.
-4. Copy the calibrated `c_T`, `c_I`, and `c_E` into PoC calibration.
-5. Run PoC calibration in quick mode, then production mode.
+4. Run PoC calibration in quick mode; it automatically uses the saved threshold values.
+5. Run PoC calibration in production mode.
 6. Return to the simulation notebook with the calibrated values.
 
 ## Main Workflow

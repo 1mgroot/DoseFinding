@@ -60,7 +60,7 @@ threshold_settings <- list(
   c_T_candidates = if (quick_mode) c(0.45, 0.55, 0.65) else seq(0.35, 0.75, by = 0.05),
   c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
   c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),
-  n_sim_per_candidate = if (quick_mode) 5 else 100,
+  n_sim_per_candidate = if (quick_mode) 5 else 500,
   calibration_seed = 11118,
 
   high_tox_p_I = 0.30,
@@ -427,5 +427,5 @@ cat("Recommended threshold settings:\n")
 cat("  c_T =", recommended$c_T, "\n")
 cat("  c_I =", recommended$c_I, "\n")
 cat("  c_E =", recommended$c_E, "\n")
-cat("\nNext step: copy these values into the PoC calibration notebook User Settings before calibrating c_poc.\n")
+cat("\nNext step: run the PoC calibration notebook. By default it reads the saved threshold_calibration_results.rds file and uses these values before calibrating c_poc.\n")
 ```

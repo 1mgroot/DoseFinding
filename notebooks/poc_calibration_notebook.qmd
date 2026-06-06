@@ -15,7 +15,7 @@ editor: visual
 
 This notebook is the standard user interface for calibrating `c_poc`. Edit only the **User Settings** chunk, then click **Run All** or **Render** in RStudio. The setup, scenario construction, and backend calibration chunks run automatically.
 
-Run the threshold calibration notebook first when `c_T`, `c_I`, or `c_E` need tuning. This notebook treats those three values as fixed inputs for PoC calibration.
+Run the threshold calibration notebook first when `c_T`, `c_I`, or `c_E` need tuning. By default, this notebook reads the saved threshold calibration results and uses the recommended values before calibrating `c_poc`. If that file is not available, it uses the fallback values in **User Settings**.
 
 Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` for production-style calibration.
 
@@ -45,6 +45,8 @@ poc_settings <- list(
   c_E = 0.50,
   phi_I = 0.20,
   c_I = 0.70,
+  use_threshold_calibration_results = TRUE,
+  threshold_calibration_results_path = "results/threshold_calibration/threshold_calibration_results.rds",
   delta_poc = 0.8,
   target_rate = 0.10,
   calibration_seed = 10000,
@@ -102,6 +104,7 @@ if (length(project_root_matches) == 0) {
   stop("Could not find project root containing DoseFinding.Rproj.")
 }
 project_root <- normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE)
+project_root_abs <- project_root
 setwd(project_root)
 
 # Source required functions
@@ -112,6 +115,24 @@ source("src/core/model_utils.R")
 source("src/decision/dose_decision.R")
 source("src/core/main.R")
 source("src/optimization/poc_calibration.R")
+
+resolve_project_path <- function(path) {
+  if (is.null(path) || length(path) == 0 || is.na(path) || path == "") {
+    return(path)
+  }
+  if (grepl("^(/|[A-Za-z]:[\\\\/])", path)) {
+    return(path)
+  }
+  file.path(project_root_abs, path)
+}
+
+poc_settings$threshold_calibration_results_path <- resolve_project_path(
+  poc_settings$threshold_calibration_results_path
+)
+poc_settings$history_log_path <- resolve_project_path(poc_settings$history_log_path)
+poc_settings$parameter_search_log_path <- resolve_project_path(
+  poc_settings$parameter_search_log_path
+)
 ```
 
 ## Configuration
@@ -136,6 +157,59 @@ source("src/optimization/poc_calibration.R")
 | **Null Scenario** | null_p_I = 0.20 | null_p_E = 0.25 | null_p_T = 0.05 | Generate data |
 | **Thresholds** | phi_I = 0.20 | phi_E = 0.25 | phi_T = 0.30 | Make decisions |
 | **Relationship** | null_p_I = phi_I | null_p_E = phi_E | null_p_T \< phi_T | Null scenario |
+
+```{r threshold_inputs}
+#| echo: false
+threshold_source <- "User Settings fallback values"
+
+if (isTRUE(poc_settings$use_threshold_calibration_results)) {
+  threshold_path <- poc_settings$threshold_calibration_results_path
+
+  if (file.exists(threshold_path)) {
+    threshold_results <- readRDS(threshold_path)
+    recommended_thresholds <- threshold_results$recommended_thresholds
+    required_thresholds <- c("c_T", "c_I", "c_E")
+    missing_thresholds <- setdiff(required_thresholds, names(recommended_thresholds))
+
+    if (length(missing_thresholds) > 0) {
+      stop(
+        "Threshold calibration result is missing: ",
+        paste(missing_thresholds, collapse = ", ")
+      )
+    }
+
+    for (threshold_name in required_thresholds) {
+      threshold_value <- recommended_thresholds[[threshold_name]]
+      if (!is.numeric(threshold_value) || length(threshold_value) != 1 || is.na(threshold_value)) {
+        stop("Invalid threshold calibration value for ", threshold_name, ".")
+      }
+      poc_settings[[threshold_name]] <- as.numeric(threshold_value)
+    }
+
+    threshold_source <- paste0("Threshold calibration results: ", threshold_path)
+  } else {
+    warning(
+      "Threshold calibration results were not found at ",
+      threshold_path,
+      ". Using c_T, c_I, and c_E from User Settings."
+    )
+  }
+}
+
+threshold_input_table <- data.frame(
+  parameter = c("c_T", "c_I", "c_E"),
+  current_value = c(poc_settings$c_T, poc_settings$c_I, poc_settings$c_E),
+  meaning = c(
+    "Posterior confidence required that toxicity is acceptable.",
+    "Posterior confidence required that immune response is acceptable.",
+    "Posterior confidence required that efficacy is acceptable."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(threshold_input_table, caption = "Threshold values used for PoC calibration")
+cat("\nThreshold source:", threshold_source, "\n")
+```
 
 ```{r config}
 #| echo: false
@@ -192,6 +266,11 @@ cat("\nAdmissibility Thresholds (for decision making):\n")
 cat("  phi_I (immune threshold) =", trial_config$phi_I, "\n")
 cat("  phi_E (efficacy threshold) =", trial_config$phi_E, "\n")
 cat("  phi_T (toxicity threshold) =", trial_config$phi_T, "\n")
+cat("\nPosterior Credibility Cutoffs (fixed before PoC calibration):\n")
+cat("  c_I (immune confidence cutoff) =", trial_config$c_I, "\n")
+cat("  c_E (efficacy confidence cutoff) =", trial_config$c_E, "\n")
+cat("  c_T (toxicity confidence cutoff) =", trial_config$c_T, "\n")
+cat("  Threshold source =", threshold_source, "\n")
 cat("\nOther parameters:\n")
 cat("  Quick mode =", quick_mode, "\n")
 cat("  Simulations =", calibration_params$n_simulations, "\n")
@@ -325,8 +404,7 @@ print(calibration_table)
 
 # Generate detailed report file
 cat("\n--- Generating Detailed Report ---\n")
-# Use relative path from notebooks/ directory (where notebook runs)
-report_path <- "results/notebook_calibration/calibration_detailed_report.txt"
+report_path <- file.path(project_root_abs, "results/notebook_calibration/calibration_detailed_report.txt")
 generate_calibration_report(
   calibration_results = calibration_results,
   null_scenario = null_scenario,

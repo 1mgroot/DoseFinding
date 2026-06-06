@@ -88,6 +88,11 @@ test_that("PoC calibration notebook defaults protect the current calibrated run"
   expect_true(poc_settings$append_history_log)
   expect_false(poc_settings$run_parameter_search)
   expect_true(poc_settings$use_common_random_numbers)
+  expect_true(poc_settings$use_threshold_calibration_results)
+  expect_equal(
+    poc_settings$threshold_calibration_results_path,
+    "results/threshold_calibration/threshold_calibration_results.rds"
+  )
   expect_equal(poc_settings$calibration_seed, 10000)
   expect_equal(poc_settings$parameter_search_seed, poc_settings$calibration_seed)
   expect_equal(poc_settings$n_simulations, 500)
@@ -128,8 +133,38 @@ test_that("threshold calibration notebook includes calibrated defaults in its gr
   expect_equal(threshold_settings$high_tox_marginal_p_T, c(0.35, 0.60))
   expect_equal(threshold_settings$low_immune_p_I, c(0.10, 0.15))
   expect_equal(threshold_settings$low_eff_marginal_p_E, c(0.10, 0.20))
-  expect_equal(threshold_settings$n_sim_per_candidate, if (settings$quick_mode) 5 else 100)
+  expect_equal(threshold_settings$n_sim_per_candidate, if (settings$quick_mode) 5 else 500)
   expect_true(threshold_settings$append_history_log)
+})
+
+test_that("PoC calibration notebook can reuse saved threshold calibration results", {
+  threshold_chunk <- extract_qmd_chunk(workflow_notebooks[["poc_calibration"]], "threshold_inputs")
+
+  expect_true(grepl("recommended_thresholds", threshold_chunk, fixed = TRUE))
+  expect_true(grepl("poc_settings[[threshold_name]]", threshold_chunk, fixed = TRUE))
+  expect_true(grepl("Threshold values used for PoC calibration", threshold_chunk, fixed = TRUE))
+
+  threshold_file <- tempfile(fileext = ".rds")
+  saveRDS(
+    list(recommended_thresholds = list(c_T = 0.61, c_I = 0.72, c_E = 0.53)),
+    threshold_file
+  )
+
+  env <- new.env(parent = baseenv())
+  env$poc_settings <- list(
+    use_threshold_calibration_results = TRUE,
+    threshold_calibration_results_path = threshold_file,
+    c_T = 0.55,
+    c_I = 0.70,
+    c_E = 0.50
+  )
+  env$kable <- function(...) invisible(NULL)
+
+  capture.output(eval(parse(text = threshold_chunk), envir = env))
+
+  expect_equal(env$poc_settings$c_T, 0.61)
+  expect_equal(env$poc_settings$c_I, 0.72)
+  expect_equal(env$poc_settings$c_E, 0.53)
 })
 
 test_that("threshold calibration notebook displays parameter explanations", {
