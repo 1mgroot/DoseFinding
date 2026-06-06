@@ -115,14 +115,55 @@ threshold_settings$history_log_path <- file.path(project_root_abs, threshold_set
 ## 3. Parameter Guide
 
 ```{r parameter_guide}
+#| results: asis
+
 format_setting <- function(value) {
   if (is.logical(value)) {
     return(ifelse(value, "TRUE", "FALSE"))
   }
   if (is.numeric(value)) {
+    if (length(value) > 5) {
+      diffs <- diff(value)
+      if (length(unique(round(diffs, 10))) == 1) {
+        step <- diffs[[1]]
+        return(paste0(
+          round(value[[1]], 4),
+          " to ",
+          round(value[[length(value)]], 4),
+          " by ",
+          round(step, 4),
+          " (",
+          length(value),
+          " values)"
+        ))
+      }
+      return(paste0(
+        round(value[[1]], 4),
+        ", ..., ",
+        round(value[[length(value)]], 4),
+        " (",
+        length(value),
+        " values)"
+      ))
+    }
     return(paste(round(value, 4), collapse = ", "))
   }
   paste(value, collapse = ", ")
+}
+
+format_path <- function(path) {
+  project_prefix <- paste0(project_root_abs, "/")
+  if (startsWith(path, project_prefix)) {
+    return(substr(path, nchar(project_prefix) + 1, nchar(path)))
+  }
+  path
+}
+
+escape_html <- function(value) {
+  value <- gsub("&", "&amp;", value, fixed = TRUE)
+  value <- gsub("<", "&lt;", value, fixed = TRUE)
+  value <- gsub(">", "&gt;", value, fixed = TRUE)
+  value
 }
 
 parameter_rows <- data.frame(
@@ -201,47 +242,81 @@ parameter_rows <- data.frame(
     format_setting(threshold_settings$rho0),
     format_setting(threshold_settings$rho1),
     format_setting(threshold_settings$append_history_log),
-    threshold_settings$output_dir,
-    threshold_settings$history_log_path
+    format_path(threshold_settings$output_dir),
+    format_path(threshold_settings$history_log_path)
   ),
   explanation = c(
-    "TRUE uses a small smoke-test run; FALSE uses the larger candidate grids and simulation count.",
+    "Use TRUE for a fast smoke test. Use FALSE for a larger run once the setup looks right.",
     "Dose labels used by the adaptive design.",
-    "Number of interim/final trial stages.",
-    "Patients enrolled per stage.",
-    "Maximum acceptable marginal toxicity probability. A dose is clinically unsafe above this value.",
-    "Minimum acceptable marginal efficacy probability. A dose is clinically inactive below this value.",
-    "Minimum acceptable immune response probability. A dose is clinically weak below this value.",
-    "Starting toxicity credibility cutoff before separate calibration.",
-    "Starting immune-response credibility cutoff before separate calibration.",
-    "Starting efficacy credibility cutoff before separate calibration.",
-    "Final PoC cutoff carried through here but calibrated in the PoC notebook.",
-    "Desired final admissible set missing rate in each unfavorable endpoint scenario.",
-    "Candidate values tested when calibrating c_T.",
-    "Candidate values tested when calibrating c_I.",
-    "Candidate values tested when calibrating c_E.",
-    "Monte Carlo simulations run for each candidate value.",
-    "Immune response probability used in the high-toxicity scenario.",
-    "Target marginal toxicity probabilities for calibrating c_T.",
-    "Target marginal efficacy probability held acceptable during c_T calibration.",
-    "Immune response probabilities for calibrating c_I.",
-    "Target marginal toxicity probability held acceptable during c_I calibration.",
-    "Target marginal efficacy probability held acceptable during c_I calibration.",
-    "Immune response probability held acceptable during c_E calibration.",
-    "Target marginal toxicity probability held acceptable during c_E calibration.",
-    "Target marginal efficacy probabilities for calibrating c_E.",
-    "Difference between P(T | I=1) and P(T | I=0) while preserving marginal P(T).",
-    "Difference between P(E | I=1) and P(E | I=0) while preserving marginal P(E).",
-    "Gumbel copula dependence parameter when I=0.",
-    "Gumbel copula dependence parameter when I=1.",
-    "Whether to append this run to the readable Markdown calibration history.",
+    "How many times the trial analyzes accumulating data.",
+    "Patients enrolled at each stage.",
+    "Maximum acceptable marginal toxicity probability. Doses above this clinical limit should be treated as unsafe.",
+    "Minimum acceptable marginal efficacy probability. Doses below this clinical limit should be treated as inactive.",
+    "Minimum acceptable immune response probability. Doses below this clinical limit should be treated as biologically weak.",
+    "Initial toxicity credibility cutoff. Calibration tests the candidate grid and may replace this value.",
+    "Initial immune-response credibility cutoff. Calibration tests the candidate grid and may replace this value.",
+    "Initial efficacy credibility cutoff. Calibration tests the candidate grid and may replace this value.",
+    "Final PoC cutoff carried through this notebook for consistency; calibrate it in the PoC notebook.",
+    "Target proportion of simulations where the final admissible set is empty in each unfavorable scenario.",
+    "Grid searched for the toxicity credibility cutoff. Larger values require stronger safety evidence.",
+    "Grid searched for the immune-response credibility cutoff. Larger values require stronger immune evidence.",
+    "Grid searched for the efficacy credibility cutoff. Larger values require stronger efficacy evidence.",
+    "Number of Monte Carlo trial simulations per candidate value.",
+    "Immune response probability used while testing high toxicity.",
+    "Target marginal toxicity probabilities used to make the c_T scenario unfavorable.",
+    "Marginal efficacy probability kept acceptable while calibrating c_T.",
+    "Immune response probabilities used to make the c_I scenario unfavorable.",
+    "Marginal toxicity probability kept acceptable while calibrating c_I.",
+    "Marginal efficacy probability kept acceptable while calibrating c_I.",
+    "Immune response probability kept acceptable while calibrating c_E.",
+    "Marginal toxicity probability kept acceptable while calibrating c_E.",
+    "Target marginal efficacy probabilities used to make the c_E scenario unfavorable.",
+    "How much P(T | I=1) differs from P(T | I=0), while preserving the target marginal P(T).",
+    "How much P(E | I=1) differs from P(E | I=0), while preserving the target marginal P(E).",
+    "Gumbel copula dependence parameter for toxicity and efficacy when I=0.",
+    "Gumbel copula dependence parameter for toxicity and efficacy when I=1.",
+    "Whether this run is appended to the readable Markdown calibration history.",
     "Folder where RDS and CSV calibration outputs are saved.",
-    "Readable Markdown log that keeps a history of calibration runs."
+    "Readable Markdown log that keeps a history of threshold calibration runs."
   ),
   stringsAsFactors = FALSE
 )
 
-kable(parameter_rows, caption = "User settings and parameter meanings")
+cat(
+  "<style>",
+  ".parameter-guide-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 1.2rem; }",
+  ".parameter-guide-table th, .parameter-guide-table td { border: 1px solid #d9d9d9; padding: 0.45rem 0.55rem; vertical-align: top; }",
+  ".parameter-guide-table th { background: #f5f5f5; }",
+  ".parameter-guide-table .param-col { width: 18%; font-family: monospace; }",
+  ".parameter-guide-table .meaning-col { width: 57%; }",
+  ".parameter-guide-table .value-col { width: 25%; overflow-wrap: anywhere; }",
+  "</style>\n",
+  sep = ""
+)
+
+cat("<p><strong>User settings and parameter meanings.</strong> Values are summarized when a grid is long; the full grid is still defined in the User Settings chunk above.</p>\n")
+
+for (group_name in unique(parameter_rows$group)) {
+  group_rows <- parameter_rows[parameter_rows$group == group_name, , drop = FALSE]
+  cat("<h3>", escape_html(group_name), "</h3>\n", sep = "")
+  cat("<table class=\"parameter-guide-table\">\n")
+  cat("<thead><tr><th class=\"param-col\">Parameter</th><th class=\"meaning-col\">Meaning</th><th class=\"value-col\">Current value</th></tr></thead>\n")
+  cat("<tbody>\n")
+  for (row_index in seq_len(nrow(group_rows))) {
+    row <- group_rows[row_index, , drop = FALSE]
+    cat(
+      "<tr><td class=\"param-col\">",
+      escape_html(row$parameter),
+      "</td><td class=\"meaning-col\">",
+      escape_html(row$explanation),
+      "</td><td class=\"value-col\">",
+      escape_html(row$value),
+      "</td></tr>\n",
+      sep = ""
+    )
+  }
+  cat("</tbody></table>\n")
+}
 ```
 
 ## 4. Scenario Check
