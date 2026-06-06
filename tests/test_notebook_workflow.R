@@ -106,7 +106,8 @@ test_that("threshold calibration notebook includes calibrated defaults in its gr
   settings <- evaluate_user_settings(workflow_notebooks[["threshold_calibration"]])
   threshold_settings <- settings$threshold_settings
 
-  expect_true(settings$quick_mode)
+  expect_type(settings$quick_mode, "logical")
+  expect_equal(threshold_settings$quick_mode, settings$quick_mode)
   expect_equal(threshold_settings$dose_levels, trial_config$dose_levels)
   expect_equal(threshold_settings$cohort_size, trial_config$cohort_size)
   expect_equal(threshold_settings$phi_T, trial_config$phi_T)
@@ -127,6 +128,19 @@ test_that("threshold calibration notebook includes calibrated defaults in its gr
   expect_equal(threshold_settings$high_tox_marginal_p_T, c(0.35, 0.60))
   expect_equal(threshold_settings$low_immune_p_I, c(0.10, 0.15))
   expect_equal(threshold_settings$low_eff_marginal_p_E, c(0.10, 0.20))
-  expect_equal(threshold_settings$n_sim_per_candidate, 5)
+  expect_equal(threshold_settings$n_sim_per_candidate, if (settings$quick_mode) 5 else 100)
   expect_true(threshold_settings$append_history_log)
+})
+
+test_that("threshold calibration notebook displays parameter explanations", {
+  guide_chunk <- extract_qmd_chunk(workflow_notebooks[["threshold_calibration"]], "parameter_guide")
+
+  expect_true(grepl("User settings and parameter meanings", guide_chunk, fixed = TRUE))
+  expect_true(grepl("Clinical thresholds", guide_chunk, fixed = TRUE))
+  expect_true(grepl("phi_T", guide_chunk, fixed = TRUE))
+  expect_true(grepl("phi_E", guide_chunk, fixed = TRUE))
+  expect_true(grepl("phi_I", guide_chunk, fixed = TRUE))
+  expect_true(grepl("Maximum acceptable marginal toxicity probability", guide_chunk, fixed = TRUE))
+  expect_true(grepl("Minimum acceptable marginal efficacy probability", guide_chunk, fixed = TRUE))
+  expect_true(grepl("Minimum acceptable immune response probability", guide_chunk, fixed = TRUE))
 })

@@ -20,9 +20,9 @@ editor: visual
 
 This notebook calibrates the three admissibility credibility cutoffs separately:
 
-1. `c_T`: evidence required to keep a dose when toxicity is judged acceptable.
-2. `c_I`: evidence required to keep a dose when immune response is judged acceptable.
-3. `c_E`: evidence required to keep a dose when efficacy is judged acceptable.
+1.  `c_T`: evidence required to keep a dose when toxicity is judged acceptable.
+2.  `c_I`: evidence required to keep a dose when immune response is judged acceptable.
+3.  `c_E`: evidence required to keep a dose when efficacy is judged acceptable.
 
 The calibration target is the final admissible set missing rate: the proportion of simulated trials where the final admissible set is empty under an endpoint-specific unfavorable scenario. The default target is 80%-90%.
 
@@ -35,7 +35,7 @@ Edit this chunk only for routine use.
 ```{r user_settings}
 #| echo: true
 
-quick_mode <- TRUE
+quick_mode <- FALSE
 
 threshold_settings <- list(
   quick_mode = quick_mode,
@@ -60,8 +60,8 @@ threshold_settings <- list(
   c_T_candidates = if (quick_mode) c(0.45, 0.55, 0.65) else seq(0.35, 0.75, by = 0.05),
   c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
   c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),
-  n_sim_per_candidate = if (quick_mode) 5 else 500,
-  calibration_seed = 30000,
+  n_sim_per_candidate = if (quick_mode) 5 else 100,
+  calibration_seed = 11118,
 
   high_tox_p_I = 0.30,
   high_tox_marginal_p_T = c(0.35, 0.60),
@@ -112,7 +112,139 @@ threshold_settings$output_dir <- file.path(project_root_abs, threshold_settings$
 threshold_settings$history_log_path <- file.path(project_root_abs, threshold_settings$history_log_path)
 ```
 
-## 3. Scenario Check
+## 3. Parameter Guide
+
+```{r parameter_guide}
+format_setting <- function(value) {
+  if (is.logical(value)) {
+    return(ifelse(value, "TRUE", "FALSE"))
+  }
+  if (is.numeric(value)) {
+    return(paste(round(value, 4), collapse = ", "))
+  }
+  paste(value, collapse = ", ")
+}
+
+parameter_rows <- data.frame(
+  group = c(
+    rep("Trial size", 4),
+    rep("Clinical thresholds", 3),
+    rep("Credibility cutoffs", 4),
+    rep("Calibration target", 5),
+    rep("Scenario truth", 9),
+    rep("Conditional effects", 2),
+    rep("Dependence", 2),
+    rep("Output", 3)
+  ),
+  parameter = c(
+    "quick_mode",
+    "dose_levels",
+    "n_stages",
+    "cohort_size",
+    "phi_T",
+    "phi_E",
+    "phi_I",
+    "c_T_start",
+    "c_I_start",
+    "c_E_start",
+    "c_poc",
+    "target_missing_range",
+    "c_T_candidates",
+    "c_I_candidates",
+    "c_E_candidates",
+    "n_sim_per_candidate",
+    "high_tox_p_I",
+    "high_tox_marginal_p_T",
+    "high_tox_marginal_p_E",
+    "low_immune_p_I",
+    "low_immune_marginal_p_T",
+    "low_immune_marginal_p_E",
+    "low_eff_p_I",
+    "low_eff_marginal_p_T",
+    "low_eff_marginal_p_E",
+    "toxicity_immune_effect",
+    "efficacy_immune_effect",
+    "rho0",
+    "rho1",
+    "append_history_log",
+    "output_dir",
+    "history_log_path"
+  ),
+  value = c(
+    format_setting(quick_mode),
+    format_setting(threshold_settings$dose_levels),
+    format_setting(threshold_settings$n_stages),
+    format_setting(threshold_settings$cohort_size),
+    format_setting(threshold_settings$phi_T),
+    format_setting(threshold_settings$phi_E),
+    format_setting(threshold_settings$phi_I),
+    format_setting(threshold_settings$c_T_start),
+    format_setting(threshold_settings$c_I_start),
+    format_setting(threshold_settings$c_E_start),
+    format_setting(threshold_settings$c_poc),
+    format_setting(threshold_settings$target_missing_range),
+    format_setting(threshold_settings$c_T_candidates),
+    format_setting(threshold_settings$c_I_candidates),
+    format_setting(threshold_settings$c_E_candidates),
+    format_setting(threshold_settings$n_sim_per_candidate),
+    format_setting(threshold_settings$high_tox_p_I),
+    format_setting(threshold_settings$high_tox_marginal_p_T),
+    format_setting(threshold_settings$high_tox_marginal_p_E),
+    format_setting(threshold_settings$low_immune_p_I),
+    format_setting(threshold_settings$low_immune_marginal_p_T),
+    format_setting(threshold_settings$low_immune_marginal_p_E),
+    format_setting(threshold_settings$low_eff_p_I),
+    format_setting(threshold_settings$low_eff_marginal_p_T),
+    format_setting(threshold_settings$low_eff_marginal_p_E),
+    format_setting(threshold_settings$toxicity_immune_effect),
+    format_setting(threshold_settings$efficacy_immune_effect),
+    format_setting(threshold_settings$rho0),
+    format_setting(threshold_settings$rho1),
+    format_setting(threshold_settings$append_history_log),
+    threshold_settings$output_dir,
+    threshold_settings$history_log_path
+  ),
+  explanation = c(
+    "TRUE uses a small smoke-test run; FALSE uses the larger candidate grids and simulation count.",
+    "Dose labels used by the adaptive design.",
+    "Number of interim/final trial stages.",
+    "Patients enrolled per stage.",
+    "Maximum acceptable marginal toxicity probability. A dose is clinically unsafe above this value.",
+    "Minimum acceptable marginal efficacy probability. A dose is clinically inactive below this value.",
+    "Minimum acceptable immune response probability. A dose is clinically weak below this value.",
+    "Starting toxicity credibility cutoff before separate calibration.",
+    "Starting immune-response credibility cutoff before separate calibration.",
+    "Starting efficacy credibility cutoff before separate calibration.",
+    "Final PoC cutoff carried through here but calibrated in the PoC notebook.",
+    "Desired final admissible set missing rate in each unfavorable endpoint scenario.",
+    "Candidate values tested when calibrating c_T.",
+    "Candidate values tested when calibrating c_I.",
+    "Candidate values tested when calibrating c_E.",
+    "Monte Carlo simulations run for each candidate value.",
+    "Immune response probability used in the high-toxicity scenario.",
+    "Target marginal toxicity probabilities for calibrating c_T.",
+    "Target marginal efficacy probability held acceptable during c_T calibration.",
+    "Immune response probabilities for calibrating c_I.",
+    "Target marginal toxicity probability held acceptable during c_I calibration.",
+    "Target marginal efficacy probability held acceptable during c_I calibration.",
+    "Immune response probability held acceptable during c_E calibration.",
+    "Target marginal toxicity probability held acceptable during c_E calibration.",
+    "Target marginal efficacy probabilities for calibrating c_E.",
+    "Difference between P(T | I=1) and P(T | I=0) while preserving marginal P(T).",
+    "Difference between P(E | I=1) and P(E | I=0) while preserving marginal P(E).",
+    "Gumbel copula dependence parameter when I=0.",
+    "Gumbel copula dependence parameter when I=1.",
+    "Whether to append this run to the readable Markdown calibration history.",
+    "Folder where RDS and CSV calibration outputs are saved.",
+    "Readable Markdown log that keeps a history of calibration runs."
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(parameter_rows, caption = "User settings and parameter meanings")
+```
+
+## 4. Scenario Check
 
 The notebook builds three unfavorable scenarios from the user settings. Conditional toxicity and efficacy matrices are calculated from the target marginal probabilities and immune-response probabilities.
 
@@ -138,7 +270,7 @@ scenario_table <- bind_rows(lapply(names(threshold_scenarios), function(name) {
 kable(scenario_table, caption = "Endpoint-specific calibration scenarios")
 ```
 
-## 4. Run Calibration
+## 5. Run Calibration
 
 ```{r run_calibration}
 calibration_results <- calibrate_separate_thresholds(threshold_settings)
@@ -174,7 +306,7 @@ for (name in names(calibration_results$calibrations)) {
 }
 ```
 
-## 5. Plots
+## 6. Plots
 
 ```{r threshold_plots, fig.width=8, fig.height=5}
 plot_threshold_calibration(calibration_results$calibrations$c_T)
@@ -182,7 +314,7 @@ plot_threshold_calibration(calibration_results$calibrations$c_I)
 plot_threshold_calibration(calibration_results$calibrations$c_E)
 ```
 
-## 6. Save Outputs
+## 7. Save Outputs
 
 ```{r save_outputs}
 dir.create(threshold_settings$output_dir, showWarnings = FALSE, recursive = TRUE)
@@ -209,7 +341,7 @@ if (!is.na(history_path)) {
 }
 ```
 
-## 7. Use These Values Next
+## 8. Use These Values Next
 
 ```{r final_values}
 recommended <- calibration_results$recommended_thresholds
