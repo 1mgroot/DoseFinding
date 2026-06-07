@@ -89,8 +89,8 @@ The simulation notebook runs this trial process automatically:
    posterior credibility cutoffs (`c_*`).
 6. Stop early if no dose remains admissible.
 7. Allocate later stages toward higher-utility admissible doses.
-8. At the final stage, recommend the best admissible dose only if the PoC gate
-   passes.
+8. At the final stage, form the PoC-eligible set from immune-response evidence
+   against dose 1, then recommend the highest-utility dose in that set.
 
 The calibration notebooks use the same backend engine, but expose only the
 settings users normally need: dose levels, stage count, cohort size, scenario
@@ -121,8 +121,9 @@ Posterior credibility cutoffs define how much evidence is required:
 
 Final PoC settings control final selection:
 
-- `delta_poc`: pairwise comparison margin used by PoC.
-- `c_poc`: required PoC probability for final OD selection.
+- `delta_poc`: comparison margin in `Pr(pi_I1 < delta_poc * pi_Ij | D_n)`.
+- `c_poc`: required posterior probability for a dose to enter the final
+  PoC-eligible set.
 
 Rule of thumb: `p_*` values define the simulated world, `phi_*` values define
 clinical acceptability, and `c_*` values define how much posterior confidence is

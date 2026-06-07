@@ -73,9 +73,10 @@ recommended `c_T`, `c_I`, and `c_E` from the threshold calibration notebook. If
 that file is not available, it falls back to the values in the PoC notebook's
 **User Settings** chunk.
 
-If no tested `c_poc` controls the null PoC detection rate, first test higher
-`c_poc` values. The optional PoC parameter search is now an advanced diagnostic,
-not the standard way to tune `c_T`, `c_I`, or `c_E`.
+If no tested `c_poc` controls the null PoC detection rate, first test a higher
+or denser `c_poc` candidate grid. If that still fails, rerun the separate
+threshold calibration workflow or revisit the protocol's PoC target definition;
+do not tune `c_T`, `c_I`, or `c_E` inside the PoC notebook.
 
 ### 4. Understand the Design
 
@@ -129,19 +130,10 @@ PoC settings:
 - `calibration_seed`: base seed for reproducible PoC calibration.
 - `use_common_random_numbers`: compares `c_poc` candidates with the same
   simulation seeds so rankings are less noisy.
-- `run_parameter_search`: advanced diagnostic batch search over fixed `c_T`,
-  `c_E`, and `c_I` grids. This is not the standard threshold calibration path.
 - `use_threshold_calibration_results`: whether PoC calibration should read the
   saved threshold calibration RDS before calibrating `c_poc`.
 - `threshold_calibration_results_path`: path to the saved threshold calibration
   RDS file.
-- `parameter_search_grid`: cutoff grid used by the optional search. Leave this
-  as `NULL` for routine use; the notebook will use the calibrated `c_T`, `c_E`,
-  and `c_I` values automatically.
-- `parameter_search_progress`: whether to print workload, row progress, and ETA
-  while the optional search is running.
-- `parameter_search_progress_seconds`: approximate time interval for extra
-  "still running" messages during long search nodes.
 
 Current calibrated defaults:
 

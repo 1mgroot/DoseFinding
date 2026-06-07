@@ -727,22 +727,21 @@ $$
 
 ### Implementation Details
 
-Our implementation uses a more general pairwise comparison approach:
+The implementation follows the Design2 PoC set directly:
 
-- For each competitor dose $j$, compute: $\Pr(\pi_{\text{best}} > \delta \cdot \pi_j \mid D_n)$
-- PoC probability = minimum across all pairwise comparisons
-- If PoC probability $> C_{\text{PoC}}$, the selection is validated
-
-This generalizes the design formula (which compares to dose 1 only) to compare against all competing doses.
+- For each admissible dose $j$, compute: $\Pr(\pi_{I1} < \delta \cdot \pi_{Ij} \mid D_n)$
+- Build $\mathcal{P}$ from doses whose probability is greater than `c_poc`
+- If $\mathcal{P}$ is empty, no final OD is selected
+- If $\mathcal{P}$ is non-empty, select the highest-utility dose from $\mathcal{P}$
 
 ```{r show-poc, eval=FALSE}
 # PoC validation
 # See src/decision/dose_decision.R: select_final_od_with_poc()
 
-# 1. Find dose with highest utility in admissible set
-# 2. Calculate PoC probability using posterior samples (pairwise comparisons)
-# 3. If PoC probability > c_poc: validate selection
-# 4. Otherwise: can return NA (no dose selected) or best dose with warning
+# 1. Compare each admissible dose against dose 1 using immune-response samples
+# 2. Keep doses with Pr(pi_I1 < delta_poc * pi_Ij | D_n) > c_poc
+# 3. Select the highest-utility dose from that PoC-eligible set
+# 4. If no dose passes PoC, return NA (no final OD selected)
 ```
 
 ### Real Output: PoC Validation Details

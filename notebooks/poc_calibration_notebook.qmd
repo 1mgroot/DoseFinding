@@ -58,19 +58,7 @@ poc_settings <- list(
   },
   n_simulations = if (quick_mode) 5 else 500,
   append_history_log = TRUE,
-  history_log_path = "results/notebook_calibration/poc_calibration_history.md",
-  run_parameter_search = FALSE,
-  parameter_search_grid = NULL,
-  parameter_search_c_poc_candidates = if (quick_mode) {
-    c(0.9, 0.95, 0.99)
-  } else {
-    c(0.995, 0.997, 0.998, 0.999, 0.9995, 1.0)
-  },
-  parameter_search_n_simulations = if (quick_mode) 3 else 500,
-  parameter_search_seed = 10000,
-  parameter_search_log_path = "results/notebook_calibration/poc_parameter_search_history.md",
-  parameter_search_progress = TRUE,
-  parameter_search_progress_seconds = if (quick_mode) 60 else 300
+  history_log_path = "results/notebook_calibration/poc_calibration_history.md"
 )
 ```
 
@@ -117,9 +105,6 @@ poc_settings$threshold_calibration_results_path <- resolve_project_path(
   poc_settings$threshold_calibration_results_path
 )
 poc_settings$history_log_path <- resolve_project_path(poc_settings$history_log_path)
-poc_settings$parameter_search_log_path <- resolve_project_path(
-  poc_settings$parameter_search_log_path
-)
 ```
 
 ## Configuration
@@ -183,27 +168,6 @@ if (isTRUE(poc_settings$use_threshold_calibration_results)) {
   }
 }
 
-if (is.null(poc_settings$parameter_search_grid)) {
-  poc_settings$parameter_search_grid <- data.frame(
-    c_T = poc_settings$c_T,
-    c_E = poc_settings$c_E,
-    c_I = poc_settings$c_I
-  )
-} else {
-  required_grid_columns <- c("c_T", "c_E", "c_I")
-  missing_grid_columns <- setdiff(
-    required_grid_columns,
-    names(poc_settings$parameter_search_grid)
-  )
-  if (length(missing_grid_columns) > 0) {
-    stop(
-      "parameter_search_grid is missing columns: ",
-      paste(missing_grid_columns, collapse = ", ")
-    )
-  }
-  poc_settings$parameter_search_grid <- poc_settings$parameter_search_grid[, required_grid_columns]
-}
-
 threshold_input_table <- data.frame(
   parameter = c("c_T", "c_I", "c_E"),
   current_value = c(poc_settings$c_T, poc_settings$c_I, poc_settings$c_E),
@@ -217,10 +181,6 @@ threshold_input_table <- data.frame(
 
 kable(threshold_input_table, caption = "Threshold values used for PoC calibration")
 cat("\nThreshold source:", threshold_source, "\n")
-cat(
-  "Optional parameter search grid uses these calibrated/fallback thresholds",
-  "unless User Settings overrides it.\n"
-)
 ```
 
 ```{r config}
@@ -291,9 +251,6 @@ cat("  Calibration seed =", poc_settings$calibration_seed, "\n")
 cat("  Common random numbers =", poc_settings$use_common_random_numbers, "\n")
 cat("  Append history log =", poc_settings$append_history_log, "\n")
 cat("  History log path =", poc_settings$history_log_path, "\n")
-cat("  Run optional parameter search =", poc_settings$run_parameter_search, "\n")
-cat("  Parameter search progress log =", poc_settings$parameter_search_progress, "\n")
-cat("  Parameter search progress interval =", poc_settings$parameter_search_progress_seconds, "seconds\n")
 ```
 
 ## Null/Flat Scenario Construction
@@ -435,38 +392,6 @@ if (isTRUE(poc_settings$append_history_log)) {
     run_label = if (quick_mode) "quick mode" else "production mode"
   )
   cat("Calibration history appended to:", history_path, "\n")
-}
-```
-
-## Advanced Diagnostic Parameter Search
-
-This section is skipped unless `run_parameter_search <- TRUE` in **User Settings**. It is an advanced diagnostic for stress-testing fixed `c_T`, `c_E`, and `c_I` grids under the same null scenario. It is not the standard way to tune these thresholds; use the threshold calibration notebook for that.
-
-```{r optional_parameter_search}
-#| echo: false
-if (isTRUE(poc_settings$run_parameter_search)) {
-  cat("Starting optional PoC parameter search...\n")
-  search_results <- run_poc_parameter_search(
-    null_scenario = null_scenario,
-    base_config = trial_config,
-    search_grid = poc_settings$parameter_search_grid,
-    c_poc_candidates = poc_settings$parameter_search_c_poc_candidates,
-    n_simulations = poc_settings$parameter_search_n_simulations,
-    target_rate = calibration_params$target_rate,
-    log_file = poc_settings$parameter_search_log_path,
-    append_log = TRUE,
-    run_label = if (quick_mode) "quick mode" else "production mode",
-    verbose = TRUE,
-    progress = poc_settings$parameter_search_progress,
-    progress_interval_seconds = poc_settings$parameter_search_progress_seconds,
-    common_random_numbers = poc_settings$use_common_random_numbers,
-    calibration_seed = poc_settings$parameter_search_seed
-  )
-  cat("\nTop ranked parameter settings:\n")
-  print(head(search_results$summary, 10))
-  cat("\nParameter search history appended to:", poc_settings$parameter_search_log_path, "\n")
-} else {
-  cat("Optional parameter search skipped. Set run_parameter_search <- TRUE in User Settings to run it.\n")
 }
 ```
 

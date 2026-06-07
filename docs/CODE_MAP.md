@@ -31,8 +31,8 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   `get_admissible_set()`: Filters doses based on posterior probability thresholds
     -   `adaptive_randomization()`: Utility-proportional allocation over admissible set
     -   `check_early_termination()`: Triggers when admissible set empty
-    -   `calculate_poc_probability()`: **Posterior sample-based** pairwise comparisons (not normal approximation)
-    -   `select_final_od_with_poc()`: Final selection with PoC gating (can return NA)
+    -   `calculate_poc_probability()`: Design2 immune-response PoC set, `Pr(pi_I1 < delta * pi_Ij | D_n) > c_poc`
+    -   `select_final_od_with_poc()`: Final selection from the PoC-eligible set (can return NA)
     -   Evidence: L1-L425
 
 ### Optimization (`src/optimization/`)
@@ -70,6 +70,7 @@ This document outlines the structure and purpose of each file in the DoseFinding
 -   **`poc_calibration_notebook.qmd`**: Interactive PoC calibration workflow
     -   Creates null/flat scenarios using `create_null_flat_scenario()`
     -   Runs `calibrate_c_poc()` across c_poc candidates
+    -   Uses saved `c_T`, `c_I`, and `c_E` results from threshold calibration as fixed inputs
     -   Generates calibration curves and detailed reports
     -   Outputs optimal c_poc for ~10% Type I error rate
 -   **`threshold_calibration_notebook.qmd`**: Interactive threshold calibration workflow
