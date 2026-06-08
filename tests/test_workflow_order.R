@@ -34,7 +34,7 @@ test_that("workflow produces equal allocation in stage 1 and valid probabilities
     0.6, 0.8, 0.9
   ), ncol = 2, byrow = TRUE)
 
-  results <- run_trial_simulation(test_config, test_p_YI, test_p_YT_given_I, test_p_YE_given_I, rho0, rho1, seed = 77)
+  results <- run_trial_simulation(test_config, test_p_YI, test_p_YT_given_I, test_p_YE_given_I, rho0, rho1, seed = 11118)
 
   expect_true(is.logical(results$terminated_early))
   expect_s3_class(results$all_alloc_probs, "data.frame")

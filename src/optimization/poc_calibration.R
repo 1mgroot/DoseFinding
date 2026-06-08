@@ -237,7 +237,7 @@ calibrate_c_poc <- function(
   progress_prefix = NULL,
   store_simulation_results = TRUE,
   common_random_numbers = TRUE,
-  calibration_seed = 10000
+  calibration_seed = 11118
 ) {
   if (missing(null_scenario) || is.null(null_scenario)) {
     stop("null_scenario is required. Use create_null_flat_scenario() to create one.")
@@ -706,7 +706,7 @@ create_default_null_scenario <- function(base_config = NULL) {
   )
 }
 
-run_calibration_simulation <- function(config, scenario_type = "flat_null", n_simulations = 1, seed = 123) {
+run_calibration_simulation <- function(config, scenario_type = "flat_null", n_simulations = 1, seed = 11118) {
   # Backward-compatible single-replicate helper built on the canonical simulator.
   if (scenario_type != "flat_null") {
     stop("Unsupported scenario type: ", scenario_type)
@@ -792,7 +792,7 @@ validate_calibration <- function(
   config$c_poc <- optimal_c_poc
 
   detections <- vapply(seq_len(n_validation_simulations), function(i) {
-    result <- run_single_calibration_simulation(config, null_scenario, seed = 900000 + i)
+    result <- run_single_calibration_simulation(config, null_scenario, seed = 11118 + i)
     !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated)
   }, logical(1))
 

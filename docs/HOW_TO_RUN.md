@@ -34,6 +34,20 @@ Only edit the **User Settings** chunk. Common settings include dose levels,
 stage count, cohort size, thresholds, posterior credibility cutoffs, PoC values,
 scenario probabilities, and seed.
 
+By default, the simulation notebook reads
+`results/threshold_calibration/threshold_calibration_results.rds` and
+`results/notebook_calibration/poc_calibration_results.rds` when they exist, then
+uses those calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values. If either file is
+missing, the notebook falls back to the values in **User Settings**.
+
+The allocation plots intentionally keep all doses in one graph. When several
+doses have the same value, the notebook uses a small display-only horizontal
+dodge so overlapping points are visible. For cumulative participant allocation,
+the notebook fills dose-stage combinations with `0` participants before
+calculating cumulative counts. This makes doses with no new patients in a stage
+show as flat lines instead of disappearing or being connected across missing
+stages.
+
 ### 2. Calibrate Thresholds
 
 Use `notebooks/threshold_calibration_notebook.qmd`.
@@ -130,15 +144,29 @@ PoC settings:
 - `calibration_seed`: base seed for reproducible PoC calibration.
 - `use_common_random_numbers`: compares `c_poc` candidates with the same
   simulation seeds so rankings are less noisy.
+- `show_progress`: whether to print periodic progress and ETA while PoC
+  calibration is running.
+- `progress_interval_seconds`: approximate interval for extra progress messages.
 - `use_threshold_calibration_results`: whether PoC calibration should read the
   saved threshold calibration RDS before calibrating `c_poc`.
 - `threshold_calibration_results_path`: path to the saved threshold calibration
   RDS file.
+- `calibration_results_path`: path where the PoC notebook saves its calibrated
+  `c_poc` RDS result.
+
+Simulation calibration reuse:
+
+- `use_calibration_results`: whether the simulation notebook should read saved
+  calibration results before running one trial.
+- `threshold_calibration_results_path`: threshold calibration RDS used by the
+  simulation notebook.
+- `poc_calibration_results_path`: PoC calibration RDS used by the simulation
+  notebook.
 
 Current calibrated defaults:
 
-- `c_T = 0.55`, `c_E = 0.50`, `c_I = 0.70`
-- `c_poc = 0.995`, `delta_poc = 0.8`
+- `c_T = 0.35`, `c_E = 0.60`, `c_I = 0.50`
+- `c_poc = 0.90`, `delta_poc = 0.8`
 - The focused PoC search is set up to target about `10%` null/flat PoC detection.
 
 Simulation truth:
@@ -163,6 +191,11 @@ the threshold calibration notebook before recalibrating `c_poc`.
 If PoC passes too often in null/flat scenarios, increase `c_poc`, raise the
 candidate grid, or revisit the protocol's PoC target definition.
 
+If an allocation plot looks odd, first confirm whether the relevant dose simply
+received `0` participants in that stage. Flat cumulative segments are expected
+in that case. The plot is a display of the simulated allocation data; the small
+horizontal offset is only for readability.
+
 ## Advanced Developer Use
 
 The backend functions in `src/` remain available for scripts, tests, and
@@ -181,4 +214,11 @@ Run a whitespace check before committing:
 
 ```bash
 git diff --check
+```
+
+Render the simulation notebook from the command line:
+
+```bash
+cd notebooks
+quarto render simulation_notebook.qmd --to html
 ```

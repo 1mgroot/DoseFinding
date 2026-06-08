@@ -89,7 +89,7 @@ Let's generate one stage of data to see the factorization in action:
 
 ```{r demo-factorization}
 # Generate data for 15 patients per dose (Stage 1, equal allocation)
-set.seed(42)
+set.seed(11118)
 demo_data <- simulate_data_gumbel(
   n_per_dose_vector = rep(15, 5),
   dose_levels = trial_config$dose_levels,
@@ -98,7 +98,7 @@ demo_data <- simulate_data_gumbel(
   p_YE_given_I = p_YE_given_I,
   rho0 = rho0,
   rho1 = rho1,
-  seed = 42
+  seed = 11118
 )
 
 # Show structure
@@ -605,7 +605,7 @@ Let's run a complete trial to demonstrate the full workflow:
 
 ```{r demo-complete-trial}
 # Run complete trial simulation
-set.seed(123)
+set.seed(11118)
 trial_results <- run_trial_simulation(
   trial_config, 
   p_YI, 
@@ -613,7 +613,7 @@ trial_results <- run_trial_simulation(
   p_YE_given_I, 
   rho0, 
   rho1,
-  seed = 123
+  seed = 11118
 )
 
 cat("=== TRIAL SIMULATION RESULTS ===\n\n")
@@ -813,7 +813,7 @@ toxic_scenario <- list(
   ), nrow = 5, ncol = 2)
 )
 
-set.seed(456)
+set.seed(11118)
 toxic_trial <- run_trial_simulation(
   trial_config,
   toxic_scenario$p_YI,
@@ -821,7 +821,7 @@ toxic_trial <- run_trial_simulation(
   toxic_scenario$p_YE_given_I,
   rho0 = 1.5,
   rho1 = 2.0,
-  seed = 456
+  seed = 11118
 )
 
 cat("=== EARLY TERMINATION EXAMPLE ===\n\n")

@@ -119,7 +119,7 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
     c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),
     n_sim_per_candidate = if (quick_mode) 5 else 500,
-    calibration_seed = 30000,
+    calibration_seed = 11118,
     high_tox_p_I = 0.30,
     high_tox_marginal_p_T = c(0.35, 0.60),
     high_tox_marginal_p_E = 0.40,

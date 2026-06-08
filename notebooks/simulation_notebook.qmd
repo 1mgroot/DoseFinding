@@ -22,7 +22,7 @@ Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` when you wa
 Edit this chunk only for routine use.
 
 ```{r user_settings}
-quick_mode <- TRUE
+quick_mode <- FALSE
 dose_levels <- c(1, 2, 3, 4, 5)
 
 simulation_settings <- list(
@@ -30,14 +30,17 @@ simulation_settings <- list(
   n_stages = if (quick_mode) 3 else 5,
   cohort_size = 15,
   phi_T = 0.30,
-  c_T = 0.55,
+  c_T = 0.35,
   phi_E = 0.25,
-  c_E = 0.50,
+  c_E = 0.60,
   phi_I = 0.20,
-  c_I = 0.70,
-  c_poc = 0.995,
+  c_I = 0.50,
+  c_poc = 0.90,
   delta_poc = 0.8,
-  seed = 123,
+  use_calibration_results = TRUE,
+  threshold_calibration_results_path = "results/threshold_calibration/threshold_calibration_results.rds",
+  poc_calibration_results_path = "results/notebook_calibration/poc_calibration_results.rds",
+  seed = 11118,
   p_YI = c(0.10, 0.30, 0.50, 0.60, 0.70),
   p_YT_given_I = matrix(c(
     0.05, 0.10, 0.12, 0.18, 0.25,
@@ -70,6 +73,7 @@ if (length(project_root_matches) == 0) {
   stop("Could not find project root containing DoseFinding.Rproj.")
 }
 project_root <- normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE)
+project_root_abs <- project_root
 setwd(project_root)
 cat("Project root:", project_root, "\n")
 
@@ -81,6 +85,110 @@ source(file.path(project_root, "src/core/simulate_data.R"))
 source(file.path(project_root, "src/core/model_utils.R"))
 source(file.path(project_root, "src/decision/dose_decision.R"))
 source(file.path(project_root, "src/core/main.R"))
+
+resolve_project_path <- function(path) {
+  if (is.null(path) || length(path) == 0 || is.na(path) || path == "") {
+    return(path)
+  }
+  if (grepl("^(/|[A-Za-z]:[\\\\/])", path)) {
+    return(path)
+  }
+  file.path(project_root_abs, path)
+}
+
+simulation_settings$threshold_calibration_results_path <- resolve_project_path(
+  simulation_settings$threshold_calibration_results_path
+)
+simulation_settings$poc_calibration_results_path <- resolve_project_path(
+  simulation_settings$poc_calibration_results_path
+)
+```
+
+## Calibrated Inputs
+
+This chunk reads saved calibration results when available.
+
+```{r calibrated_inputs}
+#| echo: false
+calibration_source <- c(
+  c_T = "User Settings fallback",
+  c_I = "User Settings fallback",
+  c_E = "User Settings fallback",
+  c_poc = "User Settings fallback"
+)
+
+apply_scalar_calibration_value <- function(settings, sources, name, value, source_label) {
+  if (!is.numeric(value) || length(value) != 1 || is.na(value)) {
+    stop("Invalid calibration value for ", name, ".")
+  }
+  settings[[name]] <- as.numeric(value)
+  sources[[name]] <- source_label
+  list(settings = settings, sources = sources)
+}
+
+if (isTRUE(simulation_settings$use_calibration_results)) {
+  threshold_path <- simulation_settings$threshold_calibration_results_path
+  if (file.exists(threshold_path)) {
+    threshold_results <- readRDS(threshold_path)
+    recommended_thresholds <- threshold_results$recommended_thresholds
+    required_thresholds <- c("c_T", "c_I", "c_E")
+    missing_thresholds <- setdiff(required_thresholds, names(recommended_thresholds))
+    if (length(missing_thresholds) > 0) {
+      stop(
+        "Threshold calibration results are missing: ",
+        paste(missing_thresholds, collapse = ", ")
+      )
+    }
+    for (name in required_thresholds) {
+      applied <- apply_scalar_calibration_value(
+        simulation_settings,
+        calibration_source,
+        name,
+        recommended_thresholds[[name]],
+        paste0("Threshold calibration results: ", threshold_path)
+      )
+      simulation_settings <- applied$settings
+      calibration_source <- applied$sources
+    }
+  } else {
+    warning(
+      "Threshold calibration results were not found at ",
+      threshold_path,
+      ". Using c_T, c_I, and c_E from User Settings."
+    )
+  }
+
+  poc_path <- simulation_settings$poc_calibration_results_path
+  if (file.exists(poc_path)) {
+    poc_results <- readRDS(poc_path)
+    applied <- apply_scalar_calibration_value(
+      simulation_settings,
+      calibration_source,
+      "c_poc",
+      poc_results$optimal_c_poc,
+      paste0("PoC calibration results: ", poc_path)
+    )
+    simulation_settings <- applied$settings
+    calibration_source <- applied$sources
+  } else {
+    warning(
+      "PoC calibration results were not found at ",
+      poc_path,
+      ". Using c_poc from User Settings."
+    )
+  }
+}
+
+calibration_input_table <- data.frame(
+  parameter = names(calibration_source),
+  current_value = vapply(names(calibration_source), function(name) {
+    simulation_settings[[name]]
+  }, numeric(1)),
+  source = unname(calibration_source),
+  stringsAsFactors = FALSE
+)
+
+kable(calibration_input_table, caption = "Calibration values used in this simulation")
 ```
 
 ## Internal Configuration
@@ -218,9 +326,10 @@ dose_response_plot <- plot_dose_response_curves(
 print(dose_response_plot)
 
 # Plot allocation probabilities over time with modern styling
-p_alloc_time <- ggplot(results$all_alloc_probs, aes(x = Stage, y = Prob, color = factor(Dose))) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 3) +
+overlap_position <- position_dodge(width = 0.22)
+p_alloc_time <- ggplot(results$all_alloc_probs, aes(x = Stage, y = Prob, color = factor(Dose), group = factor(Dose))) +
+  geom_line(linewidth = 1, position = overlap_position) +
+  geom_point(size = 3, position = overlap_position) +
   labs(title = "Allocation Probabilities Over Time", 
        x = "Stage", y = "Allocation Probability", 
        color = "Dose Level") +
@@ -233,18 +342,33 @@ print(p_alloc_time)
 
 # Visualize participant allocation with better formatting
 # Count participants per dose level and stage
-allocation_summary <- results$all_data %>%
-  group_by(d, stage) %>%
-  summarise(n_participants = n(), .groups = 'drop') %>%
+allocation_counts <- results$all_data %>%
   mutate(
-    d = factor(d),
+    d = as.integer(d),
+    stage = as.integer(stage)
+  ) %>%
+  group_by(d, stage) %>%
+  summarise(n_participants = n(), .groups = 'drop')
+
+allocation_grid <- expand.grid(
+  d = trial_config$dose_levels,
+  stage = seq_len(trial_config$n_stages),
+  KEEP.OUT.ATTRS = FALSE
+)
+
+allocation_summary <- allocation_grid %>%
+  left_join(allocation_counts, by = c("d", "stage")) %>%
+  mutate(
+    n_participants = dplyr::coalesce(n_participants, 0L),
+    d = factor(d, levels = trial_config$dose_levels),
     stage_num = as.integer(stage),
     stage = factor(
       stage_num,
       levels = seq_len(trial_config$n_stages),
       labels = paste("Stage", seq_len(trial_config$n_stages))
     )
-  )
+  ) %>%
+  arrange(d, stage_num)
 
 # Plot 1: Allocation by dose level and stage with modern styling
 p_alloc <- ggplot(allocation_summary, aes(x = d, y = n_participants, fill = stage)) +
@@ -269,8 +393,8 @@ cumulative_summary <- allocation_summary %>%
   ungroup()
 
 p_cumulative <- ggplot(cumulative_summary, aes(x = stage, y = cumulative_participants, color = d, group = d)) +
-  geom_line(linewidth = 1.5) +
-  geom_point(size = 3) +
+  geom_line(linewidth = 1.5, position = overlap_position) +
+  geom_point(size = 3, position = overlap_position) +
   labs(title = "Cumulative Participant Allocation Over Stages", 
        x = "Stage", y = "Cumulative Number of Participants",
        color = "Dose Level",

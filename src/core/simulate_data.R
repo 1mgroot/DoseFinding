@@ -14,7 +14,7 @@ simulate_data_gumbel <- function(
     p_YE_given_I, # marginal eff prob for I=0, I=1
     rho0 = 1, # correlation under I=0
     rho1 = 1, # correlation under I=1
-    seed = 123,
+    seed = 11118,
     debug = FALSE) {
   # Only set seed if provided (not NULL)
   if (!is.null(seed)) {
@@ -114,7 +114,7 @@ create_flat_probability_matrices <- function(n_doses, phi_I_lower, phi_E_lower, 
 }
 
 generate_flat_scenario_data <- function(config, phi_I_lower, phi_E_lower, toxicity_low = 0.05, 
-                                       n_patients_per_dose = 10, seed = 123, debug = FALSE) {
+                                       n_patients_per_dose = 10, seed = 11118, debug = FALSE) {
   # Generate flat scenario data where all doses have identical probabilities at lower bounds
   #
   # Args:

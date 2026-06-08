@@ -108,7 +108,7 @@ test_that("Flat scenario data generation works correctly", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 200,  # Larger sample for more stable estimates
-    seed = 123
+    seed = 11118
   )
   
   # Check data structure

@@ -24,7 +24,7 @@ test_that("run_calibration_simulation produces valid results", {
   config$c_poc <- 0.9
   
   # Run a single simulation
-  result <- run_calibration_simulation(config, "flat_null", 1, seed = 123)
+  result <- run_calibration_simulation(config, "flat_null", 1, seed = 11118)
   
   # Check that result is logical
   expect_true(is.logical(result))
@@ -82,11 +82,12 @@ test_that("calibrate_c_poc reuses simulation seeds across c_poc candidates", {
   original_runner <- get("run_single_calibration_simulation", envir = .GlobalEnv)
   on.exit(assign("run_single_calibration_simulation", original_runner, envir = .GlobalEnv), add = TRUE)
 
-  calls <- data.frame(c_poc = numeric(), seed = numeric())
+  calls <- new.env(parent = emptyenv())
+  calls$data <- data.frame(c_poc = numeric(), seed = numeric())
   assign(
     "run_single_calibration_simulation",
     function(config, scenario_params, seed = NULL) {
-      calls <<- rbind(calls, data.frame(c_poc = config$c_poc, seed = seed))
+      calls$data <- rbind(calls$data, data.frame(c_poc = config$c_poc, seed = seed))
       list(
         metrics = list(
           terminated_early = FALSE,
@@ -111,13 +112,13 @@ test_that("calibrate_c_poc reuses simulation seeds across c_poc candidates", {
     verbose = FALSE,
     store_simulation_results = FALSE,
     common_random_numbers = TRUE,
-    calibration_seed = 500
+    calibration_seed = 11118
   )
 
-  expect_equal(calls$c_poc, c(rep(0.90, 3), rep(0.95, 3)))
-  expect_equal(calls$seed, c(501, 502, 503, 501, 502, 503))
+  expect_equal(calls$data$c_poc, c(rep(0.90, 3), rep(0.95, 3)))
+  expect_equal(calls$data$seed, c(11119, 11120, 11121, 11119, 11120, 11121))
   expect_true(results$common_random_numbers)
-  expect_equal(results$calibration_seed, 500)
+  expect_equal(results$calibration_seed, 11118)
   expect_true(all(vapply(
     results$calibration_results,
     function(candidate) isTRUE(candidate$common_random_numbers),
@@ -280,7 +281,7 @@ test_that("PoC calibration history log appends readable run summaries", {
     c_poc_candidates = c(0.90, 0.99),
     n_simulations = 100,
     common_random_numbers = TRUE,
-    calibration_seed = 123
+    calibration_seed = 11118
   )
 
   null_scenario <- create_null_flat_scenario(n_doses = 2)

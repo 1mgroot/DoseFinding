@@ -30,9 +30,18 @@ extract_qmd_chunk <- function(path, label) {
   paste(remaining[seq_len(end[[1]] - 1)], collapse = "\n")
 }
 
-evaluate_user_settings <- function(path) {
+evaluate_user_settings <- function(path, quick_mode_override = NULL) {
+  chunk <- extract_qmd_chunk(path, "user_settings")
+  if (!is.null(quick_mode_override)) {
+    chunk <- sub(
+      "^quick_mode <- (TRUE|FALSE)",
+      paste0("quick_mode <- ", if (quick_mode_override) "TRUE" else "FALSE"),
+      chunk
+    )
+  }
+
   env <- new.env(parent = baseenv())
-  eval(parse(text = extract_qmd_chunk(path, "user_settings")), envir = env)
+  eval(parse(text = chunk), envir = env)
   as.list(env)
 }
 
@@ -55,24 +64,79 @@ test_that("workflow notebooks keep backend calls outside the user settings chunk
   }
 })
 
-test_that("simulation notebook defaults match the calibrated backend config", {
+test_that("simulation notebook defaults use the current calibrated fallback values", {
   settings <- evaluate_user_settings(workflow_notebooks[["simulation"]])
   simulation_settings <- settings$simulation_settings
 
-  expect_true(settings$quick_mode)
+  expect_type(settings$quick_mode, "logical")
   expect_equal(simulation_settings$dose_levels, trial_config$dose_levels)
+  expect_equal(simulation_settings$n_stages, if (settings$quick_mode) 3 else 5)
   expect_equal(simulation_settings$cohort_size, trial_config$cohort_size)
   expect_equal(simulation_settings$phi_T, trial_config$phi_T)
-  expect_equal(simulation_settings$c_T, trial_config$c_T)
+  expect_equal(simulation_settings$c_T, 0.35)
   expect_equal(simulation_settings$phi_E, trial_config$phi_E)
-  expect_equal(simulation_settings$c_E, trial_config$c_E)
+  expect_equal(simulation_settings$c_E, 0.60)
   expect_equal(simulation_settings$phi_I, trial_config$phi_I)
-  expect_equal(simulation_settings$c_I, trial_config$c_I)
-  expect_equal(simulation_settings$c_poc, trial_config$c_poc)
+  expect_equal(simulation_settings$c_I, 0.50)
+  expect_equal(simulation_settings$c_poc, 0.90)
   expect_equal(simulation_settings$delta_poc, trial_config$delta_poc)
+  expect_true(simulation_settings$use_calibration_results)
+  expect_equal(
+    simulation_settings$threshold_calibration_results_path,
+    "results/threshold_calibration/threshold_calibration_results.rds"
+  )
+  expect_equal(
+    simulation_settings$poc_calibration_results_path,
+    "results/notebook_calibration/poc_calibration_results.rds"
+  )
 })
 
-test_that("PoC calibration notebook defaults protect the current calibrated run", {
+test_that("simulation notebook can reuse saved threshold and PoC calibration results", {
+  calibration_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "calibrated_inputs")
+
+  expect_true(grepl("recommended_thresholds", calibration_chunk, fixed = TRUE))
+  expect_true(grepl("optimal_c_poc", calibration_chunk, fixed = TRUE))
+  expect_true(grepl("Calibration values used in this simulation", calibration_chunk, fixed = TRUE))
+
+  threshold_file <- tempfile(fileext = ".rds")
+  poc_file <- tempfile(fileext = ".rds")
+  saveRDS(
+    list(recommended_thresholds = list(c_T = 0.61, c_I = 0.72, c_E = 0.53)),
+    threshold_file
+  )
+  saveRDS(list(optimal_c_poc = 0.987), poc_file)
+
+  env <- new.env(parent = baseenv())
+  env$simulation_settings <- list(
+    use_calibration_results = TRUE,
+    threshold_calibration_results_path = threshold_file,
+    poc_calibration_results_path = poc_file,
+    c_T = 0.55,
+    c_I = 0.70,
+    c_E = 0.50,
+    c_poc = 0.995
+  )
+  env$kable <- function(...) invisible(NULL)
+
+  capture.output(eval(parse(text = calibration_chunk), envir = env))
+
+  expect_equal(env$simulation_settings$c_T, 0.61)
+  expect_equal(env$simulation_settings$c_I, 0.72)
+  expect_equal(env$simulation_settings$c_E, 0.53)
+  expect_equal(env$simulation_settings$c_poc, 0.987)
+})
+
+test_that("simulation notebook keeps zero-allocation stages in cumulative plots", {
+  results_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "results")
+
+  expect_true(grepl("allocation_grid <- expand.grid", results_chunk, fixed = TRUE))
+  expect_true(grepl("d = trial_config$dose_levels", results_chunk, fixed = TRUE))
+  expect_true(grepl("stage = seq_len(trial_config$n_stages)", results_chunk, fixed = TRUE))
+  expect_true(grepl("left_join(allocation_counts", results_chunk, fixed = TRUE))
+  expect_true(grepl("dplyr::coalesce(n_participants, 0L)", results_chunk, fixed = TRUE))
+})
+
+test_that("PoC calibration notebook separates quick smoke settings from production calibration", {
   settings <- evaluate_user_settings(workflow_notebooks[["poc_calibration"]])
   poc_settings <- settings$poc_settings
 
@@ -82,16 +146,34 @@ test_that("PoC calibration notebook defaults protect the current calibrated run"
   expect_equal(poc_settings$c_I, trial_config$c_I)
   expect_equal(poc_settings$delta_poc, trial_config$delta_poc)
   expect_equal(poc_settings$target_rate, 0.10)
-  expect_true(trial_config$c_poc %in% poc_settings$c_poc_candidates)
   expect_true(poc_settings$append_history_log)
   expect_true(poc_settings$use_common_random_numbers)
+  expect_true(poc_settings$show_progress)
+  expect_equal(poc_settings$progress_interval_seconds, 300)
   expect_true(poc_settings$use_threshold_calibration_results)
   expect_equal(
     poc_settings$threshold_calibration_results_path,
     "results/threshold_calibration/threshold_calibration_results.rds"
   )
-  expect_equal(poc_settings$calibration_seed, 10000)
-  expect_equal(poc_settings$n_simulations, 500)
+  expect_equal(
+    poc_settings$calibration_results_path,
+    "results/notebook_calibration/poc_calibration_results.rds"
+  )
+  expect_equal(poc_settings$calibration_seed, 11118)
+  expect_equal(poc_settings$c_poc_candidates, c(0.80, 0.90, 0.95, 0.98, 0.99, 0.995))
+  expect_true(trial_config$c_poc %in% poc_settings$c_poc_candidates)
+  expect_false(any(poc_settings$c_poc_candidates >= 1))
+  expect_equal(poc_settings$n_simulations, 1000)
+
+  quick_settings <- evaluate_user_settings(
+    workflow_notebooks[["poc_calibration"]],
+    quick_mode_override = TRUE
+  )$poc_settings
+
+  expect_equal(quick_settings$c_poc_candidates, c(0.8, 0.9, 0.95))
+  expect_equal(quick_settings$n_simulations, 5)
+  expect_true(quick_settings$show_progress)
+  expect_equal(quick_settings$progress_interval_seconds, 60)
 })
 
 test_that("threshold calibration notebook includes calibrated defaults in its grids", {

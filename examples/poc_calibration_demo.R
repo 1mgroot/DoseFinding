@@ -32,7 +32,7 @@ cat("1. Testing single calibration simulation...\n")
 test_config <- flat_scenario_config
 test_config$c_poc <- 0.5  # Very lenient threshold
 
-result <- run_calibration_simulation(test_config, "flat_null", 1, seed = 123)
+result <- run_calibration_simulation(test_config, "flat_null", 1, seed = 11118)
 cat("Single simulation result (C_poc = 0.5):", result, "\n\n")
 
 # 2. Demonstrate quick calibration

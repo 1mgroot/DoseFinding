@@ -32,7 +32,7 @@ flat_data <- generate_flat_scenario_data(
   phi_E_lower = 0.25,
   toxicity_low = 0.05,
   n_patients_per_dose = 200,  # Larger sample for more stable estimates
-  seed = 123
+  seed = 11118
 )
 
 cat("Generated data summary:\n")
@@ -73,7 +73,7 @@ non_flat_data <- simulate_data_gumbel(
   p_YE_given_I = p_YE_given_I,
   rho0 = rho0,
   rho1 = rho1,
-  seed = 123
+  seed = 11118
 )
 
 cat("Non-flat scenario rates:\n")
