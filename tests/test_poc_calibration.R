@@ -24,7 +24,7 @@ test_that("run_calibration_simulation produces valid results", {
   config$c_poc <- 0.9
   
   # Run a single simulation
-  result <- run_calibration_simulation(config, "flat_null", 1, seed = 123)
+  result <- run_calibration_simulation(config, "flat_null", 1, seed = 11118)
   
   # Check that result is logical
   expect_true(is.logical(result))
@@ -82,11 +82,12 @@ test_that("calibrate_c_poc reuses simulation seeds across c_poc candidates", {
   original_runner <- get("run_single_calibration_simulation", envir = .GlobalEnv)
   on.exit(assign("run_single_calibration_simulation", original_runner, envir = .GlobalEnv), add = TRUE)
 
-  calls <- data.frame(c_poc = numeric(), seed = numeric())
+  calls <- new.env(parent = emptyenv())
+  calls$data <- data.frame(c_poc = numeric(), seed = numeric())
   assign(
     "run_single_calibration_simulation",
     function(config, scenario_params, seed = NULL) {
-      calls <<- rbind(calls, data.frame(c_poc = config$c_poc, seed = seed))
+      calls$data <- rbind(calls$data, data.frame(c_poc = config$c_poc, seed = seed))
       list(
         metrics = list(
           terminated_early = FALSE,
@@ -111,13 +112,13 @@ test_that("calibrate_c_poc reuses simulation seeds across c_poc candidates", {
     verbose = FALSE,
     store_simulation_results = FALSE,
     common_random_numbers = TRUE,
-    calibration_seed = 500
+    calibration_seed = 11118
   )
 
-  expect_equal(calls$c_poc, c(rep(0.90, 3), rep(0.95, 3)))
-  expect_equal(calls$seed, c(501, 502, 503, 501, 502, 503))
+  expect_equal(calls$data$c_poc, c(rep(0.90, 3), rep(0.95, 3)))
+  expect_equal(calls$data$seed, c(11119, 11120, 11121, 11119, 11120, 11121))
   expect_true(results$common_random_numbers)
-  expect_equal(results$calibration_seed, 500)
+  expect_equal(results$calibration_seed, 11118)
   expect_true(all(vapply(
     results$calibration_results,
     function(candidate) isTRUE(candidate$common_random_numbers),
@@ -280,7 +281,7 @@ test_that("PoC calibration history log appends readable run summaries", {
     c_poc_candidates = c(0.90, 0.99),
     n_simulations = 100,
     common_random_numbers = TRUE,
-    calibration_seed = 123
+    calibration_seed = 11118
   )
 
   null_scenario <- create_null_flat_scenario(n_doses = 2)
@@ -308,68 +309,4 @@ test_that("PoC calibration history log appends readable run summaries", {
   expect_true(any(grepl("CONTROL NOT ACHIEVED", log_lines, fixed = TRUE)))
   expect_true(any(grepl("| c_poc | PoC detection |", log_lines, fixed = TRUE)))
   expect_true(any(grepl("test run 2", log_lines, fixed = TRUE)))
-})
-
-test_that("PoC parameter search validates grids and returns ranked summaries", {
-  test_file <- tempfile("poc-parameter-search-", fileext = ".md")
-  on.exit(unlink(test_file), add = TRUE)
-
-  null_scenario <- create_default_null_scenario(flat_scenario_config)
-  search_grid <- data.frame(
-    c_T = c(0.20, 0.50),
-    c_E = c(0.50, 0.50),
-    c_I = c(0.35, 0.35)
-  )
-
-  search_results <- run_poc_parameter_search(
-    null_scenario = null_scenario,
-    base_config = flat_scenario_config,
-    search_grid = search_grid,
-    c_poc_candidates = c(0.95),
-    n_simulations = 1,
-    target_rate = 0.10,
-    log_file = test_file,
-    append_log = TRUE,
-    verbose = FALSE
-  )
-
-  expect_true(file.exists(test_file))
-  expect_true(is.list(search_results))
-  expect_true(is.data.frame(search_results$summary))
-  expect_equal(nrow(search_results$summary), nrow(search_grid))
-  expect_equal(length(search_results$details), nrow(search_grid))
-  expect_true(search_results$common_random_numbers)
-  expect_equal(search_results$calibration_seed, 10000)
-  expect_equal(search_results$details[[1]]$calibration_seed, 10000)
-  expect_true(all(c(
-    "search_id", "optimal_c_poc", "achieved_rate",
-    "control_achieved", "completion_rate", "ranking_gap"
-  ) %in% names(search_results$summary)))
-
-  expect_error(
-    run_poc_parameter_search(
-      null_scenario = null_scenario,
-      base_config = flat_scenario_config,
-      search_grid = data.frame(cohort_size = 15),
-      c_poc_candidates = c(0.95),
-      n_simulations = 1,
-      append_log = FALSE,
-      verbose = FALSE
-    ),
-    "Invalid variables"
-  )
-
-  expect_error(
-    run_poc_parameter_search(
-      null_scenario = null_scenario,
-      base_config = flat_scenario_config,
-      search_grid = search_grid,
-      c_poc_candidates = c(0.95),
-      n_simulations = 1,
-      append_log = FALSE,
-      verbose = FALSE,
-      common_random_numbers = "yes"
-    ),
-    "common_random_numbers"
-  )
 })

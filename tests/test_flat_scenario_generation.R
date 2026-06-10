@@ -70,7 +70,7 @@ test_that("generate_flat_scenario_data produces flat scenario data", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 20,
-    seed = 123
+    seed = 11118
   )
   
   # Check data structure
@@ -106,7 +106,7 @@ test_that("validate_flat_scenario correctly validates flat scenarios", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 200,  # Larger sample for more stable estimates
-    seed = 123
+    seed = 11118
   )
   
   # Validate the scenario
@@ -139,7 +139,7 @@ test_that("flat scenario integrates with main trial simulation", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 10,
-    seed = 123
+    seed = 11118
   )
   
   # Check that data can be used with existing simulation functions
@@ -174,7 +174,7 @@ test_that("flat scenario functions handle edge cases", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 5,
-    seed = 123
+    seed = 11118
   )
   
   expect_equal(length(unique(data$d)), 1)
@@ -190,7 +190,7 @@ test_that("flat scenario generation is reproducible", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 10,
-    seed = 123
+    seed = 11118
   )
   
   data2 <- generate_flat_scenario_data(
@@ -199,7 +199,7 @@ test_that("flat scenario generation is reproducible", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 10,
-    seed = 123
+    seed = 11118
   )
   
   # Data should be identical

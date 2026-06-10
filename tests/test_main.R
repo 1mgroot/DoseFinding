@@ -21,7 +21,7 @@ test_that("run_trial_simulation returns expected structure", {
     p_YE_given_I,
     rho0,
     rho1,
-    seed = 123
+    seed = 11118
   )
   
   expect_type(result, "list")
@@ -40,7 +40,7 @@ test_that("allocation probabilities are well-formed when trial continues", {
     p_YE_given_I,
     rho0,
     rho1,
-    seed = 321
+    seed = 11118
   )
   
   if (!result$terminated_early) {

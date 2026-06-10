@@ -32,7 +32,7 @@ cat("1. Testing single calibration simulation...\n")
 test_config <- flat_scenario_config
 test_config$c_poc <- 0.5  # Very lenient threshold
 
-result <- run_calibration_simulation(test_config, "flat_null", 1, seed = 123)
+result <- run_calibration_simulation(test_config, "flat_null", 1, seed = 11118)
 cat("Single simulation result (C_poc = 0.5):", result, "\n\n")
 
 # 2. Demonstrate quick calibration
@@ -119,5 +119,5 @@ cat("- save/load_calibration_results(): Persistence of results\n\n")
 cat("Typical next steps:\n")
 cat("- Run full calibration with 10,000+ simulations per C_poc\n")
 cat("- Validate the chosen C_poc under alternative null scenarios\n")
-cat("- Combine calibrated C_poc with early termination calibration\n")
+cat("- Combine calibrated C_poc with separately calibrated c_T, c_I, and c_E\n")
 cat("- Use the calibrated parameters in production simulation runs\n")

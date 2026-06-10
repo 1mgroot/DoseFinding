@@ -24,15 +24,16 @@ The standard workflow is notebook-first. Routine users should not edit files in
 
 Current calibrated defaults:
 
-- `c_T = 0.55`
-- `c_E = 0.50`
-- `c_I = 0.70`
-- `c_poc = 0.995`
+- `c_T = 0.35`
+- `c_E = 0.60`
+- `c_I = 0.50`
+- `c_poc = 0.90`
 - `delta_poc = 0.8`
 
-The PoC calibration notebook is set up for a focused null/flat validation run
-targeting about `10%` null PoC detection, using common random numbers to reduce
-Monte Carlo noise when comparing `c_poc` candidates.
+The threshold calibration notebook is set up to tune `c_T`, `c_I`, and `c_E`
+separately before PoC calibration. The PoC calibration notebook then reads the
+saved threshold calibration results by default and treats those values as fixed
+inputs while targeting about `10%` null PoC detection.
 
 ## Quick Start
 
@@ -50,16 +51,24 @@ for production-scale simulation or calibration.
 
 Use [notebooks/simulation_notebook.qmd](notebooks/simulation_notebook.qmd) to
 run one adaptive trial and inspect allocation, posterior summaries, early
-termination, PoC validation, and final OD selection.
+termination, PoC validation, and final OD selection. By default, it reads saved
+threshold and PoC calibration result files when they exist, then uses the
+calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values for the simulation.
+Allocation plots are kept in a single panel by dose color. The cumulative
+allocation plot fills missing dose-stage combinations with `0` participants, so
+doses that receive no new patients in a stage remain visible as flat lines
+rather than disappearing or being connected across missing stages.
 
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)
-to calibrate `c_poc` under a null/flat scenario. This notebook also appends a
-readable calibration history under `results/notebook_calibration/` and includes
-an optional parameter search over `c_T`, `c_E`, and `c_I`.
+to calibrate `c_poc` under a null/flat scenario. By default, it uses the saved
+`results/threshold_calibration/threshold_calibration_results.rds` file from the
+threshold calibration notebook before running PoC calibration. It also appends
+a readable calibration history under `results/notebook_calibration/`.
 
 Use [notebooks/threshold_calibration_notebook.qmd](notebooks/threshold_calibration_notebook.qmd)
-to tune `c_T`, `c_E`, and `c_I` for early termination behavior under unfavorable
-scenarios.
+to tune `c_T`, `c_I`, and `c_E` separately before PoC calibration. It uses
+endpoint-specific unfavorable scenarios and selects values by targeting the
+final admissible set missing rate.
 
 Use [notebooks/design_walkthrough.qmd](notebooks/design_walkthrough.qmd) to
 understand how the design documents map to the implementation. It is
@@ -68,10 +77,11 @@ explanatory and not required for routine runs.
 Recommended order for a new analysis:
 
 1. Run the simulation notebook in quick mode.
-2. Run PoC calibration in quick mode.
-3. Run PoC calibration in production mode.
-4. Run threshold calibration if early stopping needs tuning.
-5. Return to the simulation notebook with the calibrated values.
+2. Run threshold calibration in quick mode.
+3. Run threshold calibration in production mode if the quick run looks right.
+4. Run PoC calibration in quick mode; it automatically uses the saved threshold values.
+5. Run PoC calibration in production mode.
+6. Return to the simulation notebook with the calibrated values.
 
 ## Main Workflow
 
@@ -85,8 +95,13 @@ The simulation notebook runs this trial process automatically:
    posterior credibility cutoffs (`c_*`).
 6. Stop early if no dose remains admissible.
 7. Allocate later stages toward higher-utility admissible doses.
-8. At the final stage, recommend the best admissible dose only if the PoC gate
-   passes.
+8. At the final stage, form the PoC-eligible set from immune-response evidence
+   against dose 1, then recommend the highest-utility dose in that set.
+
+The notebook plots allocation probabilities and cumulative participant counts
+for all dose levels in one graph. A small horizontal dodge is used only for
+display, so overlapping points can be seen; it does not change the simulated
+allocation data.
 
 The calibration notebooks use the same backend engine, but expose only the
 settings users normally need: dose levels, stage count, cohort size, scenario
@@ -117,8 +132,9 @@ Posterior credibility cutoffs define how much evidence is required:
 
 Final PoC settings control final selection:
 
-- `delta_poc`: pairwise comparison margin used by PoC.
-- `c_poc`: required PoC probability for final OD selection.
+- `delta_poc`: comparison margin in `Pr(pi_I1 < delta_poc * pi_Ij | D_n)`.
+- `c_poc`: required posterior probability for a dose to enter the final
+  PoC-eligible set.
 
 Rule of thumb: `p_*` values define the simulated world, `phi_*` values define
 clinical acceptability, and `c_*` values define how much posterior confidence is
@@ -171,6 +187,13 @@ git diff --check
 
 For notebook smoke testing, open each notebook in RStudio with
 `quick_mode <- TRUE` and click **Render**.
+
+You can also render the simulation notebook from the command line:
+
+```bash
+cd notebooks
+quarto render simulation_notebook.qmd --to html
+```
 
 ## Documentation Map
 

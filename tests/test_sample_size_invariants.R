@@ -59,7 +59,7 @@ test_that("sample size invariants hold with early termination enabled", {
   max_n <- test_config$n_stages * test_config$cohort_size
 
   for (i in seq_len(50)) {
-    seed <- 50000 + i
+    seed <- 11118 + i
     result <- run_trial_simulation(
       test_config,
       test_scenario$p_YI,

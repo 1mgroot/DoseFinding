@@ -16,111 +16,87 @@ source("src/core/model_utils.R")
 source("src/decision/dose_decision.R")
 source("src/core/main.R")
 
-# Test 1: calculate_pi_parameters function
-test_that("calculate_pi_parameters produces valid results", {
-  # Create mock posterior summaries
-  mock_posterior_summaries <- list(
-    imm = list(
-      samples_pava = list(
-        rep(0.2, 1000),  # Dose 1 immune samples
-        rep(0.4, 1000),  # Dose 2 immune samples
-        rep(0.6, 1000)   # Dose 3 immune samples
-      )
+make_design2_poc_posterior <- function(
+  immune_means = c(0.20, 0.40, 0.21),
+  eff_means = c(0.20, 0.25, 0.30, 0.30, 0.90, 0.90),
+  tox_means = c(0.10, 0.10, 0.10, 0.10, 0.01, 0.01),
+  n_samples = 1000
+) {
+  list(
+    imm = data.frame(
+      pava_mean = immune_means,
+      samples_pava = I(lapply(immune_means, rep, times = n_samples))
     ),
-    eff = list(
-      samples = list(
-        rep(0.2, 1000),  # Dose 1, I=0 efficacy samples
-        rep(0.4, 1000),  # Dose 1, I=1 efficacy samples
-        rep(0.4, 1000),  # Dose 2, I=0 efficacy samples
-        rep(0.6, 1000),  # Dose 2, I=1 efficacy samples
-        rep(0.6, 1000),  # Dose 3, I=0 efficacy samples
-        rep(0.8, 1000)   # Dose 3, I=1 efficacy samples
-      )
+    eff = data.frame(
+      pava_mean = eff_means,
+      samples_pava = I(lapply(eff_means, rep, times = n_samples))
+    ),
+    tox = data.frame(
+      pava_mean = tox_means,
+      samples_pava = I(lapply(tox_means, rep, times = n_samples))
     )
   )
-  
-  # Test calculation for dose 1
-  result <- calculate_pi_parameters(1, mock_posterior_summaries)
-  
-  # Check structure
-  expect_true(is.list(result))
-  expect_true("pi_I_samples" %in% names(result))
-  expect_true("pi_E_given_I0_samples" %in% names(result))
-  expect_true("pi_E_given_I1_samples" %in% names(result))
-  expect_true("pi_combined_samples" %in% names(result))
-  expect_true("pi_combined_mean" %in% names(result))
-  expect_true("pi_combined_sd" %in% names(result))
-  
-  # Check dimensions
-  expect_equal(length(result$pi_I_samples), 1000)
-  expect_equal(length(result$pi_E_given_I0_samples), 1000)
-  expect_equal(length(result$pi_E_given_I1_samples), 1000)
-  expect_equal(length(result$pi_combined_samples), 1000)
-  
-  # Check that combined efficacy is calculated correctly
-  # For dose 1: pi_I=0.2, pi_E_given_I0=0.2, pi_E_given_I1=0.4
-  # Expected: pi_combined = 0.2 * 0.4 + 0.8 * 0.2 = 0.08 + 0.16 = 0.24
-  expected_combined <- 0.2 * 0.4 + 0.8 * 0.2
-  expect_true(abs(result$pi_combined_mean - expected_combined) < 0.01)
-  
-  # Check that standard deviation is reasonable (should be small for constant values)
-  expect_true(result$pi_combined_sd < 0.01)
+}
+
+make_design2_poc_config <- function(c_poc = 0.9, delta_poc = 0.8) {
+  config <- trial_config
+  config$c_poc <- c_poc
+  config$delta_poc <- delta_poc
+  config$log_early_termination <- FALSE
+  config$utility_table <- array(0, dim = c(2, 2, 2))
+  config$utility_table[2, 1, 1] <- 100
+  config$utility_table[2, 1, 2] <- 100
+  config
+}
+
+test_that("Design2 PoC builds P_final from immune response against dose 1", {
+  posterior_summaries <- make_design2_poc_posterior()
+  config <- make_design2_poc_config(c_poc = 0.9, delta_poc = 0.8)
+
+  result <- calculate_poc_probability(
+    admissible_set = c(1, 2, 3),
+    posterior_summaries = posterior_summaries,
+    config = config
+  )
+
+  expect_equal(unname(result$pairwise_probs), c(0, 1, 0))
+  expect_equal(unname(result$P_final), 2)
+  expect_equal(result$poc_probability, 1)
+  expect_true(check_poc_threshold(result, config))
+  expect_equal(result$reference_dose, 1)
 })
 
-# Test 2: Direct PoC calculation without utility dependency
-test_that("PoC calculation produces valid probabilities", {
-  # Test the core PoC calculation logic directly
-  # Create samples where dose 2 is clearly better than dose 1
-  
-  # Dose 1: lower efficacy
-  pi_I_samples_1 <- rep(0.2, 1000)
-  pi_E_given_I0_samples_1 <- rep(0.2, 1000)
-  pi_E_given_I1_samples_1 <- rep(0.4, 1000)
-  pi_combined_samples_1 <- pi_I_samples_1 * pi_E_given_I1_samples_1 + 
-                           (1 - pi_I_samples_1) * pi_E_given_I0_samples_1
-  
-  # Dose 2: higher efficacy (best dose)
-  pi_I_samples_2 <- rep(0.4, 1000)
-  pi_E_given_I0_samples_2 <- rep(0.4, 1000)
-  pi_E_given_I1_samples_2 <- rep(0.6, 1000)
-  pi_combined_samples_2 <- pi_I_samples_2 * pi_E_given_I1_samples_2 + 
-                           (1 - pi_I_samples_2) * pi_E_given_I0_samples_2
-  
-  # Calculate PoC: Pr(Πᵢ < δ Πᵢⱼ | Dₙ)
-  delta_poc <- 0.8
-  poc_prob <- mean(pi_combined_samples_1 < delta_poc * pi_combined_samples_2)
-  
-  # Check that PoC probability is valid
-  expect_true(poc_prob >= 0)
-  expect_true(poc_prob <= 1)
-  
-  # Since dose 1 is worse than dose 2, PoC should be high (close to 1)
-  expect_true(poc_prob > 0.5)
+test_that("Design2 PoC does not automatically pass a single admissible dose", {
+  posterior_summaries <- make_design2_poc_posterior()
+  config <- make_design2_poc_config(c_poc = 0.9, delta_poc = 0.8)
+
+  result <- calculate_poc_probability(
+    admissible_set = 3,
+    posterior_summaries = posterior_summaries,
+    config = config
+  )
+
+  expect_equal(unname(result$pairwise_probs), 0)
+  expect_equal(result$P_final, numeric(0))
+  expect_equal(result$poc_probability, 0)
+  expect_false(check_poc_threshold(result, config))
 })
 
-# Test 3: Edge cases for PoC calculation
-test_that("PoC calculation handles edge cases", {
-  # Test with identical doses (should give PoC = 0 since neither is significantly worse)
-  pi_samples_1 <- rep(0.3, 1000)
-  pi_samples_2 <- rep(0.3, 1000)
-  delta_poc <- 0.8
-  
-  poc_prob <- mean(pi_samples_1 < delta_poc * pi_samples_2)
-  expect_equal(poc_prob, 0)  # Should be 0 since 0.3 < 0.8*0.3 = 0.24 is false
-  
-  # Test with very different doses
-  pi_samples_1 <- rep(0.1, 1000)  # Much worse
-  pi_samples_2 <- rep(0.9, 1000)  # Much better
-  
-  poc_prob <- mean(pi_samples_1 < delta_poc * pi_samples_2)
-  expect_equal(poc_prob, 1)  # Should be 1 since 0.1 < 0.8*0.9 = 0.72 is true
-  
-  # Test with moderately different doses
-  pi_samples_1 <- rep(0.2, 1000)  # Worse
-  pi_samples_2 <- rep(0.4, 1000)  # Better
-  
-  poc_prob <- mean(pi_samples_1 < delta_poc * pi_samples_2)
-  expect_equal(poc_prob, 1)  # Should be 1 since 0.2 < 0.8*0.4 = 0.32 is true
+test_that("final OD is selected from P_final, not the whole admissible set", {
+  posterior_summaries <- make_design2_poc_posterior()
+  config <- make_design2_poc_config(c_poc = 0.9, delta_poc = 0.8)
+
+  result <- select_final_od_with_poc(
+    admissible_set = c(2, 3),
+    posterior_summaries = posterior_summaries,
+    config = config,
+    verbose = FALSE
+  )
+
+  expect_true(result$poc_validated)
+  expect_equal(unname(result$P_final), 2)
+  expect_equal(result$optimal_dose, 2)
+  expect_gt(result$utilities[2], result$utilities[1])
 })
 
 # Test 5: Flat scenario data validation
@@ -132,7 +108,7 @@ test_that("Flat scenario data generation works correctly", {
     phi_E_lower = 0.25,
     toxicity_low = 0.05,
     n_patients_per_dose = 200,  # Larger sample for more stable estimates
-    seed = 123
+    seed = 11118
   )
   
   # Check data structure

@@ -241,10 +241,11 @@ create_trial_summary_plots <- function(trial_results, file_prefix = "trial_summa
   
   # 3. Allocation over time
   if (!is.null(trial_results$all_alloc_probs)) {
+    overlap_position <- position_dodge(width = 0.22)
     p_alloc_time <- ggplot(trial_results$all_alloc_probs, 
-                          aes(x = Stage, y = Prob, color = factor(Dose))) +
-      geom_line(linewidth = 1) +
-      geom_point(size = 3) +
+                          aes(x = Stage, y = Prob, color = factor(Dose), group = factor(Dose))) +
+      geom_line(linewidth = 1, position = overlap_position) +
+      geom_point(size = 3, position = overlap_position) +
       labs(title = "Allocation Probabilities Over Time", 
            x = "Stage", y = "Allocation Probability", 
            color = "Dose Level") +

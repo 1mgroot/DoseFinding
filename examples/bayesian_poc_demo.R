@@ -104,7 +104,7 @@ flat_data <- generate_flat_scenario_data(
   phi_E_lower = 0.25,
   toxicity_low = 0.05,
   n_patients_per_dose = 100,
-  seed = 123
+  seed = 11118
 )
 
 cat("Flat scenario observed rates:\n")

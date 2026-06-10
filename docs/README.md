@@ -11,7 +11,7 @@ simulation framework.
 
 ## Document Map
 
-- `HOW_TO_RUN.md`: how to run simulations, calibration, optimization, and
+- `HOW_TO_RUN.md`: how to run simulations, calibration, and
   notebooks.
 - `CODE_MAP.md`: file-by-file code organization.
 - `Design1.tex`: original model-layer design, focused on immune response,

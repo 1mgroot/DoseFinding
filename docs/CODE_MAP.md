@@ -31,8 +31,8 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   `get_admissible_set()`: Filters doses based on posterior probability thresholds
     -   `adaptive_randomization()`: Utility-proportional allocation over admissible set
     -   `check_early_termination()`: Triggers when admissible set empty
-    -   `calculate_poc_probability()`: **Posterior sample-based** pairwise comparisons (not normal approximation)
-    -   `select_final_od_with_poc()`: Final selection with PoC gating (can return NA)
+    -   `calculate_poc_probability()`: Design2 immune-response PoC set, `Pr(pi_I1 < delta * pi_Ij | D_n) > c_poc`
+    -   `select_final_od_with_poc()`: Final selection from the PoC-eligible set (can return NA)
     -   Evidence: L1-L425
 
 ### Optimization (`src/optimization/`)
@@ -43,17 +43,13 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   `generate_calibration_report()`: Detailed text report with early termination analysis
     -   Target: ~10% Type I error rate (PoC detection in null scenario)
     -   Evidence: L1-L970
--   **`parameter_optimization.R`**: Systematic parameter search framework
-    -   `create_parameter_grids()`: Defines search space for phi_T, phi_E, phi_I, c_T, c_E, c_I, utility variants
-    -   `run_parameter_optimization()`: Evaluates parameter combinations across multiple simulations
-    -   `create_optimization_plots()`: Visualizes parameter sensitivity and performance metrics
-    -   `find_best_parameters()`: Identifies optimal settings by completion rate, selection accuracy, utility
-    -   Evidence: L1-L383
--   **`run_optimization.R`**: Convenience wrappers for parameter optimization
-    -   `quick_optimization()`: Fast exploration (20 combinations, 3 sims each)
-    -   `comprehensive_optimization()`: Thorough search (50 combinations, 5 sims each)
-    -   `test_specific_params()`: Test individual parameter sets
-    -   Evidence: L1-L173
+-   **`threshold_calibration.R`**: Separate calibration system for `c_T`, `c_I`, and `c_E`
+    -   `default_separate_threshold_settings()`: Front-loaded defaults for notebook use
+    -   `create_threshold_scenario()`: Builds endpoint-specific unfavorable scenarios from marginal probability targets
+    -   `make_conditional_probability_matrix()`: Calculates conditional endpoint probabilities that preserve requested marginals
+    -   `calibrate_separate_thresholds()`: Calibrates `c_T`, then `c_I`, then `c_E` before PoC calibration
+    -   `append_threshold_calibration_log()`: Appends readable Markdown run history
+    -   Target: final admissible set missing rate under endpoint-specific unfavorable scenarios
 
 ### Utilities (`src/utils/`)
 -   **`helpers.R`**: Core visualization and helper functions
@@ -73,10 +69,14 @@ This document outlines the structure and purpose of each file in the DoseFinding
     -   Evidence: L1-L369
 -   **`poc_calibration_notebook.qmd`**: Interactive PoC calibration workflow
     -   Creates null/flat scenarios using `create_null_flat_scenario()`
-    -   Runs `calibrate_c_poc()` across c_poc candidates (0.5-0.95)
+    -   Runs `calibrate_c_poc()` across c_poc candidates
+    -   Uses saved `c_T`, `c_I`, and `c_E` results from threshold calibration as fixed inputs
     -   Generates calibration curves and detailed reports
     -   Outputs optimal c_poc for ~10% Type I error rate
-    -   Evidence: L1-L260
+-   **`threshold_calibration_notebook.qmd`**: Interactive threshold calibration workflow
+    -   Calibrates `c_T`, `c_I`, and `c_E` separately before PoC calibration
+    -   Uses endpoint-specific unfavorable scenarios from front-loaded settings
+    -   Saves RDS, CSV, and readable Markdown history under `results/threshold_calibration/`
 
 ## Testing (`tests/`)
 -   **`test_main.R`**: Integration tests for complete trial simulation
