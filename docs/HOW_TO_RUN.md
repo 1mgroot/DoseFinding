@@ -8,7 +8,7 @@ files in `src/` or call backend functions from the R console.
 1. Open `DoseFinding.Rproj` in RStudio.
 2. Open a notebook from `notebooks/`.
 3. Edit only the **User Settings** chunk near the top.
-4. Leave `quick_mode <- TRUE` for a fast smoke test.
+4. Set `quick_mode <- TRUE` for a fast smoke test, or `FALSE` for production.
 5. Click **Run All** or **Render**.
 6. Review generated tables, plots, and files under `results/`.
 
@@ -17,15 +17,21 @@ reporting final results.
 
 ## Notebook Decision Guide
 
-### 1. Run One Trial
+### 1. Run Trial Simulations
 
 Use `notebooks/simulation_notebook.qmd`.
 
-This notebook is for learning the design, checking one scenario, and inspecting:
+This notebook is for learning the design, checking one scenario, and inspecting
+repeated trial simulation behavior. Production mode runs `2,000` independent
+trial simulations by default. Quick mode runs `5` simulations for a fast smoke
+test.
+
+The notebook reports:
 
 - final OD selection
 - early termination status
 - PoC validation status
+- Monte Carlo selection rates
 - posterior summaries
 - allocation by dose and stage
 - dose-response and allocation plots
@@ -39,6 +45,11 @@ By default, the simulation notebook reads
 `results/notebook_calibration/poc_calibration_results.rds` when they exist, then
 uses those calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values. If either file is
 missing, the notebook falls back to the values in **User Settings**.
+
+The Monte Carlo summary and `results/simulation/simulation_metrics.csv` describe
+all simulation replicates. Detailed posterior and allocation plots use the first
+replicate as an example trial, so those plots are intentionally single-trial
+diagnostics rather than averages over all 2,000 simulations.
 
 The allocation plots intentionally keep all doses in one graph. When several
 doses have the same value, the notebook uses a small display-only horizontal
@@ -106,6 +117,7 @@ Generated outputs are intentionally ignored by git. Common locations:
 ```text
 results/
 ├── plots/
+├── simulation/
 ├── notebook_calibration/
 └── threshold_calibration/
 ```
@@ -118,6 +130,8 @@ Trial scale:
 
 - `dose_levels`: dose labels used by the design.
 - `n_stages`: number of trial stages.
+- `n_simulations`: number of independent trial simulations. The simulation
+  notebook defaults to `2,000` in production mode and `5` in quick mode.
 - `cohort_size`: patients enrolled per stage.
 
 Clinical thresholds:
@@ -157,7 +171,7 @@ PoC settings:
 Simulation calibration reuse:
 
 - `use_calibration_results`: whether the simulation notebook should read saved
-  calibration results before running one trial.
+  calibration results before running trial simulations.
 - `threshold_calibration_results_path`: threshold calibration RDS used by the
   simulation notebook.
 - `poc_calibration_results_path`: PoC calibration RDS used by the simulation

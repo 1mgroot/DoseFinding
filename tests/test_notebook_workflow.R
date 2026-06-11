@@ -71,6 +71,7 @@ test_that("simulation notebook defaults use the current calibrated fallback valu
   expect_type(settings$quick_mode, "logical")
   expect_equal(simulation_settings$dose_levels, trial_config$dose_levels)
   expect_equal(simulation_settings$n_stages, if (settings$quick_mode) 3 else 5)
+  expect_equal(simulation_settings$n_simulations, if (settings$quick_mode) 5 else 2000)
   expect_equal(simulation_settings$cohort_size, trial_config$cohort_size)
   expect_equal(simulation_settings$phi_T, trial_config$phi_T)
   expect_equal(simulation_settings$c_T, 0.35)
@@ -89,6 +90,14 @@ test_that("simulation notebook defaults use the current calibrated fallback valu
     simulation_settings$poc_calibration_results_path,
     "results/notebook_calibration/poc_calibration_results.rds"
   )
+
+  quick_settings <- evaluate_user_settings(
+    workflow_notebooks[["simulation"]],
+    quick_mode_override = TRUE
+  )$simulation_settings
+
+  expect_equal(quick_settings$n_stages, 3)
+  expect_equal(quick_settings$n_simulations, 5)
 })
 
 test_that("simulation notebook can reuse saved threshold and PoC calibration results", {
@@ -124,6 +133,21 @@ test_that("simulation notebook can reuse saved threshold and PoC calibration res
   expect_equal(env$simulation_settings$c_I, 0.72)
   expect_equal(env$simulation_settings$c_E, 0.53)
   expect_equal(env$simulation_settings$c_poc, 0.987)
+})
+
+test_that("simulation notebook runs repeated trial simulations before example plots", {
+  simulation_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "simulation")
+  results_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "results")
+
+  expect_true(grepl("n_simulations <- simulation_settings$n_simulations", simulation_chunk, fixed = TRUE))
+  expect_true(grepl("lapply(seq_len(n_simulations)", simulation_chunk, fixed = TRUE))
+  expect_true(grepl("seed = simulation_settings$seed + sim_id - 1", simulation_chunk, fixed = TRUE))
+  expect_true(grepl("results <- simulation_results[[1]]", simulation_chunk, fixed = TRUE))
+  expect_true(grepl("simulation_metrics <- data.frame", simulation_chunk, fixed = TRUE))
+  expect_true(grepl("Number of simulations:", results_chunk, fixed = TRUE))
+  expect_true(grepl("Final selection summary across simulations", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/simulation/simulation_metrics.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("Example Trial Results (first simulation)", results_chunk, fixed = TRUE))
 })
 
 test_that("simulation notebook keeps zero-allocation stages in cumulative plots", {

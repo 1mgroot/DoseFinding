@@ -13,9 +13,9 @@ editor: visual
 
 ## Introduction
 
-This notebook is the standard user interface for running one Bayesian dose-finding trial simulation. Edit only the **User Settings** chunk, then click **Run All** or **Render** in RStudio. The setup and backend simulation chunks run automatically.
+This notebook is the standard user interface for running Bayesian dose-finding trial simulations. Edit only the **User Settings** chunk, then click **Run All** or **Render** in RStudio. The setup and backend simulation chunks run automatically.
 
-Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` when you want the full default stage count.
+Use quick mode for a fast smoke test with 5 trial simulations. Switch `quick_mode` to `FALSE` for the production default of 2,000 trial simulations.
 
 ## User Settings
 
@@ -28,6 +28,7 @@ dose_levels <- c(1, 2, 3, 4, 5)
 simulation_settings <- list(
   dose_levels = dose_levels,
   n_stages = if (quick_mode) 3 else 5,
+  n_simulations = if (quick_mode) 5 else 2000,
   cohort_size = 15,
   phi_T = 0.30,
   c_T = 0.35,
@@ -241,7 +242,7 @@ trial_config$utility_table <- utility_table
 
 ## Simulation
 
-This chunk runs the backend simulation automatically. The workflow is:
+This chunk runs the backend simulation automatically. It repeats the full trial `n_simulations` times. The workflow inside each replicate is:
 
 1.  **Stage 1**: Equal randomization to all dose levels
 2.  **Interim Analysis**: Update admissible set based on posterior probabilities
@@ -251,20 +252,76 @@ This chunk runs the backend simulation automatically. The workflow is:
 
 ```{r simulation}
 #| echo: false
-results <- run_trial_simulation(
-  trial_config,
-  p_YI,
-  p_YT_given_I,
-  p_YE_given_I,
-  rho0,
-  rho1,
-  seed = simulation_settings$seed
+n_simulations <- simulation_settings$n_simulations
+progress_every <- if (quick_mode) 1 else max(1, floor(n_simulations / 20))
+
+cat("Running", n_simulations, "trial simulations...\n")
+simulation_start_time <- Sys.time()
+
+simulation_results <- lapply(seq_len(n_simulations), function(sim_id) {
+  if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {
+    cat("  Simulation", sim_id, "of", n_simulations, "\n")
+  }
+  run_trial_simulation(
+    trial_config,
+    p_YI,
+    p_YT_given_I,
+    p_YE_given_I,
+    rho0,
+    rho1,
+    seed = simulation_settings$seed + sim_id - 1
+  )
+})
+
+simulation_duration <- difftime(Sys.time(), simulation_start_time, units = "mins")
+cat("Completed", n_simulations, "trial simulations in", round(simulation_duration, 2), "minutes.\n")
+
+results <- simulation_results[[1]]
+
+get_result_scalar <- function(result, name, default) {
+  value <- result[[name]]
+  if (is.null(value) || length(value) == 0) {
+    return(default)
+  }
+  value[[1]]
+}
+
+simulation_metrics <- data.frame(
+  simulation = seq_along(simulation_results),
+  terminated_early = vapply(simulation_results, function(result) {
+    isTRUE(get_result_scalar(result, "terminated_early", FALSE))
+  }, logical(1)),
+  termination_stage = vapply(simulation_results, function(result) {
+    as.integer(get_result_scalar(result, "termination_stage", NA_integer_))
+  }, integer(1)),
+  final_od = vapply(simulation_results, function(result) {
+    as.integer(get_result_scalar(result, "final_od", NA_integer_))
+  }, integer(1)),
+  poc_validated = vapply(simulation_results, function(result) {
+    isTRUE(get_result_scalar(result, "poc_validated", FALSE))
+  }, logical(1)),
+  poc_probability = vapply(simulation_results, function(result) {
+    as.numeric(get_result_scalar(result, "poc_probability", NA_real_))
+  }, numeric(1)),
+  final_utility = vapply(simulation_results, function(result) {
+    as.numeric(get_result_scalar(result, "final_utility", NA_real_))
+  }, numeric(1)),
+  n_participants = vapply(simulation_results, function(result) {
+    nrow(result$all_data)
+  }, integer(1)),
+  stringsAsFactors = FALSE
+)
+
+simulation_metrics$selection <- ifelse(
+  is.na(simulation_metrics$final_od),
+  "No OD",
+  paste("Dose", simulation_metrics$final_od)
 )
 ```
 
 ## Results
 
-This chunk prints the final optimal dose and displays the plots.
+This chunk prints Monte Carlo summary results across all simulations. Detailed posterior and allocation plots use the first replicate as an example trial.
 
 ```{r results}
 #| echo: false
@@ -272,28 +329,53 @@ dir.create("results/plots", recursive = TRUE, showWarnings = FALSE)
 
 # Print final results
 cat("
---- Final Results ---
+--- Monte Carlo Summary ---
+")
+
+cat("Number of simulations:", nrow(simulation_metrics), "\n")
+cat("Early termination rate:", sprintf("%.1f%%", 100 * mean(simulation_metrics$terminated_early)), "\n")
+cat("PoC validation rate:", sprintf("%.1f%%", 100 * mean(simulation_metrics$poc_validated)), "\n")
+cat("Mean participants:", round(mean(simulation_metrics$n_participants), 1), "\n")
+
+selection_summary <- simulation_metrics %>%
+  count(selection, name = "n") %>%
+  mutate(rate = n / nrow(simulation_metrics)) %>%
+  arrange(desc(n))
+
+kable(selection_summary, caption = "Final selection summary across simulations")
+
+dir.create("results/simulation", recursive = TRUE, showWarnings = FALSE)
+write.csv(simulation_metrics, "results/simulation/simulation_metrics.csv", row.names = FALSE)
+
+cat("\nSaved simulation-level metrics to results/simulation/simulation_metrics.csv\n")
+
+cat("
+--- Example Trial Results (first simulation) ---
 ")
 
 if (results$terminated_early) {
-  cat("Trial terminated early at stage:", results$termination_stage, "
-")
-  cat("Reason:", results$termination_reason, "
-")
-  cat("No Optimal Dose selected
-")
+  cat("Example trial terminated early at stage:", results$termination_stage, "\n")
+  cat("Reason:", results$termination_reason, "\n")
+  cat("No Optimal Dose selected\n")
 } else {
-  cat("Final OD:", results$final_od, "
-")
-  cat("Final utility:", round(results$final_utility, 2), "
-")
-  cat("PoC validated:", results$poc_validated, "
-")
-  cat("PoC probability:", round(results$poc_probability, 3), "
-")
-  cat("Selection reason:", results$selection_reason, "
-")
+  cat("Example final OD:", results$final_od, "\n")
+  cat("Example final utility:", round(results$final_utility, 2), "\n")
+  cat("Example PoC validated:", results$poc_validated, "\n")
+  cat("Example PoC probability:", round(results$poc_probability, 3), "\n")
+  cat("Example selection reason:", results$selection_reason, "\n")
 }
+
+p_selection <- ggplot(selection_summary, aes(x = reorder(selection, -n), y = rate, fill = selection)) +
+  geom_col(show.legend = FALSE) +
+  scale_y_continuous(labels = function(x) paste0(round(100 * x), "%")) +
+  labs(
+    title = "Final Selection Rate Across Simulations",
+    x = "Selection",
+    y = "Selection Rate"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(panel.grid = element_blank())
+print(p_selection)
 
 # Plot final results and save them with modern styling
 plot_posterior_summary(results$posterior_summaries$imm, title = "Immune Response vs Dose (PAVA Adjusted)", file_path = "results/plots/immune_response_refactored.png", style = "modern")
