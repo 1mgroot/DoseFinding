@@ -387,8 +387,7 @@ select_threshold_candidate <- function(
 
   list(
     selected_index = selected_index,
-    status = status,
-    target_distance = distance
+    status = status
   )
 }
 
@@ -448,7 +447,6 @@ calibrate_single_threshold <- function(
     stricter_direction = "higher"
   )
   selected_index <- selection$selected_index
-  result_table$target_distance <- selection$target_distance
   result_table$selected <- seq_len(nrow(result_table)) == selected_index
 
   list(

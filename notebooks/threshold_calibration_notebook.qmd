@@ -377,12 +377,11 @@ for (name in names(calibration_results$calibrations)) {
       final_missing_rate = paste0(round(final_admissible_missing_rate * 100, 1), "%"),
       target_endpoint_missing_rate = paste0(round(target_endpoint_missing_rate * 100, 1), "%"),
       early_stop_rate = paste0(round(early_stop_rate * 100, 1), "%"),
-      target_distance = paste0(round(target_distance * 100, 1), "%"),
       mean_admissible_count = round(mean_admissible_count, 2)
     )
   cat("\n\n### Candidate Results for ", name, "\n\n", sep = "")
   cat("The selected row is the least strict candidate inside the target range. If no row is inside the range, the direction follows the design rule that larger c values require stronger posterior evidence.\n\n")
-  cat("`target_endpoint_missing_rate` is a diagnostic: it is the proportion of simulations where no dose passes the endpoint being calibrated alone. For c_T this means no dose passes P(T < phi_T) > c_T; for c_I, no dose passes P(I > phi_I) > c_I; for c_E, no dose passes P(E > phi_E) > c_E. The selected value is based on `final_missing_rate`, which requires all endpoint rules together.\n\n")
+  cat("`final_missing_rate` includes trials that stopped early because the admissible set became empty. `target_endpoint_missing_rate` is a diagnostic: it is the proportion of simulations where no dose passes the endpoint being calibrated alone. For c_T this means no dose passes P(T < phi_T) > c_T; for c_I, no dose passes P(I > phi_I) > c_I; for c_E, no dose passes P(E > phi_E) > c_E. The selected value is based on `final_missing_rate`, which requires all endpoint rules together.\n\n")
   print(kable(candidate_table))
 }
 ```

@@ -108,6 +108,10 @@ calibration. It generates:
 The default target is a final admissible set missing rate of 80%-90%. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.
 
+`final_missing_rate` includes trials that stopped early because the admissible
+set became empty. In those simulations, the final available posterior is the
+posterior at the stopping stage.
+
 In the candidate tables, `target_endpoint_missing_rate` is a diagnostic rather
 than the main selection target. It asks whether the endpoint being calibrated
 would remove every dose by itself: for `c_T`, no dose passes

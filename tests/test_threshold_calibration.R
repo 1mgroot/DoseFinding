@@ -67,8 +67,8 @@ test_that("single threshold calibration returns a structured result", {
   expect_equal(nrow(result$results), 1)
   expect_true("final_admissible_missing_rate" %in% names(result$results))
   expect_true("target_endpoint_missing_rate" %in% names(result$results))
-  expect_true("target_distance" %in% names(result$results))
   expect_true("selected" %in% names(result$results))
+  expect_false("target_distance" %in% names(result$results))
 })
 
 test_that("threshold candidate selection follows c cutoff direction", {
