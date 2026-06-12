@@ -70,7 +70,8 @@ Use [notebooks/scenario_comparison_notebook.qmd](notebooks/scenario_comparison_n
 to compare multiple truth scenarios in one run. Edit the `scenarios` list in
 the **User Settings** chunk to define different `p_YI`, `p_YT_given_I`,
 `p_YE_given_I`, `rho0`, and `rho1` values. The notebook runs each scenario with
-the same design settings and writes final comparison tables under
+the same design settings, calculates the true optimal dose from the scenario
+probabilities and utility table, and writes final comparison tables under
 `results/scenario_comparison/`.
 
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)

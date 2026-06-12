@@ -80,9 +80,11 @@ list in the **User Settings** chunk. Each scenario can define different:
 The notebook writes:
 
 - scenario truth table
+- true utility table by scenario and dose
 - simulation-level metrics
 - selection-rate table
-- final scenario comparison summary
+- final scenario comparison summary, including the true optimal dose and the
+  rate at which the simulated design selected that dose
 
 Common output location:
 

@@ -279,6 +279,18 @@ calculate_marginal <- function(prob_given_i, p_i) {
   prob_given_i[, 1] * (1 - p_i) + prob_given_i[, 2] * p_i
 }
 
+calculate_true_utilities <- function(scenario, dose_levels, utility_table) {
+  vapply(seq_along(dose_levels), function(dose_index) {
+    calculate_utility_from_true_probs(
+      dose_idx = dose_index,
+      p_YI = scenario$p_YI,
+      p_YT_given_I = scenario$p_YT_given_I,
+      p_YE_given_I = scenario$p_YE_given_I,
+      utility_table = utility_table
+    )
+  }, numeric(1))
+}
+
 validate_scenario <- function(scenario, scenario_index, dose_levels) {
   required_names <- c("name", "p_YI", "p_YT_given_I", "p_YE_given_I", "rho0", "rho1")
   missing_names <- setdiff(required_names, names(scenario))
@@ -309,6 +321,42 @@ for (scenario_index in seq_along(scenarios)) {
   validate_scenario(scenarios[[scenario_index]], scenario_index, comparison_settings$dose_levels)
 }
 
+scenario_true_utility_table <- bind_rows(lapply(seq_along(scenarios), function(scenario_index) {
+  scenario <- scenarios[[scenario_index]]
+  true_utilities <- calculate_true_utilities(
+    scenario,
+    comparison_settings$dose_levels,
+    utility_table
+  )
+  max_utility <- max(true_utilities)
+
+  data.frame(
+    scenario = scenario$name,
+    dose = paste("Dose", comparison_settings$dose_levels),
+    dose_level = comparison_settings$dose_levels,
+    true_utility = true_utilities,
+    is_true_optimal = abs(true_utilities - max_utility) < 1e-10,
+    stringsAsFactors = FALSE
+  )
+}))
+
+scenario_optimal_table <- scenario_true_utility_table %>%
+  filter(is_true_optimal) %>%
+  group_by(scenario) %>%
+  summarise(
+    true_optimal_dose = paste(dose, collapse = ", "),
+    true_optimal_utility = first(true_utility),
+    .groups = "drop"
+  )
+
+scenario_true_utility_wide <- scenario_true_utility_table %>%
+  mutate(utility_label = paste0("true_utility_Dose_", dose_level)) %>%
+  select(scenario, utility_label, true_utility) %>%
+  tidyr::pivot_wider(
+    names_from = utility_label,
+    values_from = true_utility
+  )
+
 scenario_truth_table <- bind_rows(lapply(seq_along(scenarios), function(scenario_index) {
   scenario <- scenarios[[scenario_index]]
   marginal_toxicity <- calculate_marginal(scenario$p_YT_given_I, scenario$p_YI)
@@ -323,9 +371,19 @@ scenario_truth_table <- bind_rows(lapply(seq_along(scenarios), function(scenario
     rho1 = scenario$rho1,
     stringsAsFactors = FALSE
   )
-}))
+})) %>%
+  left_join(scenario_optimal_table, by = "scenario") %>%
+  left_join(scenario_true_utility_wide, by = "scenario")
 
-kable(scenario_truth_table, caption = "Scenario truth values")
+scenario_truth_display <- scenario_truth_table
+utility_columns <- grep("^true_utility_Dose_", names(scenario_truth_display), value = TRUE)
+scenario_truth_display[utility_columns] <- lapply(
+  scenario_truth_display[utility_columns],
+  function(values) round(values, 1)
+)
+scenario_truth_display$true_optimal_utility <- round(scenario_truth_display$true_optimal_utility, 1)
+
+kable(scenario_truth_display, caption = "Scenario truth values and true optimal dose")
 ```
 
 ## Run Scenario Simulations
@@ -442,6 +500,20 @@ scenario_selection_wide <- scenario_selection_table %>%
     values_fill = 0
   )
 
+true_optimal_selection_table <- scenario_selection_table %>%
+  mutate(selection = as.character(selection)) %>%
+  inner_join(
+    scenario_true_utility_table %>%
+      filter(is_true_optimal) %>%
+      select(scenario, selection = dose),
+    by = c("scenario", "selection")
+  ) %>%
+  group_by(scenario) %>%
+  summarise(
+    selection_rate_true_optimal = sum(selection_rate),
+    .groups = "drop"
+  )
+
 scenario_summary_table <- scenario_metrics %>%
   group_by(scenario) %>%
   summarise(
@@ -454,7 +526,10 @@ scenario_summary_table <- scenario_metrics %>%
     mean_final_utility = mean(final_utility, na.rm = TRUE),
     .groups = "drop"
   ) %>%
+  left_join(scenario_optimal_table, by = "scenario") %>%
+  left_join(true_optimal_selection_table, by = "scenario") %>%
   left_join(scenario_selection_wide, by = "scenario") %>%
+  relocate(true_optimal_dose, true_optimal_utility, selection_rate_true_optimal, .after = scenario) %>%
   arrange(scenario)
 
 display_rate_columns <- grep("rate", names(scenario_summary_table), value = TRUE)
@@ -466,15 +541,18 @@ scenario_summary_display[display_rate_columns] <- lapply(
 scenario_summary_display$mean_participants <- round(scenario_summary_display$mean_participants, 1)
 scenario_summary_display$mean_poc_probability <- round(scenario_summary_display$mean_poc_probability, 3)
 scenario_summary_display$mean_final_utility <- round(scenario_summary_display$mean_final_utility, 1)
+scenario_summary_display$true_optimal_utility <- round(scenario_summary_display$true_optimal_utility, 1)
 
-kable(scenario_summary_display, caption = "Scenario comparison summary")
+kable(scenario_summary_display, caption = "Scenario comparison summary with true optimal dose")
 
 write.csv(scenario_truth_table, "results/scenario_comparison/scenario_truth_table.csv", row.names = FALSE)
+write.csv(scenario_true_utility_table, "results/scenario_comparison/scenario_true_utility_table.csv", row.names = FALSE)
 write.csv(scenario_metrics, "results/scenario_comparison/scenario_metrics.csv", row.names = FALSE)
 write.csv(scenario_selection_table, "results/scenario_comparison/scenario_selection_table.csv", row.names = FALSE)
 write.csv(scenario_summary_table, "results/scenario_comparison/scenario_summary_table.csv", row.names = FALSE)
 
 cat("\nSaved scenario truth table to results/scenario_comparison/scenario_truth_table.csv\n")
+cat("Saved true utility table to results/scenario_comparison/scenario_true_utility_table.csv\n")
 cat("Saved simulation-level metrics to results/scenario_comparison/scenario_metrics.csv\n")
 cat("Saved selection table to results/scenario_comparison/scenario_selection_table.csv\n")
 cat("Saved final summary table to results/scenario_comparison/scenario_summary_table.csv\n")
