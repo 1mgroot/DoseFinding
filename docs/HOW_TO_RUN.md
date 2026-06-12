@@ -108,6 +108,14 @@ calibration. It generates:
 The default target is a final admissible set missing rate of 80%-90%. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.
 
+In the candidate tables, `target_endpoint_missing_rate` is a diagnostic rather
+than the main selection target. It asks whether the endpoint being calibrated
+would remove every dose by itself: for `c_T`, no dose passes
+`P(T < phi_T) > c_T`; for `c_I`, no dose passes `P(I > phi_I) > c_I`; for
+`c_E`, no dose passes `P(E > phi_E) > c_E`. The recommended cutoff is selected
+from `final_missing_rate`, which requires toxicity, immune response, and
+efficacy rules together.
+
 ### 4. Calibrate PoC
 
 Use `notebooks/poc_calibration_notebook.qmd`.
@@ -183,6 +191,8 @@ Posterior credibility cutoffs:
 - `c_I`: required confidence that immune response is acceptable.
 - `target_missing_range`: threshold calibration target for the final admissible
   set missing rate under endpoint-specific unfavorable scenarios.
+  `target_endpoint_missing_rate` in the notebook output is endpoint-only
+  diagnostic information.
 
 PoC settings:
 

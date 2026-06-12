@@ -292,7 +292,7 @@ test_that("threshold calibration notebook includes calibrated defaults in its gr
   expect_true(trial_config$c_I %in% threshold_settings$c_I_candidates)
   expect_equal(threshold_settings$target_missing_range, c(0.80, 0.90))
   expect_equal(threshold_settings$high_tox_p_I, 0.30)
-  expect_equal(threshold_settings$high_tox_marginal_p_T, c(0.35, 0.60))
+  expect_equal(threshold_settings$high_tox_marginal_p_T, c(0.30, 0.50))
   expect_equal(threshold_settings$low_immune_p_I, c(0.10, 0.15))
   expect_equal(threshold_settings$low_eff_marginal_p_E, c(0.10, 0.20))
   expect_equal(threshold_settings$n_sim_per_candidate, if (settings$quick_mode) 5 else 500)

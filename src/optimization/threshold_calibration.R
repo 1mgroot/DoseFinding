@@ -121,7 +121,7 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     n_sim_per_candidate = if (quick_mode) 5 else 500,
     calibration_seed = 11118,
     high_tox_p_I = 0.30,
-    high_tox_marginal_p_T = c(0.35, 0.60),
+    high_tox_marginal_p_T = c(0.30, 0.50),
     high_tox_marginal_p_E = 0.40,
     low_immune_p_I = c(0.10, 0.15),
     low_immune_marginal_p_T = 0.15,
@@ -320,6 +320,78 @@ summarise_threshold_runs <- function(simulation_results) {
   )
 }
 
+target_range_distance <- function(values, target_range) {
+  if (length(target_range) != 2 || any(is.na(target_range)) || target_range[[1]] > target_range[[2]]) {
+    stop("target_range must be a numeric vector of length 2 with low <= high.")
+  }
+  ifelse(
+    values < target_range[[1]],
+    target_range[[1]] - values,
+    ifelse(values > target_range[[2]], values - target_range[[2]], 0)
+  )
+}
+
+select_threshold_candidate <- function(
+  result_table,
+  target_missing_range,
+  stricter_direction = "higher"
+) {
+  if (!stricter_direction %in% c("higher", "lower")) {
+    stop("stricter_direction must be 'higher' or 'lower'.")
+  }
+  required_columns <- c("param_value", "final_admissible_missing_rate")
+  missing_columns <- setdiff(required_columns, names(result_table))
+  if (length(missing_columns) > 0) {
+    stop("result_table is missing: ", paste(missing_columns, collapse = ", "))
+  }
+
+  missing_rate <- result_table$final_admissible_missing_rate
+  distance <- target_range_distance(missing_rate, target_missing_range)
+  target_low <- target_missing_range[[1]]
+  target_high <- target_missing_range[[2]]
+  in_range <- which(distance == 0)
+
+  choose_least_strict <- function(indices) {
+    values <- result_table$param_value[indices]
+    if (stricter_direction == "higher") {
+      indices[[which.min(values)]]
+    } else {
+      indices[[which.max(values)]]
+    }
+  }
+  choose_most_strict <- function(indices) {
+    values <- result_table$param_value[indices]
+    if (stricter_direction == "higher") {
+      indices[[which.max(values)]]
+    } else {
+      indices[[which.min(values)]]
+    }
+  }
+
+  if (length(in_range) > 0) {
+    selected_index <- choose_least_strict(in_range)
+    status <- "within target range; least strict candidate"
+  } else if (all(missing_rate < target_low)) {
+    closest <- which(distance == min(distance))
+    selected_index <- choose_most_strict(closest)
+    status <- "below target range; strictest closest candidate"
+  } else if (all(missing_rate > target_high)) {
+    closest <- which(distance == min(distance))
+    selected_index <- choose_least_strict(closest)
+    status <- "above target range; least strict closest candidate"
+  } else {
+    closest <- which(distance == min(distance))
+    selected_index <- choose_least_strict(closest)
+    status <- "closest to target range; least strict tie-break"
+  }
+
+  list(
+    selected_index = selected_index,
+    status = status,
+    target_distance = distance
+  )
+}
+
 calibrate_single_threshold <- function(
   param_name,
   endpoint,
@@ -370,20 +442,14 @@ calibrate_single_threshold <- function(
   }
 
   result_table <- bind_rows(lapply(candidate_results, as.data.frame))
-  target_center <- mean(target_missing_range)
-  in_range <- which(
-    result_table$final_admissible_missing_rate >= target_missing_range[[1]] &
-      result_table$final_admissible_missing_rate <= target_missing_range[[2]]
+  selection <- select_threshold_candidate(
+    result_table = result_table,
+    target_missing_range = target_missing_range,
+    stricter_direction = "higher"
   )
-  if (length(in_range) > 0) {
-    selected_index <- in_range[
-      which.min(abs(result_table$final_admissible_missing_rate[in_range] - target_center))
-    ]
-    status <- "within target range"
-  } else {
-    selected_index <- which.min(abs(result_table$final_admissible_missing_rate - target_center))
-    status <- "closest to target range"
-  }
+  selected_index <- selection$selected_index
+  result_table$target_distance <- selection$target_distance
+  result_table$selected <- seq_len(nrow(result_table)) == selected_index
 
   list(
     param_name = param_name,
@@ -394,7 +460,7 @@ calibrate_single_threshold <- function(
     optimal_value = result_table$param_value[[selected_index]],
     achieved_missing_rate = result_table$final_admissible_missing_rate[[selected_index]],
     target_missing_range = target_missing_range,
-    status = status,
+    status = selection$status,
     selected_row = selected_index,
     n_simulations = n_simulations
   )

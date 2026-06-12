@@ -64,7 +64,7 @@ threshold_settings <- list(
   calibration_seed = 11118,
 
   high_tox_p_I = 0.30,
-  high_tox_marginal_p_T = c(0.35, 0.60),
+  high_tox_marginal_p_T = c(0.30, 0.50),
   high_tox_marginal_p_E = 0.40,
 
   low_immune_p_I = c(0.10, 0.15),
@@ -257,7 +257,7 @@ parameter_rows <- data.frame(
     "Initial immune-response credibility cutoff. Calibration tests the candidate grid and may replace this value.",
     "Initial efficacy credibility cutoff. Calibration tests the candidate grid and may replace this value.",
     "Final PoC cutoff carried through this notebook for consistency; calibrate it in the PoC notebook.",
-    "Target proportion of simulations where the final admissible set is empty in each unfavorable scenario.",
+    "Target proportion of simulations where the final admissible set is empty in each unfavorable scenario. This is the primary calibration target.",
     "Grid searched for the toxicity credibility cutoff. Larger values require stronger safety evidence.",
     "Grid searched for the immune-response credibility cutoff. Larger values require stronger immune evidence.",
     "Grid searched for the efficacy credibility cutoff. Larger values require stronger efficacy evidence.",
@@ -371,14 +371,18 @@ for (name in names(calibration_results$calibrations)) {
   result <- calibration_results$calibrations[[name]]
   candidate_table <- result$results %>%
     transmute(
+      selected = ifelse(selected, "yes", ""),
       parameter = param_name,
       candidate = round(param_value, 3),
       final_missing_rate = paste0(round(final_admissible_missing_rate * 100, 1), "%"),
       target_endpoint_missing_rate = paste0(round(target_endpoint_missing_rate * 100, 1), "%"),
       early_stop_rate = paste0(round(early_stop_rate * 100, 1), "%"),
+      target_distance = paste0(round(target_distance * 100, 1), "%"),
       mean_admissible_count = round(mean_admissible_count, 2)
     )
   cat("\n\n### Candidate Results for ", name, "\n\n", sep = "")
+  cat("The selected row is the least strict candidate inside the target range. If no row is inside the range, the direction follows the design rule that larger c values require stronger posterior evidence.\n\n")
+  cat("`target_endpoint_missing_rate` is a diagnostic: it is the proportion of simulations where no dose passes the endpoint being calibrated alone. For c_T this means no dose passes P(T < phi_T) > c_T; for c_I, no dose passes P(I > phi_I) > c_I; for c_E, no dose passes P(E > phi_E) > c_E. The selected value is based on `final_missing_rate`, which requires all endpoint rules together.\n\n")
   print(kable(candidate_table))
 }
 ```

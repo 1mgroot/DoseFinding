@@ -35,7 +35,7 @@ test_that("threshold calibration scenarios use endpoint-specific unfavorable set
   eff <- create_threshold_scenario("efficacy", settings)
 
   expect_equal(tox$p_YI, rep(0.30, 5))
-  expect_equal(tox$marginal_p_T, seq(0.35, 0.60, length.out = 5))
+  expect_equal(tox$marginal_p_T, seq(0.30, 0.50, length.out = 5))
   expect_equal(tox$marginal_p_E, rep(0.40, 5))
 
   expect_equal(immune$p_YI, seq(0.10, 0.15, length.out = 5))
@@ -67,4 +67,32 @@ test_that("single threshold calibration returns a structured result", {
   expect_equal(nrow(result$results), 1)
   expect_true("final_admissible_missing_rate" %in% names(result$results))
   expect_true("target_endpoint_missing_rate" %in% names(result$results))
+  expect_true("target_distance" %in% names(result$results))
+  expect_true("selected" %in% names(result$results))
+})
+
+test_that("threshold candidate selection follows c cutoff direction", {
+  in_range_table <- data.frame(
+    param_value = c(0.45, 0.55, 0.65),
+    final_admissible_missing_rate = c(0.78, 0.82, 0.88)
+  )
+  selected <- select_threshold_candidate(in_range_table, c(0.80, 0.90))
+  expect_equal(selected$selected_index, 2)
+  expect_match(selected$status, "least strict")
+
+  below_range_table <- data.frame(
+    param_value = c(0.45, 0.55, 0.65),
+    final_admissible_missing_rate = c(0.40, 0.55, 0.70)
+  )
+  selected <- select_threshold_candidate(below_range_table, c(0.80, 0.90))
+  expect_equal(selected$selected_index, 3)
+  expect_match(selected$status, "strictest")
+
+  above_range_table <- data.frame(
+    param_value = c(0.45, 0.55, 0.65),
+    final_admissible_missing_rate = c(0.92, 0.96, 0.99)
+  )
+  selected <- select_threshold_candidate(above_range_table, c(0.80, 0.90))
+  expect_equal(selected$selected_index, 1)
+  expect_match(selected$status, "least strict")
 })
