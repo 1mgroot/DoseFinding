@@ -56,12 +56,12 @@ selection. Production mode runs `2,000` independent trial simulations by
 default; quick mode runs `5` for a fast smoke test. By default, it reads saved
 threshold and PoC calibration result files when they exist, then uses the
 calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values for the simulations. Summary
-tables describe all simulation replicates, while detailed posterior and
-allocation plots use the first replicate as an example trial. Allocation plots
-are kept in a single panel by dose color. The cumulative allocation plot fills
-missing dose-stage combinations with `0` participants, so doses that receive no
-new patients in a stage remain visible as flat lines rather than disappearing or
-being connected across missing stages.
+tables, posterior summaries, allocation probability plots, and participant
+allocation plots are all aggregate outputs across the simulation replicates.
+Allocation plots are kept in a single panel by dose color. The cumulative
+allocation plot fills missing dose-stage combinations with `0` participants, so
+doses that receive no new patients in a stage remain visible as flat lines
+rather than disappearing or being connected across missing stages.
 
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)
 to calibrate `c_poc` under a null/flat scenario. By default, it uses the saved

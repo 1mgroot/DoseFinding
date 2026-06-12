@@ -46,10 +46,9 @@ By default, the simulation notebook reads
 uses those calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values. If either file is
 missing, the notebook falls back to the values in **User Settings**.
 
-The Monte Carlo summary and `results/simulation/simulation_metrics.csv` describe
-all simulation replicates. Detailed posterior and allocation plots use the first
-replicate as an example trial, so those plots are intentionally single-trial
-diagnostics rather than averages over all 2,000 simulations.
+The Monte Carlo summary, mean posterior summaries, mean allocation probability
+plot, mean participant-allocation plots, and
+`results/simulation/simulation_metrics.csv` describe all simulation replicates.
 
 The allocation plots intentionally keep all doses in one graph. When several
 doses have the same value, the notebook uses a small display-only horizontal

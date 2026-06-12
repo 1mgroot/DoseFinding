@@ -135,28 +135,35 @@ test_that("simulation notebook can reuse saved threshold and PoC calibration res
   expect_equal(env$simulation_settings$c_poc, 0.987)
 })
 
-test_that("simulation notebook runs repeated trial simulations before example plots", {
+test_that("simulation notebook runs repeated trial simulations and aggregate plots", {
   simulation_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "simulation")
   results_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "results")
 
   expect_true(grepl("n_simulations <- simulation_settings$n_simulations", simulation_chunk, fixed = TRUE))
   expect_true(grepl("lapply(seq_len(n_simulations)", simulation_chunk, fixed = TRUE))
   expect_true(grepl("seed = simulation_settings$seed + sim_id - 1", simulation_chunk, fixed = TRUE))
-  expect_true(grepl("results <- simulation_results[[1]]", simulation_chunk, fixed = TRUE))
+  expect_false(grepl("simulation_results[[1]]", simulation_chunk, fixed = TRUE))
+  expect_false(grepl("Example Trial", results_chunk, fixed = TRUE))
   expect_true(grepl("simulation_metrics <- data.frame", simulation_chunk, fixed = TRUE))
   expect_true(grepl("Number of simulations:", results_chunk, fixed = TRUE))
   expect_true(grepl("Final selection summary across simulations", results_chunk, fixed = TRUE))
   expect_true(grepl("results/simulation/simulation_metrics.csv", results_chunk, fixed = TRUE))
-  expect_true(grepl("Example Trial Results (first simulation)", results_chunk, fixed = TRUE))
+  expect_true(grepl("allocation_probability_summary <- bind_rows", results_chunk, fixed = TRUE))
+  expect_true(grepl("mean_prob = mean(Prob)", results_chunk, fixed = TRUE))
+  expect_true(grepl("Mean Allocation Probabilities Across Simulations", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/simulation/allocation_probability_summary.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/simulation/participant_allocation_summary.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("Mean Participant Allocation by Dose Level and Stage", results_chunk, fixed = TRUE))
+  expect_true(grepl("Mean Final Immune Response Posterior Across Simulations", results_chunk, fixed = TRUE))
 })
 
 test_that("simulation notebook keeps zero-allocation stages in cumulative plots", {
   results_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "results")
 
-  expect_true(grepl("allocation_grid <- expand.grid", results_chunk, fixed = TRUE))
+  expect_true(grepl("participant_allocation_grid <- expand.grid", results_chunk, fixed = TRUE))
   expect_true(grepl("d = trial_config$dose_levels", results_chunk, fixed = TRUE))
   expect_true(grepl("stage = seq_len(trial_config$n_stages)", results_chunk, fixed = TRUE))
-  expect_true(grepl("left_join(allocation_counts", results_chunk, fixed = TRUE))
+  expect_true(grepl("left_join(participant_counts", results_chunk, fixed = TRUE))
   expect_true(grepl("dplyr::coalesce(n_participants, 0L)", results_chunk, fixed = TRUE))
 })
 
