@@ -425,16 +425,22 @@ scenario_selection_table <- scenario_metrics %>%
   tidyr::complete(scenario, selection, fill = list(n = 0)) %>%
   group_by(scenario) %>%
   mutate(selection_rate = n / sum(n)) %>%
-  ungroup()
+  ungroup() %>%
+  mutate(
+    selection_label = ifelse(
+      as.character(selection) == "No OD",
+      "selection_rate_No_OD",
+      paste0("selection_rate_Dose_", sub("^Dose ", "", as.character(selection)))
+    )
+  )
 
-scenario_selection_wide <- reshape(
-  scenario_selection_table[, c("scenario", "selection", "selection_rate")],
-  idvar = "scenario",
-  timevar = "selection",
-  direction = "wide"
-)
-names(scenario_selection_wide) <- sub("^selection_rate\\.", "selection_rate_", names(scenario_selection_wide))
-scenario_selection_wide[is.na(scenario_selection_wide)] <- 0
+scenario_selection_wide <- scenario_selection_table %>%
+  select(scenario, selection_label, selection_rate) %>%
+  tidyr::pivot_wider(
+    names_from = selection_label,
+    values_from = selection_rate,
+    values_fill = 0
+  )
 
 scenario_summary_table <- scenario_metrics %>%
   group_by(scenario) %>%
