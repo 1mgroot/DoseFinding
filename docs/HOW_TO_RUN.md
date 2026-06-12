@@ -49,6 +49,11 @@ missing, the notebook falls back to the values in **User Settings**.
 The Monte Carlo summary, mean posterior summaries, mean allocation probability
 plot, mean participant-allocation plots, and
 `results/simulation/simulation_metrics.csv` describe all simulation replicates.
+Participant allocation plots are unconditional means across all planned
+simulations, so stages after early termination count as `0` for that simulation.
+The stage enrollment summary also reports how many trials reached each stage;
+among trials that reach a stage, the conditional mean should match the cohort
+size.
 
 The allocation plots intentionally keep all doses in one graph. When several
 doses have the same value, the notebook uses a small display-only horizontal

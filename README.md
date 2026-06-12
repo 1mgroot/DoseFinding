@@ -58,6 +58,9 @@ threshold and PoC calibration result files when they exist, then uses the
 calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values for the simulations. Summary
 tables, posterior summaries, allocation probability plots, and participant
 allocation plots are all aggregate outputs across the simulation replicates.
+Participant allocation plots use unconditional means: stages after early
+termination count as `0` for that simulation, while the stage enrollment summary
+also reports the conditional mean among trials that reached each stage.
 Allocation plots are kept in a single panel by dose color. The cumulative
 allocation plot fills missing dose-stage combinations with `0` participants, so
 doses that receive no new patients in a stage remain visible as flat lines

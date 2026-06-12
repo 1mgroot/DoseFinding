@@ -364,7 +364,7 @@ allocation_probability_summary <- bind_rows(lapply(seq_along(simulation_results)
     .groups = "drop"
   )
 
-participant_allocation_summary <- bind_rows(lapply(seq_along(simulation_results), function(sim_id) {
+participant_allocation_by_sim <- bind_rows(lapply(seq_along(simulation_results), function(sim_id) {
   participant_counts <- simulation_results[[sim_id]]$all_data %>%
     mutate(
       d = as.integer(d),
@@ -383,7 +383,34 @@ participant_allocation_summary <- bind_rows(lapply(seq_along(simulation_results)
   participant_allocation_grid %>%
     left_join(participant_counts, by = c("d", "stage")) %>%
     mutate(n_participants = dplyr::coalesce(n_participants, 0L))
-})) %>%
+}))
+
+stage_enrollment_summary <- participant_allocation_by_sim %>%
+  group_by(simulation, stage) %>%
+  summarise(stage_participants = sum(n_participants), .groups = "drop") %>%
+  group_by(stage) %>%
+  summarise(
+    planned_simulations = n(),
+    active_trials = sum(stage_participants > 0),
+    active_trial_rate = active_trials / planned_simulations,
+    unconditional_mean_participants = mean(stage_participants),
+    conditional_mean_participants = ifelse(
+      active_trials > 0,
+      mean(stage_participants[stage_participants > 0]),
+      NA_real_
+    ),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    stage_num = as.integer(stage),
+    stage = factor(
+      stage_num,
+      levels = seq_len(trial_config$n_stages),
+      labels = paste("Stage", seq_len(trial_config$n_stages))
+    )
+  )
+
+participant_allocation_summary <- participant_allocation_by_sim %>%
   group_by(d, stage) %>%
   summarise(
     mean_participants = mean(n_participants),
@@ -413,9 +440,16 @@ write.csv(
   row.names = FALSE
 )
 
+write.csv(
+  stage_enrollment_summary,
+  "results/simulation/stage_enrollment_summary.csv",
+  row.names = FALSE
+)
+
 cat("\nSaved simulation-level metrics to results/simulation/simulation_metrics.csv\n")
 cat("Saved mean allocation probabilities to results/simulation/allocation_probability_summary.csv\n")
 cat("Saved mean participant allocation to results/simulation/participant_allocation_summary.csv\n")
+cat("Saved stage enrollment summary to results/simulation/stage_enrollment_summary.csv\n")
 
 p_selection <- ggplot(selection_summary, aes(x = reorder(selection, -n), y = rate, fill = selection)) +
   geom_col(show.legend = FALSE) +
@@ -518,14 +552,14 @@ dose_response_plot <- plot_dose_response_curves(
 )
 print(dose_response_plot)
 
-# Plot 1: Mean allocation by dose level and stage
+# Plot 1: Unconditional mean allocation by dose level and stage
 p_alloc <- ggplot(participant_allocation_summary, aes(x = d, y = mean_participants, fill = stage)) +
   geom_bar(stat = "identity", position = "dodge", width = 0.7, color = "black") +
   labs(
-    title = "Mean Participant Allocation by Dose Level and Stage",
+    title = "Unconditional Mean Participant Allocation by Dose Level and Stage",
     x = "Dose Level",
-    y = "Mean Participants per Simulation",
-    subtitle = paste("Averaged across simulations:", nrow(simulation_metrics))
+    y = "Mean Participants per Planned Simulation",
+    subtitle = "Stages after early termination count as 0 for that simulation"
   ) +
   scale_fill_manual(name = "Stage", values = c("#999999", "#E69F00", "#56B4E9", "#009E73", "#CC79A7")) +
   theme_bw(base_size = 16) +
@@ -547,9 +581,9 @@ p_cumulative <- ggplot(cumulative_summary, aes(x = stage, y = mean_cumulative_pa
   geom_line(linewidth = 1.5, position = overlap_position) +
   geom_point(size = 3, position = overlap_position) +
   labs(
-    title = "Mean Cumulative Participant Allocation Over Stages",
+    title = "Unconditional Mean Cumulative Participant Allocation Over Stages",
     x = "Stage",
-    y = "Mean Cumulative Participants per Simulation",
+    y = "Mean Cumulative Participants per Planned Simulation",
     color = "Dose Level",
     subtitle = paste("Mean final total participants:", round(mean(simulation_metrics$n_participants), 1))
   ) +
@@ -565,12 +599,19 @@ print(p_cumulative)
 # Print summary statistics
 cat("\n=== MEAN PARTICIPANT ALLOCATION SUMMARY ===\n")
 cat("Mean final total participants:", round(mean(simulation_metrics$n_participants), 1), "\n")
-cat("Mean participants per stage:\n")
-stage_totals <- participant_allocation_summary %>%
-  group_by(stage) %>%
-  summarise(mean_total = sum(mean_participants), .groups = "drop")
-for(i in 1:nrow(stage_totals)) {
-  cat("  ", as.character(stage_totals$stage[i]), ":", round(stage_totals$mean_total[i], 1), "mean participants\n")
+cat("Unconditional mean participants per planned stage:\n")
+for(i in 1:nrow(stage_enrollment_summary)) {
+  cat(
+    "  ", as.character(stage_enrollment_summary$stage[i]), ": ",
+    round(stage_enrollment_summary$unconditional_mean_participants[i], 1),
+    " mean participants; ",
+    stage_enrollment_summary$active_trials[i], "/",
+    stage_enrollment_summary$planned_simulations[i],
+    " trials reached this stage; conditional mean among reached trials = ",
+    round(stage_enrollment_summary$conditional_mean_participants[i], 1),
+    "\n",
+    sep = ""
+  )
 }
 
 ```

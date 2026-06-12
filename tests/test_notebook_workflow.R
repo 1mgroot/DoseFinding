@@ -153,8 +153,11 @@ test_that("simulation notebook runs repeated trial simulations and aggregate plo
   expect_true(grepl("Mean Allocation Probabilities Across Simulations", results_chunk, fixed = TRUE))
   expect_true(grepl("results/simulation/allocation_probability_summary.csv", results_chunk, fixed = TRUE))
   expect_true(grepl("results/simulation/participant_allocation_summary.csv", results_chunk, fixed = TRUE))
-  expect_true(grepl("Mean Participant Allocation by Dose Level and Stage", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/simulation/stage_enrollment_summary.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("Unconditional Mean Participant Allocation by Dose Level and Stage", results_chunk, fixed = TRUE))
   expect_true(grepl("Mean Final Immune Response Posterior Across Simulations", results_chunk, fixed = TRUE))
+  expect_true(grepl("conditional_mean_participants", results_chunk, fixed = TRUE))
+  expect_true(grepl("trials reached this stage", results_chunk, fixed = TRUE))
 })
 
 test_that("simulation notebook keeps zero-allocation stages in cumulative plots", {
