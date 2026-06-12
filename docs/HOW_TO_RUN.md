@@ -63,7 +63,34 @@ calculating cumulative counts. This makes doses with no new patients in a stage
 show as flat lines instead of disappearing or being connected across missing
 stages.
 
-### 2. Calibrate Thresholds
+### 2. Compare Multiple Scenarios
+
+Use `notebooks/scenario_comparison_notebook.qmd`.
+
+This notebook is for running the same design across multiple truth scenarios and
+organizing the final operating characteristics into tables. Edit the `scenarios`
+list in the **User Settings** chunk. Each scenario can define different:
+
+- `p_YI`
+- `p_YT_given_I`
+- `p_YE_given_I`
+- `rho0`
+- `rho1`
+
+The notebook writes:
+
+- scenario truth table
+- simulation-level metrics
+- selection-rate table
+- final scenario comparison summary
+
+Common output location:
+
+```text
+results/scenario_comparison/
+```
+
+### 3. Calibrate Thresholds
 
 Use `notebooks/threshold_calibration_notebook.qmd`.
 
@@ -79,7 +106,7 @@ calibration. It generates:
 The default target is a final admissible set missing rate of 80%-90%. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.
 
-### 3. Calibrate PoC
+### 4. Calibrate PoC
 
 Use `notebooks/poc_calibration_notebook.qmd`.
 
@@ -107,7 +134,7 @@ or denser `c_poc` candidate grid. If that still fails, rerun the separate
 threshold calibration workflow or revisit the protocol's PoC target definition;
 do not tune `c_T`, `c_I`, or `c_E` inside the PoC notebook.
 
-### 4. Understand the Design
+### 5. Understand the Design
 
 Use `notebooks/design_walkthrough.qmd`.
 
@@ -122,6 +149,7 @@ Generated outputs are intentionally ignored by git. Common locations:
 results/
 ├── plots/
 ├── simulation/
+├── scenario_comparison/
 ├── notebook_calibration/
 └── threshold_calibration/
 ```
@@ -137,6 +165,8 @@ Trial scale:
 - `n_simulations`: number of independent trial simulations. The simulation
   notebook defaults to `2,000` in production mode and `5` in quick mode.
 - `cohort_size`: patients enrolled per stage.
+- `scenarios`: scenario comparison list; each item contains one set of true
+  probability inputs for `p_YI`, `p_YT_given_I`, and `p_YE_given_I`.
 
 Clinical thresholds:
 

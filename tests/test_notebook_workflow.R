@@ -10,6 +10,7 @@ source("src/core/config.R")
 
 workflow_notebooks <- c(
   simulation = "notebooks/simulation_notebook.qmd",
+  scenario_comparison = "notebooks/scenario_comparison_notebook.qmd",
   poc_calibration = "notebooks/poc_calibration_notebook.qmd",
   threshold_calibration = "notebooks/threshold_calibration_notebook.qmd"
 )
@@ -168,6 +169,51 @@ test_that("simulation notebook keeps zero-allocation stages in cumulative plots"
   expect_true(grepl("stage = seq_len(trial_config$n_stages)", results_chunk, fixed = TRUE))
   expect_true(grepl("left_join(participant_counts", results_chunk, fixed = TRUE))
   expect_true(grepl("dplyr::coalesce(n_participants, 0L)", results_chunk, fixed = TRUE))
+})
+
+test_that("scenario comparison notebook supports multiple probability scenarios", {
+  settings <- evaluate_user_settings(workflow_notebooks[["scenario_comparison"]])
+  comparison_settings <- settings$comparison_settings
+  scenarios <- settings$scenarios
+
+  expect_type(settings$quick_mode, "logical")
+  expect_equal(comparison_settings$dose_levels, trial_config$dose_levels)
+  expect_equal(comparison_settings$n_stages, if (settings$quick_mode) 3 else 5)
+  expect_equal(comparison_settings$n_simulations, if (settings$quick_mode) 5 else 2000)
+  expect_equal(comparison_settings$cohort_size, trial_config$cohort_size)
+  expect_equal(comparison_settings$seed, 11118)
+  expect_true(comparison_settings$use_calibration_results)
+  expect_gte(length(scenarios), 2)
+
+  for (scenario in scenarios) {
+    expect_true(all(c("name", "p_YI", "p_YT_given_I", "p_YE_given_I", "rho0", "rho1") %in% names(scenario)))
+    expect_length(scenario$p_YI, length(trial_config$dose_levels))
+    expect_equal(dim(scenario$p_YT_given_I), c(length(trial_config$dose_levels), 2))
+    expect_equal(dim(scenario$p_YE_given_I), c(length(trial_config$dose_levels), 2))
+  }
+
+  quick_settings <- evaluate_user_settings(
+    workflow_notebooks[["scenario_comparison"]],
+    quick_mode_override = TRUE
+  )$comparison_settings
+
+  expect_equal(quick_settings$n_stages, 3)
+  expect_equal(quick_settings$n_simulations, 5)
+})
+
+test_that("scenario comparison notebook saves final comparison tables", {
+  run_chunk <- extract_qmd_chunk(workflow_notebooks[["scenario_comparison"]], "run_scenarios")
+  results_chunk <- extract_qmd_chunk(workflow_notebooks[["scenario_comparison"]], "results")
+
+  expect_true(grepl("run_trial_simulation", run_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_metrics <- bind_rows", run_chunk, fixed = TRUE))
+  expect_true(grepl("Scenario comparison summary", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_summary_table", results_chunk, fixed = TRUE))
+  expect_true(grepl("tidyr::complete", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/scenario_comparison/scenario_truth_table.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/scenario_comparison/scenario_metrics.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/scenario_comparison/scenario_selection_table.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("results/scenario_comparison/scenario_summary_table.csv", results_chunk, fixed = TRUE))
 })
 
 test_that("PoC calibration notebook separates quick smoke settings from production calibration", {

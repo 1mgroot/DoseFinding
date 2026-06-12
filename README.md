@@ -66,6 +66,13 @@ allocation plot fills missing dose-stage combinations with `0` participants, so
 doses that receive no new patients in a stage remain visible as flat lines
 rather than disappearing or being connected across missing stages.
 
+Use [notebooks/scenario_comparison_notebook.qmd](notebooks/scenario_comparison_notebook.qmd)
+to compare multiple truth scenarios in one run. Edit the `scenarios` list in
+the **User Settings** chunk to define different `p_YI`, `p_YT_given_I`,
+`p_YE_given_I`, `rho0`, and `rho1` values. The notebook runs each scenario with
+the same design settings and writes final comparison tables under
+`results/scenario_comparison/`.
+
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)
 to calibrate `c_poc` under a null/flat scenario. By default, it uses the saved
 `results/threshold_calibration/threshold_calibration_results.rds` file from the
@@ -89,6 +96,8 @@ Recommended order for a new analysis:
 4. Run PoC calibration in quick mode; it automatically uses the saved threshold values.
 5. Run PoC calibration in production mode.
 6. Return to the simulation notebook with the calibrated values.
+7. Run the scenario comparison notebook when you need a table across multiple
+   probability scenarios.
 
 ## Main Workflow
 
@@ -106,11 +115,10 @@ The simulation notebook repeats this trial process automatically:
    against dose 1, then recommend the highest-utility dose in that set.
 
 In production mode, this process is repeated `2,000` times and summarized as
-Monte Carlo output. The notebook also prints and plots one example replicate so
-you can inspect what a single adaptive trial looked like. Allocation
-probabilities and cumulative participant counts are shown for all dose levels in
-one graph. A small horizontal dodge is used only for display, so overlapping
-points can be seen; it does not change the simulated allocation data.
+Monte Carlo output. Allocation probabilities and cumulative participant counts
+are shown for all dose levels in one graph. A small horizontal dodge is used
+only for display, so overlapping points can be seen; it does not change the
+simulated allocation data.
 
 The calibration notebooks use the same backend engine, but expose only the
 settings users normally need: dose levels, stage count, cohort size, scenario
@@ -158,6 +166,7 @@ ignored by git. Common output locations:
 results/
 ├── plots/
 ├── simulation/
+├── scenario_comparison/
 ├── notebook_calibration/
 └── threshold_calibration/
 ```
