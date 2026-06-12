@@ -533,6 +533,24 @@ threshold_calibration_summary_table <- function(calibration_results) {
   }))
 }
 
+format_duration_seconds <- function(seconds) {
+  if (is.null(seconds) || length(seconds) == 0 || is.na(seconds)) {
+    return(NA_character_)
+  }
+  total_seconds <- as.integer(round(as.numeric(seconds)))
+  hours <- total_seconds %/% 3600
+  minutes <- (total_seconds %% 3600) %/% 60
+  remaining_seconds <- total_seconds %% 60
+
+  if (hours > 0) {
+    return(sprintf("%dh %02dm %02ds", hours, minutes, remaining_seconds))
+  }
+  if (minutes > 0) {
+    return(sprintf("%dm %02ds", minutes, remaining_seconds))
+  }
+  sprintf("%ds", remaining_seconds)
+}
+
 append_threshold_calibration_log <- function(
   calibration_results,
   file_path = file.path(calibration_results$settings$output_dir, "threshold_calibration_history.md"),
@@ -554,6 +572,11 @@ append_threshold_calibration_log <- function(
   } else {
     ""
   }
+  runtime_line <- if (!is.null(calibration_results$run_duration_seconds)) {
+    paste0("- Runtime: ", format_duration_seconds(calibration_results$run_duration_seconds))
+  } else {
+    character(0)
+  }
   lines <- c(
     header_lines,
     paste0("## ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), title_suffix),
@@ -566,6 +589,7 @@ append_threshold_calibration_log <- function(
       "%"
     ),
     paste0("- Simulations per candidate: ", calibration_results$settings$n_sim_per_candidate),
+    runtime_line,
     paste0("- Recommended `c_T`: ", calibration_results$recommended_thresholds$c_T),
     paste0("- Recommended `c_I`: ", calibration_results$recommended_thresholds$c_I),
     paste0("- Recommended `c_E`: ", calibration_results$recommended_thresholds$c_E),

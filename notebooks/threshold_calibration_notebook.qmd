@@ -350,7 +350,14 @@ kable(scenario_table, caption = "Endpoint-specific calibration scenarios")
 ## 5. Run Calibration
 
 ```{r run_calibration}
+calibration_start_time <- Sys.time()
 calibration_results <- calibrate_separate_thresholds(threshold_settings)
+calibration_end_time <- Sys.time()
+calibration_results$run_started_at <- calibration_start_time
+calibration_results$run_finished_at <- calibration_end_time
+calibration_results$run_duration_seconds <- as.numeric(
+  difftime(calibration_end_time, calibration_start_time, units = "secs")
+)
 summary_table <- threshold_calibration_summary_table(calibration_results)
 
 display_summary <- summary_table %>%
@@ -362,6 +369,8 @@ display_summary <- summary_table %>%
   select(parameter, endpoint, selected_value, achieved_missing_rate, target, status, n_simulations)
 
 kable(display_summary, caption = "Recommended threshold values")
+
+cat("Calibration runtime:", format_duration_seconds(calibration_results$run_duration_seconds), "\n")
 ```
 
 ```{r candidate_tables}

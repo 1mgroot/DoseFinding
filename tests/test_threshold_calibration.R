@@ -96,3 +96,30 @@ test_that("threshold candidate selection follows c cutoff direction", {
   expect_equal(selected$selected_index, 1)
   expect_match(selected$status, "least strict")
 })
+
+test_that("threshold calibration history records runtime", {
+  expect_equal(format_duration_seconds(65), "1m 05s")
+
+  settings <- default_separate_threshold_settings(quick_mode = TRUE)
+  result <- list(
+    settings = settings,
+    calibrations = list(
+      c_T = list(
+        param_name = "c_T",
+        endpoint = "toxicity",
+        optimal_value = 0.45,
+        achieved_missing_rate = 0.82,
+        target_missing_range = c(0.80, 0.90),
+        status = "within target range",
+        n_simulations = 5
+      )
+    ),
+    recommended_thresholds = list(c_T = 0.45, c_I = 0.50, c_E = 0.35),
+    run_duration_seconds = 65
+  )
+
+  log_file <- tempfile(fileext = ".md")
+  append_threshold_calibration_log(result, file_path = log_file, run_label = "test run")
+  log_text <- paste(readLines(log_file, warn = FALSE), collapse = "\n")
+  expect_match(log_text, "- Runtime: 1m 05s", fixed = TRUE)
+})
