@@ -256,7 +256,7 @@ test_that("PoC calibration notebook separates quick smoke settings from producti
   expect_equal(poc_settings$c_poc_candidates, c(0.80, 0.90, 0.95, 0.98, 0.99, 0.995))
   expect_true(trial_config$c_poc %in% poc_settings$c_poc_candidates)
   expect_false(any(poc_settings$c_poc_candidates >= 1))
-  expect_equal(poc_settings$n_simulations, 1000)
+  expect_equal(poc_settings$n_simulations, 2000)
 
   quick_settings <- evaluate_user_settings(
     workflow_notebooks[["poc_calibration"]],

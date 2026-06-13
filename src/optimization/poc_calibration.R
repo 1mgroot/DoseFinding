@@ -148,6 +148,121 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
   })
 }
 
+evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, scenario_params) {
+  config$c_poc <- c_poc
+  config$verbose_logging <- FALSE
+  config$log_early_termination <- FALSE
+
+  total_participants <- if (!is.null(base_result$metrics$total_participants)) {
+    base_result$metrics$total_participants
+  } else if (!is.null(base_result$debug_info$all_data)) {
+    nrow(base_result$debug_info$all_data)
+  } else {
+    0
+  }
+
+  if (!isTRUE(base_result$success) || isTRUE(base_result$metrics$terminated_early)) {
+    return(list(
+      metrics = list(
+        terminated_early = TRUE,
+        termination_stage = base_result$metrics$termination_stage,
+        final_od = NA_integer_,
+        poc_validated = FALSE,
+        poc_probability = 0,
+        total_participants = total_participants,
+        true_optimal_selected = NA
+      ),
+      allocation_summary = base_result$allocation_summary,
+      stage_allocation = base_result$stage_allocation,
+      success = isTRUE(base_result$success),
+      debug_info = base_result$debug_info
+    ))
+  }
+
+  posterior_summaries <- base_result$debug_info$posterior_summaries
+  if (is.null(posterior_summaries)) {
+    stop("Completed base simulation is missing posterior_summaries.")
+  }
+
+  admissible_set <- get_admissible_set(posterior_summaries, config, verbose = FALSE)
+  poc_results <- calculate_poc_probability(admissible_set, posterior_summaries, config)
+  poc_validated <- length(poc_results$P_final) > 0
+  final_od <- if (poc_validated) poc_results$best_dose else NA_integer_
+  true_optimal_dose <- if (!is.null(scenario_params$true_optimal_dose)) {
+    scenario_params$true_optimal_dose
+  } else {
+    NA_integer_
+  }
+
+  debug_info <- base_result$debug_info
+  debug_info$poc_results <- poc_results
+
+  list(
+    metrics = list(
+      terminated_early = FALSE,
+      termination_stage = NA_integer_,
+      final_od = final_od,
+      poc_validated = poc_validated,
+      poc_probability = poc_results$poc_probability,
+      total_participants = total_participants,
+      true_optimal_selected = if (!is.na(true_optimal_dose) && !is.na(final_od)) {
+        final_od == true_optimal_dose
+      } else {
+        NA
+      }
+    ),
+    allocation_summary = base_result$allocation_summary,
+    stage_allocation = base_result$stage_allocation,
+    success = TRUE,
+    debug_info = debug_info
+  )
+}
+
+summarise_poc_candidate_results <- function(
+  c_poc,
+  simulation_results,
+  n_simulations,
+  common_random_numbers,
+  calibration_seed,
+  store_simulation_results
+) {
+  poc_detection_count <- sum(vapply(
+    simulation_results,
+    function(result) !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated),
+    logical(1)
+  ))
+  early_termination_count <- sum(vapply(
+    simulation_results,
+    function(result) isTRUE(result$metrics$terminated_early),
+    logical(1)
+  ))
+  n_completed <- n_simulations - early_termination_count
+
+  poc_detection_rate <- poc_detection_count / n_simulations
+  early_termination_rate <- early_termination_count / n_simulations
+  completion_rate <- 1 - early_termination_rate
+  poc_rate_among_completed <- if (n_completed > 0) poc_detection_count / n_completed else 0
+  poc_se <- sqrt(poc_detection_rate * (1 - poc_detection_rate) / n_simulations)
+
+  list(
+    c_poc = c_poc,
+    poc_detection_rate = poc_detection_rate,
+    poc_se = poc_se,
+    poc_ci_lower = max(0, poc_detection_rate - 1.96 * poc_se),
+    poc_ci_upper = min(1, poc_detection_rate + 1.96 * poc_se),
+    early_termination_rate = early_termination_rate,
+    completion_rate = completion_rate,
+    poc_rate_among_completed = poc_rate_among_completed,
+    n_simulations = n_simulations,
+    n_completed = n_completed,
+    early_termination_count = early_termination_count,
+    simulation_results_stored = isTRUE(store_simulation_results),
+    common_random_numbers = common_random_numbers,
+    calibration_seed = calibration_seed,
+    simulation_results = if (isTRUE(store_simulation_results)) simulation_results else list()
+  )
+}
+
 # Detailed debug logging for early termination cases
 log_early_termination_context <- function(debug_info, config) {
   cat("\n--- Early Termination Debug ---\n")
@@ -198,10 +313,10 @@ poc_format_duration <- function(seconds) {
   if (is.null(seconds) || length(seconds) == 0 || is.na(seconds) || is.infinite(seconds)) {
     return("unknown")
   }
-  seconds <- max(0, as.numeric(seconds))
-  hours <- floor(seconds / 3600)
-  minutes <- floor((seconds %% 3600) / 60)
-  secs <- round(seconds %% 60)
+  total_seconds <- as.integer(round(max(0, as.numeric(seconds))))
+  hours <- total_seconds %/% 3600
+  minutes <- (total_seconds %% 3600) %/% 60
+  secs <- total_seconds %% 60
   if (hours > 0) {
     return(sprintf("%dh %02dm %02ds", hours, minutes, secs))
   }
@@ -286,9 +401,20 @@ calibrate_c_poc <- function(
     }, add = TRUE)
   }
 
+  full_trial_workload <- if (isTRUE(common_random_numbers)) {
+    n_simulations
+  } else {
+    length(c_poc_candidates) * n_simulations
+  }
+  candidate_evaluations <- length(c_poc_candidates) * n_simulations
+
   cat("Starting C_poc calibration...\n")
   cat("Testing", length(c_poc_candidates), "C_poc values\n")
   cat("Simulations per value:", n_simulations, "\n")
+  cat("Full trial simulations to run:", full_trial_workload, "\n")
+  if (isTRUE(common_random_numbers)) {
+    cat("Lightweight C_poc threshold evaluations:", candidate_evaluations, "\n")
+  }
   cat(
     "Seed strategy:",
     if (isTRUE(common_random_numbers)) {
@@ -301,7 +427,6 @@ calibrate_c_poc <- function(
   cat("Calibration seed:", if (is.null(calibration_seed)) "NULL" else calibration_seed, "\n")
   calibration_started_at <- Sys.time()
   next_progress_at <- calibration_started_at + progress_interval_seconds
-  total_calibration_simulations <- length(c_poc_candidates) * n_simulations
   progress_label <- if (!is.null(progress_prefix) && nchar(progress_prefix) > 0) {
     paste0(progress_prefix, " ")
   } else {
@@ -372,7 +497,6 @@ calibrate_c_poc <- function(
   cat("  rho1:", null_scenario$rho1, "\n")
   cat("\n")
 
-  calibration_results <- list()
   candidate_seed_stride <- 100000
 
   simulation_seed <- function(candidate_index, simulation_index) {
@@ -387,86 +511,84 @@ calibrate_c_poc <- function(
     calibration_seed + candidate_offset + simulation_index
   }
 
-  for (i in seq_along(c_poc_candidates)) {
-    c_poc <- c_poc_candidates[i]
-    cat("=== Testing C_poc =", c_poc, "===\n")
-
-    # Update config with current C_poc
+  run_base_simulation <- function(sim, candidate_index = 1, c_poc = c_poc_candidates[[1]]) {
     config <- base_config
     config$c_poc <- c_poc
     config$verbose_logging <- FALSE
     config$log_early_termination <- FALSE
 
-    # Run simulations
-    simulation_results <- if (isTRUE(store_simulation_results)) list() else NULL
-    poc_detection_count <- 0
-    early_termination_count <- 0
-    n_completed <- 0
-    debug_count <- 0
+    run_single_calibration_simulation(
+      config,
+      null_scenario,
+      seed = simulation_seed(candidate_index, sim)
+    )
+  }
 
-    for (sim in 1:n_simulations) {
-      result <- run_single_calibration_simulation(
-        config,
-        null_scenario,
-        seed = simulation_seed(i, sim)
+  log_candidate_summary <- function(candidate_index, candidate_result) {
+    cat("=== Testing C_poc =", candidate_result$c_poc, "===\n")
+    cat("  PoC detection rate:", round(candidate_result$poc_detection_rate, 3),
+        "(SE:", round(candidate_result$poc_se, 4), ", 95% CI: [",
+        round(candidate_result$poc_ci_lower, 3), ",",
+        round(candidate_result$poc_ci_upper, 3), "])\n")
+    cat("  Early termination rate:", round(candidate_result$early_termination_rate, 3), "\n")
+    cat("  Completion rate:", round(candidate_result$completion_rate, 3), "\n")
+    cat("  PoC rate among completed trials:", round(candidate_result$poc_rate_among_completed, 3), "\n")
+
+    if (isTRUE(progress)) {
+      elapsed_seconds <- as.numeric(difftime(Sys.time(), calibration_started_at, units = "secs"))
+      poc_progress_log(
+        progress_label,
+        "finished c_poc ", candidate_result$c_poc, " (",
+        candidate_index, "/", length(c_poc_candidates), "); ",
+        "PoC rate ", round(candidate_result$poc_detection_rate, 3),
+        ", completion ", round(candidate_result$completion_rate, 3),
+        "; elapsed ", poc_format_duration(elapsed_seconds),
+        enabled = TRUE
       )
-      if (isTRUE(store_simulation_results)) {
-        simulation_results[[sim]] <- result
-      }
+    }
 
-      # Count PoC detection: ONLY when trial completes AND P_final is non-empty
-      # Early terminated trials MUST have poc_validated = FALSE
-      if (result$metrics$terminated_early) {
-        early_termination_count <- early_termination_count + 1
-      } else {
-        n_completed <- n_completed + 1
-      }
-      if (!result$metrics$terminated_early && result$metrics$poc_validated) {
-        poc_detection_count <- poc_detection_count + 1
-      }
+    if (candidate_result$poc_detection_rate > candidate_result$completion_rate + 1e-6) {
+      cat("  [WARNING] PoC rate (", round(candidate_result$poc_detection_rate, 3),
+          ") exceeds completion rate (", round(candidate_result$completion_rate, 3),
+          ") - this should not happen!\n")
+    }
+  }
 
-      # Debug output for first 3 reps of first c_poc candidate (reduced from 10 to avoid console overflow)
-      if (i == 1 && sim <= 3) {
-        cat("\n[DEBUG] c_poc =", c_poc, ", sim =", sim, "\n")
-        cat("  Early terminated:", result$metrics$terminated_early, "\n")
-        if (!result$metrics$terminated_early) {
-          cat("  Final OD:", result$metrics$final_od, "\n")
-          cat("  PoC validated:", result$metrics$poc_validated, "\n")
-          cat("  PoC probability:", round(result$metrics$poc_probability, 3), "\n")
-          # Show A_final, pairwise_probs, P_final from debug_info
-          ps <- result$debug_info$posterior_summaries
-          if (!is.null(ps)) {
-            adm <- get_admissible_set(ps, config, verbose = FALSE)
-            cat("  A_final:", adm, "\n")
-            # We need to extract P_final info - this requires running the calculation again
-            # For now, just show if PoC was validated (which means P_final was non-empty)
-            cat("  P_final non-empty:", result$metrics$poc_validated, "\n")
-          }
-        } else {
-          cat("  Termination stage:", result$metrics$termination_stage, "\n")
-        }
-      } else if (result$metrics$terminated_early && debug_early_termination && debug_count < max_debug_cases_per_candidate) {
-        cat("\n[DEBUG] Early termination example (C_poc =", c_poc, ", sim =", sim, ")\n")
-        log_early_termination_context(result$debug_info, config)
+  calibration_results <- vector("list", length(c_poc_candidates))
+
+  if (isTRUE(common_random_numbers)) {
+    cat(
+      "Optimized mode: running", n_simulations,
+      "full trial simulations once, then evaluating",
+      length(c_poc_candidates), "C_poc thresholds on the shared results.\n"
+    )
+
+    base_results <- vector("list", n_simulations)
+    debug_count <- 0
+    for (sim in seq_len(n_simulations)) {
+      base_results[[sim]] <- run_base_simulation(sim)
+
+      if (
+        isTRUE(base_results[[sim]]$metrics$terminated_early) &&
+          debug_early_termination &&
+          debug_count < max_debug_cases_per_candidate
+      ) {
+        cat("\n[DEBUG] Early termination example (shared C_poc simulations, sim =", sim, ")\n")
+        debug_config <- base_config
+        debug_config$c_poc <- c_poc_candidates[[1]]
+        log_early_termination_context(base_results[[sim]]$debug_info, debug_config)
         debug_count <- debug_count + 1
       }
 
       now <- Sys.time()
       if (isTRUE(progress) && now >= next_progress_at) {
-        completed_calibration_simulations <- (i - 1) * n_simulations + sim
         elapsed_seconds <- as.numeric(difftime(now, calibration_started_at, units = "secs"))
-        eta_seconds <- if (completed_calibration_simulations > 0) {
-          elapsed_seconds / completed_calibration_simulations *
-            (total_calibration_simulations - completed_calibration_simulations)
-        } else {
-          NA_real_
-        }
+        eta_seconds <- elapsed_seconds / sim * (n_simulations - sim)
         poc_progress_log(
           progress_label,
-          "still running: c_poc ", c_poc, " (", i, "/", length(c_poc_candidates), "), ",
-          "simulation ", sim, "/", n_simulations, "; ",
-          completed_calibration_simulations, "/", total_calibration_simulations,
-          " calibration simulations done; elapsed ", poc_format_duration(elapsed_seconds),
+          "still running shared full-trial simulations: ",
+          sim, "/", n_simulations,
+          " done; elapsed ", poc_format_duration(elapsed_seconds),
           "; ETA ", poc_format_duration(eta_seconds),
           enabled = TRUE
         )
@@ -474,67 +596,77 @@ calibrate_c_poc <- function(
       }
     }
 
-    # Calculate metrics
-    # PoC detection rate across ALL simulations (including early terminated = FALSE)
-    poc_detection_rate <- poc_detection_count / n_simulations
-    early_termination_rate <- early_termination_count / n_simulations
-    completion_rate <- 1 - early_termination_rate
-
-    # Among completed trials, what fraction had PoC validated?
-    poc_rate_among_completed <- if (n_completed > 0) poc_detection_count / n_completed else 0
-
-    # Monte Carlo standard error for PoC detection rate
-    # SE = sqrt(p * (1-p) / N)
-    poc_se <- sqrt(poc_detection_rate * (1 - poc_detection_rate) / n_simulations)
-    poc_ci_lower <- max(0, poc_detection_rate - 1.96 * poc_se)
-    poc_ci_upper <- min(1, poc_detection_rate + 1.96 * poc_se)
-
-    calibration_results[[i]] <- list(
-      c_poc = c_poc,
-      poc_detection_rate = poc_detection_rate,
-      poc_se = poc_se,
-      poc_ci_lower = poc_ci_lower,
-      poc_ci_upper = poc_ci_upper,
-      early_termination_rate = early_termination_rate,
-      completion_rate = completion_rate,
-      poc_rate_among_completed = poc_rate_among_completed,
-      n_simulations = n_simulations,
-      n_completed = n_completed,
-      early_termination_count = early_termination_count,
-      simulation_results_stored = isTRUE(store_simulation_results),
-      common_random_numbers = common_random_numbers,
-      calibration_seed = calibration_seed,
-      simulation_results = if (isTRUE(store_simulation_results)) simulation_results else list()
-    )
-
-    cat("  PoC detection rate:", round(poc_detection_rate, 3),
-        "(SE:", round(poc_se, 4), ", 95% CI: [",
-        round(poc_ci_lower, 3), ",", round(poc_ci_upper, 3), "])\n")
-    cat("  Early termination rate:", round(early_termination_rate, 3), "\n")
-    cat("  Completion rate:", round(completion_rate, 3), "\n")
-    cat("  PoC rate among completed trials:", round(poc_rate_among_completed, 3), "\n")
-
-    if (isTRUE(progress)) {
-      completed_calibration_simulations <- i * n_simulations
-      elapsed_seconds <- as.numeric(difftime(Sys.time(), calibration_started_at, units = "secs"))
-      eta_seconds <- elapsed_seconds / completed_calibration_simulations *
-        (total_calibration_simulations - completed_calibration_simulations)
-      poc_progress_log(
-        progress_label,
-        "finished c_poc ", c_poc, " (", i, "/", length(c_poc_candidates), "); ",
-        "PoC rate ", round(poc_detection_rate, 3),
-        ", completion ", round(completion_rate, 3),
-        "; ", completed_calibration_simulations, "/", total_calibration_simulations,
-        " calibration simulations done; elapsed ", poc_format_duration(elapsed_seconds),
-        "; ETA ", poc_format_duration(eta_seconds),
-        enabled = TRUE
+    for (i in seq_along(c_poc_candidates)) {
+      candidate_results <- lapply(base_results, evaluate_poc_candidate_from_base_result,
+        config = base_config,
+        c_poc = c_poc_candidates[[i]],
+        scenario_params = null_scenario
       )
+      calibration_results[[i]] <- summarise_poc_candidate_results(
+        c_poc = c_poc_candidates[[i]],
+        simulation_results = candidate_results,
+        n_simulations = n_simulations,
+        common_random_numbers = common_random_numbers,
+        calibration_seed = calibration_seed,
+        store_simulation_results = store_simulation_results
+      )
+      log_candidate_summary(i, calibration_results[[i]])
     }
+  } else {
+    cat("Independent-seed mode: running full trial simulations separately for each C_poc candidate.\n")
+    for (i in seq_along(c_poc_candidates)) {
+      c_poc <- c_poc_candidates[[i]]
+      candidate_results <- vector("list", n_simulations)
+      debug_count <- 0
+      for (sim in seq_len(n_simulations)) {
+        base_result <- run_base_simulation(sim, candidate_index = i, c_poc = c_poc)
+        candidate_results[[sim]] <- evaluate_poc_candidate_from_base_result(
+          base_result,
+          config = base_config,
+          c_poc = c_poc,
+          scenario_params = null_scenario
+        )
 
-    # Sanity check: PoC rate should not exceed completion rate
-    if (poc_detection_rate > completion_rate + 1e-6) {
-      cat("  [WARNING] PoC rate (", round(poc_detection_rate, 3),
-          ") exceeds completion rate (", round(completion_rate, 3), ") - this should not happen!\n")
+        if (
+          isTRUE(base_result$metrics$terminated_early) &&
+            debug_early_termination &&
+            debug_count < max_debug_cases_per_candidate
+        ) {
+          cat("\n[DEBUG] Early termination example (C_poc =", c_poc, ", sim =", sim, ")\n")
+          debug_config <- base_config
+          debug_config$c_poc <- c_poc
+          log_early_termination_context(base_result$debug_info, debug_config)
+          debug_count <- debug_count + 1
+        }
+
+        now <- Sys.time()
+        if (isTRUE(progress) && now >= next_progress_at) {
+          completed_calibration_simulations <- (i - 1) * n_simulations + sim
+          elapsed_seconds <- as.numeric(difftime(now, calibration_started_at, units = "secs"))
+          eta_seconds <- elapsed_seconds / completed_calibration_simulations *
+            (full_trial_workload - completed_calibration_simulations)
+          poc_progress_log(
+            progress_label,
+            "still running independent simulations: c_poc ", c_poc, " (",
+            i, "/", length(c_poc_candidates), "), simulation ", sim, "/", n_simulations,
+            "; ", completed_calibration_simulations, "/", full_trial_workload,
+            " full trials done; elapsed ", poc_format_duration(elapsed_seconds),
+            "; ETA ", poc_format_duration(eta_seconds),
+            enabled = TRUE
+          )
+          next_progress_at <- now + progress_interval_seconds
+        }
+      }
+
+      calibration_results[[i]] <- summarise_poc_candidate_results(
+        c_poc = c_poc,
+        simulation_results = candidate_results,
+        n_simulations = n_simulations,
+        common_random_numbers = common_random_numbers,
+        calibration_seed = calibration_seed,
+        store_simulation_results = store_simulation_results
+      )
+      log_candidate_summary(i, calibration_results[[i]])
     }
   }
 
@@ -631,6 +763,15 @@ calibrate_c_poc <- function(
     cat("   Skipped: only one c_poc value tested.\n")
   }
   cat("\n=== END SANITY CHECKS ===\n")
+  calibration_finished_at <- Sys.time()
+  run_duration_seconds <- as.numeric(difftime(
+    calibration_finished_at,
+    calibration_started_at,
+    units = "secs"
+  ))
+  full_trial_simulations <- full_trial_workload
+  cat("Runtime:", poc_format_duration(run_duration_seconds), "\n")
+  cat("Full trial simulations run:", full_trial_simulations, "\n")
 
   return(list(
     calibration_results = calibration_results,
@@ -643,7 +784,11 @@ calibrate_c_poc <- function(
     common_random_numbers = common_random_numbers,
     calibration_seed = calibration_seed,
     poc_detection_rates = poc_rates,
-    n_simulations = n_simulations
+    n_simulations = n_simulations,
+    full_trial_simulations = full_trial_simulations,
+    run_started_at = calibration_started_at,
+    run_finished_at = calibration_finished_at,
+    run_duration_seconds = run_duration_seconds
   ))
 }
 
@@ -951,6 +1096,22 @@ append_poc_calibration_log <- function(
     paste0("- Selected `c_poc`: ", poc_format_value(calibration_results$optimal_c_poc, digits = 4)),
     paste0("- Achieved PoC detection rate: ", poc_format_percent(calibration_results$achieved_rate)),
     paste0("- Simulations per candidate: ", poc_format_value(calibration_results$n_simulations)),
+    paste0(
+      "- Full trial simulations run: ",
+      if (!is.null(calibration_results$full_trial_simulations)) {
+        poc_format_value(calibration_results$full_trial_simulations, digits = 0)
+      } else {
+        "NA"
+      }
+    ),
+    paste0(
+      "- Runtime: ",
+      if (!is.null(calibration_results$run_duration_seconds)) {
+        poc_format_duration(calibration_results$run_duration_seconds)
+      } else {
+        "NA"
+      }
+    ),
     paste0(
       "- Seed strategy: ",
       if (isTRUE(calibration_results$common_random_numbers)) {
