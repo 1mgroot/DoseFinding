@@ -271,6 +271,50 @@ test_that("calibration functions handle edge cases", {
   ))
 })
 
+test_that("calibration report supports summary-only production results", {
+  test_file <- tempfile("poc-calibration-report-", fileext = ".txt")
+  on.exit(unlink(test_file), add = TRUE)
+
+  mock_results <- list(
+    calibration_results = list(list(
+      c_poc = 0.98,
+      poc_detection_rate = 0.08,
+      poc_se = 0.02,
+      early_termination_rate = 0.20,
+      completion_rate = 0.80,
+      poc_rate_among_completed = 0.10,
+      n_simulations = 100,
+      n_completed = 80,
+      early_termination_count = 20,
+      simulation_results_stored = FALSE,
+      simulation_results = list()
+    )),
+    optimal_c_poc = 0.98,
+    target_rate = 0.10,
+    achieved_rate = 0.08,
+    optimal_rate = 0.08,
+    control_achieved = TRUE,
+    n_simulations = 100
+  )
+
+  null_scenario <- create_null_flat_scenario(n_doses = 2)
+  base_config <- within(flat_scenario_config, {
+    dose_levels <- c(1, 2)
+  })
+
+  expect_no_error(generate_calibration_report(
+    calibration_results = mock_results,
+    null_scenario = null_scenario,
+    base_config = base_config,
+    file_path = test_file
+  ))
+
+  report_lines <- readLines(test_file)
+  expect_true(any(grepl("Detailed simulation-level results were not stored", report_lines, fixed = TRUE)))
+  expect_true(any(grepl("Total simulations: 100", report_lines, fixed = TRUE)))
+  expect_true(any(grepl("PoC validated: 8 trials", report_lines, fixed = TRUE)))
+})
+
 test_that("PoC calibration history log appends readable run summaries", {
   test_file <- tempfile("poc-calibration-history-", fileext = ".md")
   on.exit(unlink(test_file), add = TRUE)

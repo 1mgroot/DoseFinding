@@ -1263,7 +1263,13 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
   }
 
   # Open file connection
+  sink_depth <- sink.number()
   sink(file_path)
+  on.exit({
+    while (sink.number() > sink_depth) {
+      sink()
+    }
+  }, add = TRUE)
 
   cat("================================================================================\n")
   cat("                    POC CALIBRATION DETAILED REPORT                            \n")
@@ -1345,16 +1351,42 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
     res <- calibration_results$calibration_results[[i]]
     cat("--- C_poc =", res$c_poc, "---\n\n")
 
-    n_sims <- length(res$simulation_results)
-    n_early_term <- sum(sapply(res$simulation_results, function(x) x$metrics$terminated_early))
-    n_completed <- n_sims - n_early_term
+    stored_simulation_results <- isTRUE(res$simulation_results_stored) &&
+      is.list(res$simulation_results) &&
+      length(res$simulation_results) > 0
+
+    if (stored_simulation_results) {
+      n_sims <- length(res$simulation_results)
+      n_early_term <- sum(vapply(
+        res$simulation_results,
+        function(x) isTRUE(x$metrics$terminated_early),
+        logical(1)
+      ))
+      n_completed <- n_sims - n_early_term
+    } else {
+      n_sims <- if (!is.null(res$n_simulations)) res$n_simulations else calibration_results$n_simulations
+      n_early_term <- if (!is.null(res$early_termination_count)) {
+        res$early_termination_count
+      } else {
+        round(res$early_termination_rate * n_sims)
+      }
+      n_completed <- if (!is.null(res$n_completed)) {
+        res$n_completed
+      } else {
+        n_sims - n_early_term
+      }
+    }
 
     cat("Overall Statistics:\n")
     cat("  - Total simulations:", n_sims, "\n")
     cat("  - Early terminations:", n_early_term, sprintf("(%.1f%%)", n_early_term/n_sims*100), "\n")
     cat("  - Completed trials:", n_completed, sprintf("(%.1f%%)", n_completed/n_sims*100), "\n")
 
-    if (n_early_term > 0) {
+    if (!stored_simulation_results) {
+      cat("\n  Detailed simulation-level results were not stored for this run.\n")
+      cat("  This production-mode report uses summary metrics only. Use quick mode or set\n")
+      cat("  store_simulation_results = TRUE if example-level early termination traces are needed.\n")
+    } else if (n_early_term > 0) {
       # Termination stage distribution
       term_stages <- sapply(res$simulation_results, function(x) {
         if (x$metrics$terminated_early) x$metrics$termination_stage else NA
@@ -1429,17 +1461,22 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
     if (n_completed > 0) {
       cat("\n  Completed Trials Analysis:\n")
 
-      completed_samples <- sapply(res$simulation_results, function(x) {
-        if (!x$metrics$terminated_early) x$metrics$total_participants else NA
-      })
-      completed_samples <- completed_samples[!is.na(completed_samples)]
+      if (stored_simulation_results) {
+        completed_samples <- sapply(res$simulation_results, function(x) {
+          if (!x$metrics$terminated_early) x$metrics$total_participants else NA
+        })
+        completed_samples <- completed_samples[!is.na(completed_samples)]
 
-      cat(sprintf("    Mean sample size: %.1f patients (SD: %.1f)\n",
-                  mean(completed_samples), sd(completed_samples)))
+        cat(sprintf("    Mean sample size: %.1f patients (SD: %.1f)\n",
+                    mean(completed_samples), sd(completed_samples)))
 
-      poc_validated_count <- sum(sapply(res$simulation_results, function(x) {
-        !x$metrics$terminated_early && x$metrics$poc_validated
-      }))
+        poc_validated_count <- sum(vapply(res$simulation_results, function(x) {
+          !isTRUE(x$metrics$terminated_early) && isTRUE(x$metrics$poc_validated)
+        }, logical(1)))
+      } else {
+        poc_validated_count <- round(res$poc_detection_rate * n_sims)
+        cat("    Mean sample size: not available because detailed simulation results were not stored.\n")
+      }
 
       cat(sprintf("    PoC validated: %d trials (%.1f%% of completed trials)\n",
                   poc_validated_count, poc_validated_count/n_completed*100))
