@@ -107,9 +107,9 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     phi_T = 0.30,
     phi_E = 0.25,
     phi_I = 0.20,
-    c_T_start = 0.55,
-    c_E_start = 0.50,
-    c_I_start = 0.70,
+    c_T_start = 0.35,
+    c_E_start = 0.55,
+    c_I_start = 0.45,
     c_poc = 0.995,
     delta_poc = 0.8,
     rho0 = 1.5,
@@ -120,6 +120,8 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),
     n_sim_per_candidate = if (quick_mode) 5 else 500,
     calibration_seed = 11118,
+    show_progress = TRUE,
+    progress_interval_seconds = if (quick_mode) 60 else 300,
     high_tox_p_I = 0.30,
     high_tox_marginal_p_T = c(0.30, 0.50),
     high_tox_marginal_p_E = 0.40,
@@ -133,6 +135,91 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     efficacy_immune_effect = 0,
     output_dir = "results/threshold_calibration"
   )
+}
+
+threshold_progress_log <- function(..., enabled = TRUE) {
+  if (!isTRUE(enabled)) {
+    return(invisible(NULL))
+  }
+  cat(
+    paste0("[", format(Sys.time(), "%H:%M:%S"), "] ", paste0(..., collapse = ""), "\n"),
+    file = stderr()
+  )
+  flush.console()
+  invisible(NULL)
+}
+
+create_threshold_progress_state <- function(settings) {
+  progress_interval_seconds <- settings$progress_interval_seconds
+  if (is.null(progress_interval_seconds)) {
+    progress_interval_seconds <- 300
+  }
+  if (!is.numeric(progress_interval_seconds) ||
+      length(progress_interval_seconds) != 1 ||
+      is.na(progress_interval_seconds) ||
+      progress_interval_seconds < 1) {
+    stop("progress_interval_seconds must be a positive number of seconds.")
+  }
+
+  total_candidates <- length(settings$c_T_candidates) +
+    length(settings$c_I_candidates) +
+    length(settings$c_E_candidates)
+  total_work <- total_candidates * settings$n_sim_per_candidate
+  started_at <- Sys.time()
+
+  state <- new.env(parent = emptyenv())
+  state$enabled <- isTRUE(settings$show_progress)
+  state$interval_seconds <- progress_interval_seconds
+  state$started_at <- started_at
+  state$next_progress_at <- started_at + progress_interval_seconds
+  state$completed_work <- 0L
+  state$total_work <- total_work
+  state$total_candidates <- total_candidates
+  state
+}
+
+maybe_log_threshold_progress <- function(
+  progress_state,
+  param_name,
+  candidate,
+  candidate_index,
+  n_candidates,
+  simulation_index,
+  n_simulations,
+  force = FALSE
+) {
+  if (is.null(progress_state) || !isTRUE(progress_state$enabled)) {
+    return(invisible(NULL))
+  }
+
+  now <- Sys.time()
+  if (!isTRUE(force) && now < progress_state$next_progress_at) {
+    return(invisible(NULL))
+  }
+
+  completed_work <- progress_state$completed_work
+  total_work <- progress_state$total_work
+  elapsed_seconds <- as.numeric(difftime(now, progress_state$started_at, units = "secs"))
+  eta_seconds <- if (completed_work > 0 && total_work > completed_work) {
+    elapsed_seconds / completed_work * (total_work - completed_work)
+  } else {
+    0
+  }
+  percent_done <- if (total_work > 0) completed_work / total_work * 100 else 100
+
+  threshold_progress_log(
+    "threshold calibration progress: ",
+    completed_work, "/", total_work, " simulations (",
+    sprintf("%.1f%%", percent_done), "); current ",
+    param_name, "=", candidate,
+    " candidate ", candidate_index, "/", n_candidates,
+    ", simulation ", simulation_index, "/", n_simulations,
+    "; elapsed ", format_duration_seconds(elapsed_seconds),
+    "; ETA ", format_duration_seconds(eta_seconds),
+    enabled = TRUE
+  )
+  progress_state$next_progress_at <- now + progress_state$interval_seconds
+  invisible(NULL)
 }
 
 create_threshold_trial_config <- function(settings, c_T, c_E, c_I) {
@@ -306,14 +393,16 @@ summarise_threshold_runs <- function(simulation_results) {
   )
   n_sim <- length(simulation_results)
   missing_rate <- mean(final_missing)
+  endpoint_missing_rate <- mean(endpoint_missing)
   missing_se <- sqrt(missing_rate * (1 - missing_rate) / n_sim)
 
   list(
     final_admissible_missing_rate = missing_rate,
+    selection_missing_rate = missing_rate,
     missing_rate_se = missing_se,
     missing_rate_ci_lower = max(0, missing_rate - 1.96 * missing_se),
     missing_rate_ci_upper = min(1, missing_rate + 1.96 * missing_se),
-    target_endpoint_missing_rate = mean(endpoint_missing),
+    target_endpoint_missing_rate = endpoint_missing_rate,
     early_stop_rate = mean(early_stop),
     mean_admissible_count = mean(admissible_count),
     n_simulations = n_sim
@@ -334,18 +423,19 @@ target_range_distance <- function(values, target_range) {
 select_threshold_candidate <- function(
   result_table,
   target_missing_range,
-  stricter_direction = "higher"
+  stricter_direction = "higher",
+  metric_column = "final_admissible_missing_rate"
 ) {
   if (!stricter_direction %in% c("higher", "lower")) {
     stop("stricter_direction must be 'higher' or 'lower'.")
   }
-  required_columns <- c("param_value", "final_admissible_missing_rate")
+  required_columns <- c("param_value", metric_column)
   missing_columns <- setdiff(required_columns, names(result_table))
   if (length(missing_columns) > 0) {
     stop("result_table is missing: ", paste(missing_columns, collapse = ", "))
   }
 
-  missing_rate <- result_table$final_admissible_missing_rate
+  missing_rate <- result_table[[metric_column]]
   distance <- target_range_distance(missing_rate, target_missing_range)
   target_low <- target_missing_range[[1]]
   target_high <- target_missing_range[[2]]
@@ -400,7 +490,8 @@ calibrate_single_threshold <- function(
   settings,
   n_simulations = settings$n_sim_per_candidate,
   target_missing_range = settings$target_missing_range,
-  base_seed = settings$calibration_seed
+  base_seed = settings$calibration_seed,
+  progress_state = NULL
 ) {
   if (!param_name %in% c("c_T", "c_I", "c_E")) {
     stop("param_name must be one of c_T, c_I, c_E.")
@@ -411,7 +502,8 @@ calibrate_single_threshold <- function(
 
   candidate_results <- vector("list", length(candidates))
   for (i in seq_along(candidates)) {
-    params <- fixed_params
+    # During endpoint-specific calibration, inactive endpoint cutoffs are non-binding.
+    params <- list(c_T = 0, c_E = 0, c_I = 0)
     params[[param_name]] <- candidates[[i]]
     config <- create_threshold_trial_config(
       settings,
@@ -419,13 +511,26 @@ calibrate_single_threshold <- function(
       c_E = params$c_E,
       c_I = params$c_I
     )
-    simulation_results <- lapply(seq_len(n_simulations), function(sim_index) {
-      run_threshold_calibration_simulation(
+    simulation_results <- vector("list", n_simulations)
+    for (sim_index in seq_len(n_simulations)) {
+      simulation_results[[sim_index]] <- run_threshold_calibration_simulation(
         config = config,
         scenario = scenario,
         seed = base_seed + i * 100000 + sim_index
       )
-    })
+      if (!is.null(progress_state)) {
+        progress_state$completed_work <- progress_state$completed_work + 1L
+        maybe_log_threshold_progress(
+          progress_state = progress_state,
+          param_name = param_name,
+          candidate = candidates[[i]],
+          candidate_index = i,
+          n_candidates = length(candidates),
+          simulation_index = sim_index,
+          n_simulations = n_simulations
+        )
+      }
+    }
     summary <- summarise_threshold_runs(simulation_results)
     candidate_results[[i]] <- c(
       list(
@@ -441,10 +546,13 @@ calibrate_single_threshold <- function(
   }
 
   result_table <- bind_rows(lapply(candidate_results, as.data.frame))
+  selection_metric <- "final_admissible_missing_rate"
+  result_table$selection_missing_rate <- result_table[[selection_metric]]
   selection <- select_threshold_candidate(
     result_table = result_table,
     target_missing_range = target_missing_range,
-    stricter_direction = "higher"
+    stricter_direction = "higher",
+    metric_column = selection_metric
   )
   selected_index <- selection$selected_index
   result_table$selected <- seq_len(nrow(result_table)) == selected_index
@@ -456,7 +564,8 @@ calibrate_single_threshold <- function(
     candidates = candidates,
     results = result_table,
     optimal_value = result_table$param_value[[selected_index]],
-    achieved_missing_rate = result_table$final_admissible_missing_rate[[selected_index]],
+    achieved_missing_rate = result_table[[selection_metric]][[selected_index]],
+    selection_metric = selection_metric,
     target_missing_range = target_missing_range,
     status = selection$status,
     selected_row = selected_index,
@@ -465,6 +574,15 @@ calibrate_single_threshold <- function(
 }
 
 calibrate_separate_thresholds <- function(settings = default_separate_threshold_settings()) {
+  progress_state <- create_threshold_progress_state(settings)
+  threshold_progress_log(
+    "threshold calibration started: ",
+    progress_state$total_work, " simulations across ",
+    progress_state$total_candidates, " candidates; progress interval ",
+    format_duration_seconds(progress_state$interval_seconds),
+    enabled = progress_state$enabled
+  )
+
   scenarios <- list(
     c_T = create_threshold_scenario("toxicity", settings),
     c_I = create_threshold_scenario("immune", settings),
@@ -483,7 +601,8 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     scenario = scenarios$c_T,
     candidates = settings$c_T_candidates,
     fixed_params = current_params,
-    settings = settings
+    settings = settings,
+    progress_state = progress_state
   )
   current_params$c_T <- c_T_result$optimal_value
 
@@ -494,7 +613,8 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     candidates = settings$c_I_candidates,
     fixed_params = current_params,
     settings = settings,
-    base_seed = settings$calibration_seed + 1000000
+    base_seed = settings$calibration_seed + 1000000,
+    progress_state = progress_state
   )
   current_params$c_I <- c_I_result$optimal_value
 
@@ -505,9 +625,18 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     candidates = settings$c_E_candidates,
     fixed_params = current_params,
     settings = settings,
-    base_seed = settings$calibration_seed + 2000000
+    base_seed = settings$calibration_seed + 2000000,
+    progress_state = progress_state
   )
   current_params$c_E <- c_E_result$optimal_value
+
+  threshold_progress_log(
+    "threshold calibration completed: ",
+    progress_state$completed_work, "/", progress_state$total_work,
+    " simulations; elapsed ",
+    format_duration_seconds(as.numeric(difftime(Sys.time(), progress_state$started_at, units = "secs"))),
+    enabled = progress_state$enabled
+  )
 
   list(
     settings = settings,
@@ -519,10 +648,16 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
 
 threshold_calibration_summary_table <- function(calibration_results) {
   bind_rows(lapply(calibration_results$calibrations, function(result) {
+    selection_metric <- if (!is.null(result$selection_metric)) {
+      result$selection_metric
+    } else {
+      "final_admissible_missing_rate"
+    }
     data.frame(
       parameter = result$param_name,
       endpoint = result$endpoint,
       selected_value = result$optimal_value,
+      selection_metric = selection_metric,
       achieved_missing_rate = result$achieved_missing_rate,
       target_low = result$target_missing_range[[1]],
       target_high = result$target_missing_range[[2]],
@@ -563,7 +698,7 @@ append_threshold_calibration_log <- function(
     header_lines <- c(
       "# Threshold Calibration History",
       "",
-      "This log records separate c_T, c_I, and c_E calibration runs before PoC calibration.",
+      "This log records endpoint-specific c_T, c_I, and c_E calibration runs before PoC calibration.",
       ""
     )
   }
@@ -582,7 +717,7 @@ append_threshold_calibration_log <- function(
     paste0("## ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), title_suffix),
     "",
     paste0(
-      "- Target final admissible set missing rate: ",
+      "- Target endpoint-specific missing rate: ",
       calibration_results$settings$target_missing_range[[1]] * 100,
       "% to ",
       calibration_results$settings$target_missing_range[[2]] * 100,
@@ -594,7 +729,7 @@ append_threshold_calibration_log <- function(
     paste0("- Recommended `c_I`: ", calibration_results$recommended_thresholds$c_I),
     paste0("- Recommended `c_E`: ", calibration_results$recommended_thresholds$c_E),
     "",
-    "| parameter | endpoint | selected value | missing rate | target | status |",
+    "| parameter | endpoint | selected value | endpoint missing rate | target | status |",
     "|---|---|---:|---:|---:|---|"
   )
   for (i in seq_len(nrow(summary_table))) {
@@ -620,7 +755,7 @@ append_threshold_calibration_log <- function(
 
 plot_threshold_calibration <- function(calibration_result) {
   df <- calibration_result$results
-  ggplot(df, aes(x = param_value, y = final_admissible_missing_rate)) +
+  ggplot(df, aes(x = param_value, y = selection_missing_rate)) +
     geom_rect(
       aes(
         xmin = -Inf,
@@ -655,7 +790,7 @@ plot_threshold_calibration <- function(calibration_result) {
         calibration_result$optimal_value
       ),
       x = calibration_result$param_name,
-      y = "Final admissible set missing rate"
+      y = "Endpoint-specific missing rate"
     ) +
     theme_bw(base_size = 13)
 }

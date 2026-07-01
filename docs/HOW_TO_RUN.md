@@ -105,20 +105,21 @@ calibration. It generates:
 - readable calibration history under `results/threshold_calibration/`
 - saved RDS and CSV summaries under `results/threshold_calibration/`
 
-The default target is a final admissible set missing rate of 80%-90%. Set
+The default target is a final admissible set missing rate of 80%-90%. During
+each endpoint-specific calibration, the active cutoff is varied over its
+candidate grid and the two inactive endpoint cutoffs are set to `0`. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.
+Progress logs are printed during long production runs; the default interval is
+about every 5 minutes (`progress_interval_seconds = 300`).
 
 `final_missing_rate` includes trials that stopped early because the admissible
 set became empty. In those simulations, the final available posterior is the
 posterior at the stopping stage.
 
-In the candidate tables, `target_endpoint_missing_rate` is a diagnostic rather
-than the main selection target. It asks whether the endpoint being calibrated
-would remove every dose by itself: for `c_T`, no dose passes
-`P(T < phi_T) > c_T`; for `c_I`, no dose passes `P(I > phi_I) > c_I`; for
-`c_E`, no dose passes `P(E > phi_E) > c_E`. The recommended cutoff is selected
-from `final_missing_rate`, which requires toxicity, immune response, and
-efficacy rules together.
+In the candidate tables, `final_missing_rate` is the main selection target.
+Because inactive endpoint cutoffs are set to `0`, it should usually be close to
+`target_endpoint_missing_rate`, which is retained as an endpoint-only
+diagnostic.
 
 ### 4. Calibrate PoC
 
@@ -194,7 +195,8 @@ Posterior credibility cutoffs:
 - `c_E`: required confidence that efficacy is acceptable.
 - `c_I`: required confidence that immune response is acceptable.
 - `target_missing_range`: threshold calibration target for the final admissible
-  set missing rate under endpoint-specific unfavorable scenarios.
+  set missing rate under endpoint-specific unfavorable scenarios, with inactive
+  endpoint cutoffs set to `0`.
   `target_endpoint_missing_rate` in the notebook output is endpoint-only
   diagnostic information.
 
