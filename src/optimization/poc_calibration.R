@@ -338,6 +338,17 @@ poc_progress_log <- function(..., enabled = TRUE) {
   invisible(NULL)
 }
 
+poc_seed_stride <- function(n_simulations, minimum_stride = 100000) {
+  if (!is.numeric(n_simulations) ||
+      length(n_simulations) != 1 ||
+      is.na(n_simulations) ||
+      n_simulations < 1 ||
+      n_simulations != floor(n_simulations)) {
+    stop("n_simulations must be a positive integer.")
+  }
+  max(minimum_stride, as.integer(n_simulations) + 1L)
+}
+
 calibrate_c_poc <- function(
   null_scenario,
   c_poc_candidates = c(0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95),
@@ -363,7 +374,11 @@ calibrate_c_poc <- function(
   if (any(c_poc_candidates < 0 | c_poc_candidates > 1)) {
     stop("c_poc_candidates must be between 0 and 1.")
   }
-  if (!is.numeric(n_simulations) || length(n_simulations) != 1 || n_simulations < 1) {
+  if (!is.numeric(n_simulations) ||
+      length(n_simulations) != 1 ||
+      is.na(n_simulations) ||
+      n_simulations < 1 ||
+      n_simulations != floor(n_simulations)) {
     stop("n_simulations must be a positive integer.")
   }
   if (!is.numeric(target_rate) || length(target_rate) != 1 || target_rate <= 0 || target_rate >= 1) {
@@ -382,12 +397,13 @@ calibrate_c_poc <- function(
     !is.numeric(calibration_seed) ||
       length(calibration_seed) != 1 ||
       is.na(calibration_seed) ||
-      calibration_seed < 0
+      calibration_seed < 0 ||
+      calibration_seed != floor(calibration_seed)
   )) {
-    stop("calibration_seed must be NULL or a non-negative number.")
+    stop("calibration_seed must be NULL or a non-negative integer.")
   }
   if (!is.null(calibration_seed)) {
-    calibration_seed <- as.numeric(calibration_seed)
+    calibration_seed <- validate_rng_seed(calibration_seed, "calibration_seed")
   }
   if (isTRUE(common_random_numbers) && is.null(calibration_seed)) {
     stop("calibration_seed cannot be NULL when common_random_numbers is TRUE.")
@@ -497,7 +513,7 @@ calibrate_c_poc <- function(
   cat("  rho1:", null_scenario$rho1, "\n")
   cat("\n")
 
-  candidate_seed_stride <- 100000
+  candidate_seed_stride <- poc_seed_stride(n_simulations)
 
   simulation_seed <- function(candidate_index, simulation_index) {
     if (is.null(calibration_seed)) {
@@ -508,7 +524,10 @@ calibrate_c_poc <- function(
     } else {
       (candidate_index - 1) * candidate_seed_stride
     }
-    calibration_seed + candidate_offset + simulation_index
+    validate_rng_seed(
+      calibration_seed + candidate_offset + simulation_index,
+      "PoC calibration simulation seed"
+    )
   }
 
   run_base_simulation <- function(sim, candidate_index = 1, c_poc = c_poc_candidates[[1]]) {
@@ -557,6 +576,8 @@ calibrate_c_poc <- function(
   calibration_results <- vector("list", length(c_poc_candidates))
 
   if (isTRUE(common_random_numbers)) {
+    # This reuse is valid for c_poc because c_poc is applied only at final PoC
+    # selection. Do not apply this pattern to c_T, c_I, or c_E calibration.
     cat(
       "Optimized mode: running", n_simulations,
       "full trial simulations once, then evaluating",
@@ -895,8 +916,16 @@ validate_calibration <- function(
   calibration_results,
   n_validation_simulations = 1000,
   null_scenario = NULL,
-  base_config = NULL
+  base_config = NULL,
+  validation_seed = NULL
 ) {
+  if (!is.numeric(n_validation_simulations) ||
+      length(n_validation_simulations) != 1 ||
+      is.na(n_validation_simulations) ||
+      n_validation_simulations < 1 ||
+      n_validation_simulations != floor(n_validation_simulations)) {
+    stop("n_validation_simulations must be a positive integer.")
+  }
   if (is.null(null_scenario)) {
     null_scenario <- create_default_null_scenario(base_config)
   }
@@ -935,9 +964,22 @@ validate_calibration <- function(
 
   config <- base_config
   config$c_poc <- optimal_c_poc
+  if (is.null(validation_seed)) {
+    calibration_seed <- calibration_results$calibration_seed
+    validation_seed <- if (!is.null(calibration_seed) && !is.na(calibration_seed)) {
+      calibration_seed + 50000000
+    } else {
+      91118
+    }
+  }
+  validation_seed <- validate_rng_seed(validation_seed, "validation_seed")
+  max_seed <- .Machine$integer.max - 1L
+  if (validation_seed + n_validation_simulations > max_seed) {
+    stop("validation_seed + n_validation_simulations must be no larger than ", max_seed, ".")
+  }
 
   detections <- vapply(seq_len(n_validation_simulations), function(i) {
-    result <- run_single_calibration_simulation(config, null_scenario, seed = 11118 + i)
+    result <- run_single_calibration_simulation(config, null_scenario, seed = validation_seed + i)
     !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated)
   }, logical(1))
 
@@ -949,7 +991,8 @@ validate_calibration <- function(
     validation_rate = validation_rate,
     validation_ci = validation_ci,
     target_rate = calibration_results$target_rate,
-    n_validation_simulations = n_validation_simulations
+    n_validation_simulations = n_validation_simulations,
+    validation_seed = validation_seed
   )
 }
 

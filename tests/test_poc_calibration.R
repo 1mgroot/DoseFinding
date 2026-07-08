@@ -145,7 +145,8 @@ test_that("validate_calibration produces valid validation results", {
   mock_calibration_results <- list(
     optimal_c_poc = 0.85,
     target_rate = 0.10,
-    optimal_rate = 0.12
+    optimal_rate = 0.12,
+    calibration_seed = 11118
   )
   
   # Run validation with very few simulations for testing
@@ -158,6 +159,9 @@ test_that("validate_calibration produces valid validation results", {
   expect_true("validation_ci" %in% names(validation_results))
   expect_true("target_rate" %in% names(validation_results))
   expect_true("n_validation_simulations" %in% names(validation_results))
+  expect_true("validation_seed" %in% names(validation_results))
+  expect_equal(validation_results$validation_seed, 50011118)
+  expect_equal(poc_seed_stride(100001), 100002)
   
   # Check that validation_rate is valid (0-1)
   expect_true(validation_results$validation_rate >= 0)

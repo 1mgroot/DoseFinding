@@ -394,6 +394,7 @@ This chunk runs the backend simulations automatically.
 #| echo: false
 n_simulations <- comparison_settings$n_simulations
 progress_every <- if (quick_mode) 1 else max(1, floor(n_simulations / 20))
+scenario_seed_stride <- max(100000, n_simulations + 1)
 
 get_result_scalar <- function(result, name, default) {
   value <- result[[name]]
@@ -406,7 +407,7 @@ get_result_scalar <- function(result, name, default) {
 run_one_scenario <- function(scenario, scenario_index) {
   cat("\nRunning scenario ", scenario_index, "/", length(scenarios), ": ", scenario$name, "\n", sep = "")
   scenario_start_time <- Sys.time()
-  scenario_seed <- comparison_settings$seed + (scenario_index - 1) * 100000
+  scenario_seed <- comparison_settings$seed + (scenario_index - 1) * scenario_seed_stride
 
   scenario_results <- lapply(seq_len(n_simulations), function(sim_id) {
     if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {

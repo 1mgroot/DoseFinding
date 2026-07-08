@@ -52,13 +52,11 @@ test_that("single threshold calibration returns a structured result", {
   settings$n_sim_per_candidate <- 1
   settings$c_T_candidates <- 0.55
 
-  fixed_params <- list(c_T = settings$c_T_start, c_E = settings$c_E_start, c_I = settings$c_I_start)
   result <- calibrate_single_threshold(
     param_name = "c_T",
     endpoint = "toxicity",
     scenario = create_threshold_scenario("toxicity", settings),
     candidates = settings$c_T_candidates,
-    fixed_params = fixed_params,
     settings = settings
   )
 
@@ -72,6 +70,84 @@ test_that("single threshold calibration returns a structured result", {
   expect_true("target_endpoint_missing_rate" %in% names(result$results))
   expect_true("selected" %in% names(result$results))
   expect_false("target_distance" %in% names(result$results))
+})
+
+test_that("threshold calibration reruns full trials for each c candidate", {
+  original_runner <- get("run_threshold_calibration_simulation", envir = .GlobalEnv)
+  on.exit(assign("run_threshold_calibration_simulation", original_runner, envir = .GlobalEnv), add = TRUE)
+
+  recorded_calls <- data.frame(
+    endpoint = character(),
+    c_T = numeric(),
+    c_I = numeric(),
+    c_E = numeric(),
+    seed = numeric()
+  )
+  assign(
+    "run_threshold_calibration_simulation",
+    function(config, scenario, seed = NULL) {
+      recorded_calls <<- rbind(recorded_calls, data.frame(
+        endpoint = scenario$endpoint,
+        c_T = config$c_T,
+        c_I = config$c_I,
+        c_E = config$c_E,
+        seed = seed
+      ))
+      list(
+        terminated_early = FALSE,
+        termination_stage = NA_integer_,
+        final_admissible_set = 1L,
+        final_admissible_missing = FALSE,
+        target_endpoint_missing = FALSE,
+        mean_admissible_count = 1,
+        total_participants = config$cohort_size * config$n_stages,
+        admissibility = data.frame(),
+        success = TRUE
+      )
+    },
+    envir = .GlobalEnv
+  )
+
+  settings <- default_separate_threshold_settings(quick_mode = TRUE)
+  settings$n_sim_per_candidate <- 2
+  settings$calibration_seed <- 1000
+  settings$show_progress <- FALSE
+  all_params <- c("c_T", "c_I", "c_E")
+  checks <- list(
+    c_T = list(endpoint = "toxicity", candidates = c(0.45, 0.55)),
+    c_I = list(endpoint = "immune", candidates = c(0.50, 0.70)),
+    c_E = list(endpoint = "efficacy", candidates = c(0.35, 0.50))
+  )
+
+  for (param_name in names(checks)) {
+    recorded_calls <- recorded_calls[0, , drop = FALSE]
+    candidates <- checks[[param_name]]$candidates
+
+    result <- calibrate_single_threshold(
+      param_name = param_name,
+      endpoint = checks[[param_name]]$endpoint,
+      scenario = create_threshold_scenario(checks[[param_name]]$endpoint, settings),
+      candidates = candidates,
+      settings = settings
+    )
+
+    expect_equal(nrow(recorded_calls), length(candidates) * settings$n_sim_per_candidate)
+    expect_equal(result$n_simulations, settings$n_sim_per_candidate)
+    expect_equal(recorded_calls[[param_name]], rep(candidates, each = settings$n_sim_per_candidate))
+    for (inactive_param in setdiff(all_params, param_name)) {
+      expect_equal(recorded_calls[[inactive_param]], rep(0, nrow(recorded_calls)))
+    }
+    seed_stride <- threshold_seed_stride(settings$n_sim_per_candidate)
+    expect_equal(
+      recorded_calls$seed,
+      settings$calibration_seed +
+        (rep(seq_along(candidates), each = settings$n_sim_per_candidate) - 1L) * seed_stride +
+        rep(seq_len(settings$n_sim_per_candidate), times = length(candidates))
+    )
+  }
+
+  expect_equal(threshold_seed_stride(100001), 100002)
+  expect_equal(threshold_candidate_seed(1000, 2, 1, 100001), 101003)
 })
 
 test_that("threshold candidate selection follows c cutoff direction", {

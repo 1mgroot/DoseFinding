@@ -14,7 +14,7 @@ simulate_data_gumbel <- function(
     p_YE_given_I, # marginal eff prob for I=0, I=1
     rho0 = 1, # correlation under I=0
     rho1 = 1, # correlation under I=1
-    seed = 11118,
+    seed = NULL,
     debug = FALSE) {
   # Only set seed if provided (not NULL)
   if (!is.null(seed)) {

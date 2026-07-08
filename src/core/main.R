@@ -20,9 +20,42 @@ source(file.path(project_root, "src/core/model_utils.R"))
 source(file.path(project_root, "src/utils/helpers.R"))
 source(file.path(project_root, "src/decision/dose_decision.R"))
 
+validate_rng_seed <- function(seed, name = "seed") {
+  if (is.null(seed)) {
+    return(NULL)
+  }
+  max_seed <- .Machine$integer.max - 1L
+  if (!is.numeric(seed) ||
+      length(seed) != 1 ||
+      is.na(seed) ||
+      seed < 0 ||
+      seed != floor(seed) ||
+      seed > max_seed) {
+    stop(name, " must be a non-negative integer no larger than ", max_seed, ".")
+  }
+  as.integer(seed)
+}
+
+generate_trial_stage_seeds <- function(seed, n_stages) {
+  if (!is.numeric(n_stages) ||
+      length(n_stages) != 1 ||
+      is.na(n_stages) ||
+      n_stages < 1 ||
+      n_stages != floor(n_stages)) {
+    stop("n_stages must be a positive integer.")
+  }
+  if (is.null(seed)) {
+    return(rep(NA_integer_, n_stages))
+  }
+
+  set.seed(validate_rng_seed(seed))
+  sample.int(.Machine$integer.max - 1L, n_stages)
+}
+
 run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed = NULL) {
   all_data <- data.frame()
   all_alloc_probs <- data.frame()
+  stage_seeds <- generate_trial_stage_seeds(seed, trial_config$n_stages)
   
   # Get verbose logging flag (default TRUE for backward compatibility)
   verbose <- if (is.null(trial_config$verbose_logging)) TRUE else trial_config$verbose_logging
@@ -79,8 +112,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
                  "but cohort_size is", trial_config$cohort_size))
     }
 
-    # Generate stage-specific seed if base seed is provided
-    stage_seed <- if (!is.null(seed)) seed + stage else NULL
+    # Generate stage-specific seed if base seed is provided.
+    stage_seed <- if (!is.null(seed)) stage_seeds[[stage]] else NULL
     
     stage_data <- simulate_data_gumbel(
       n_per_dose_vector = n_next_stage,

@@ -13,6 +13,16 @@ quiet_trial_config <- within(trial_config, {
   log_early_termination <- FALSE
 })
 
+test_that("trial stage seeds are reproducible without adjacent simulation overlap", {
+  first_trial_stage_seeds <- generate_trial_stage_seeds(11118, 5)
+  second_trial_stage_seeds <- generate_trial_stage_seeds(11119, 5)
+
+  expect_equal(generate_trial_stage_seeds(11118, 5), first_trial_stage_seeds)
+  expect_length(unique(first_trial_stage_seeds), 5)
+  expect_length(unique(c(first_trial_stage_seeds, second_trial_stage_seeds)), 10)
+  expect_null(formals(simulate_data_gumbel)$seed)
+})
+
 test_that("run_trial_simulation returns expected structure", {
   result <- run_trial_simulation(
     quiet_trial_config,

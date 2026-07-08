@@ -107,9 +107,6 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     phi_T = 0.30,
     phi_E = 0.25,
     phi_I = 0.20,
-    c_T_start = 0.35,
-    c_E_start = 0.55,
-    c_I_start = 0.45,
     c_poc = 0.995,
     delta_poc = 0.8,
     rho0 = 1.5,
@@ -481,12 +478,42 @@ select_threshold_candidate <- function(
   )
 }
 
+threshold_seed_stride <- function(n_simulations, minimum_stride = 100000) {
+  if (!is.numeric(n_simulations) ||
+      length(n_simulations) != 1 ||
+      is.na(n_simulations) ||
+      n_simulations < 1 ||
+      n_simulations != floor(n_simulations)) {
+    stop("n_simulations must be a positive integer.")
+  }
+  max(minimum_stride, as.integer(n_simulations) + 1L)
+}
+
+threshold_candidate_seed <- function(base_seed, candidate_index, simulation_index, n_simulations) {
+  if (is.null(base_seed)) {
+    return(NULL)
+  }
+  stride <- threshold_seed_stride(n_simulations)
+  validate_rng_seed(
+    base_seed + (candidate_index - 1L) * stride + simulation_index,
+    "threshold simulation seed"
+  )
+}
+
+threshold_endpoint_seed_stride <- function(settings) {
+  max_candidates <- max(
+    length(settings$c_T_candidates),
+    length(settings$c_I_candidates),
+    length(settings$c_E_candidates)
+  )
+  max(1000000, threshold_seed_stride(settings$n_sim_per_candidate) * (max_candidates + 1L))
+}
+
 calibrate_single_threshold <- function(
   param_name,
   endpoint,
   scenario,
   candidates,
-  fixed_params,
   settings,
   n_simulations = settings$n_sim_per_candidate,
   target_missing_range = settings$target_missing_range,
@@ -502,6 +529,8 @@ calibrate_single_threshold <- function(
 
   candidate_results <- vector("list", length(candidates))
   for (i in seq_along(candidates)) {
+    # Each threshold candidate must run its own full trial simulations because
+    # c_T, c_I, and c_E affect interim admissibility, early stopping, and later allocation.
     # During endpoint-specific calibration, inactive endpoint cutoffs are non-binding.
     params <- list(c_T = 0, c_E = 0, c_I = 0)
     params[[param_name]] <- candidates[[i]]
@@ -516,7 +545,7 @@ calibrate_single_threshold <- function(
       simulation_results[[sim_index]] <- run_threshold_calibration_simulation(
         config = config,
         scenario = scenario,
-        seed = base_seed + i * 100000 + sim_index
+        seed = threshold_candidate_seed(base_seed, i, sim_index, n_simulations)
       )
       if (!is.null(progress_state)) {
         progress_state$completed_work <- progress_state$completed_work + 1L
@@ -588,47 +617,36 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     c_I = create_threshold_scenario("immune", settings),
     c_E = create_threshold_scenario("efficacy", settings)
   )
-
-  current_params <- list(
-    c_T = settings$c_T_start,
-    c_E = settings$c_E_start,
-    c_I = settings$c_I_start
-  )
+  endpoint_seed_stride <- threshold_endpoint_seed_stride(settings)
 
   c_T_result <- calibrate_single_threshold(
     param_name = "c_T",
     endpoint = "toxicity",
     scenario = scenarios$c_T,
     candidates = settings$c_T_candidates,
-    fixed_params = current_params,
     settings = settings,
     progress_state = progress_state
   )
-  current_params$c_T <- c_T_result$optimal_value
 
   c_I_result <- calibrate_single_threshold(
     param_name = "c_I",
     endpoint = "immune",
     scenario = scenarios$c_I,
     candidates = settings$c_I_candidates,
-    fixed_params = current_params,
     settings = settings,
-    base_seed = settings$calibration_seed + 1000000,
+    base_seed = settings$calibration_seed + endpoint_seed_stride,
     progress_state = progress_state
   )
-  current_params$c_I <- c_I_result$optimal_value
 
   c_E_result <- calibrate_single_threshold(
     param_name = "c_E",
     endpoint = "efficacy",
     scenario = scenarios$c_E,
     candidates = settings$c_E_candidates,
-    fixed_params = current_params,
     settings = settings,
-    base_seed = settings$calibration_seed + 2000000,
+    base_seed = settings$calibration_seed + 2L * endpoint_seed_stride,
     progress_state = progress_state
   )
-  current_params$c_E <- c_E_result$optimal_value
 
   threshold_progress_log(
     "threshold calibration completed: ",
@@ -642,7 +660,11 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     settings = settings,
     scenarios = scenarios,
     calibrations = list(c_T = c_T_result, c_I = c_I_result, c_E = c_E_result),
-    recommended_thresholds = current_params
+    recommended_thresholds = list(
+      c_T = c_T_result$optimal_value,
+      c_I = c_I_result$optimal_value,
+      c_E = c_E_result$optimal_value
+    )
   )
 }
 

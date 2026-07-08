@@ -132,7 +132,7 @@ poc_settings$calibration_results_path <- resolve_project_path(poc_settings$calib
 **Example**: We set `null_p_I = 0.20` (true value) = `phi_I = 0.20` (threshold) for a true null scenario.
 
 | Parameter Type | Immune | Efficacy | Toxicity | Purpose |
-|---------------|---------------|---------------|---------------|---------------|
+|----|----|----|----|----|
 | **Null Scenario** | null_p_I = 0.20 | null_p_E = 0.25 | null_p_T = 0.05 | Generate data |
 | **Thresholds** | phi_I = 0.20 | phi_E = 0.25 | phi_T = 0.30 | Make decisions |
 | **Relationship** | null_p_I = phi_I | null_p_E = phi_E | null_p_T \< phi_T | Null scenario |
