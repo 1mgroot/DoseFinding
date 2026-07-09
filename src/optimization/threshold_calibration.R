@@ -111,6 +111,9 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     delta_poc = 0.8,
     rho0 = 1.5,
     rho1 = 2.0,
+    c_T = 0.35,
+    c_I = 0.50,
+    c_E = 0.55,
     target_missing_range = c(0.80, 0.90),
     c_T_candidates = if (quick_mode) c(0.45, 0.55, 0.65) else seq(0.35, 0.75, by = 0.05),
     c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
@@ -132,6 +135,42 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     efficacy_immune_effect = 0,
     output_dir = "results/threshold_calibration"
   )
+}
+
+validate_threshold_cutoff <- function(value, name) {
+  if (!is.numeric(value) ||
+      length(value) != 1 ||
+      is.na(value) ||
+      value < 0 ||
+      value > 1) {
+    stop(name, " must be a single numeric value between 0 and 1.")
+  }
+  as.numeric(value)
+}
+
+resolve_threshold_cutoffs <- function(settings, overrides = list()) {
+  default_cutoffs <- list(c_T = 0.35, c_I = 0.50, c_E = 0.55)
+  cutoff_names <- names(default_cutoffs)
+  cutoffs <- lapply(cutoff_names, function(name) {
+    value <- settings[[name]]
+    if (is.null(value)) {
+      value <- default_cutoffs[[name]]
+    }
+    validate_threshold_cutoff(value, name)
+  })
+  names(cutoffs) <- cutoff_names
+
+  if (!is.null(overrides)) {
+    unknown_names <- setdiff(names(overrides), cutoff_names)
+    if (length(unknown_names) > 0) {
+      stop("Unknown threshold cutoff override(s): ", paste(unknown_names, collapse = ", "))
+    }
+    for (name in names(overrides)) {
+      cutoffs[[name]] <- validate_threshold_cutoff(overrides[[name]], name)
+    }
+  }
+
+  cutoffs
 }
 
 threshold_progress_log <- function(..., enabled = TRUE) {
@@ -518,6 +557,7 @@ calibrate_single_threshold <- function(
   n_simulations = settings$n_sim_per_candidate,
   target_missing_range = settings$target_missing_range,
   base_seed = settings$calibration_seed,
+  baseline_cutoffs = NULL,
   progress_state = NULL
 ) {
   if (!param_name %in% c("c_T", "c_I", "c_E")) {
@@ -527,12 +567,14 @@ calibrate_single_threshold <- function(
     stop("candidates must not be empty.")
   }
 
+  fixed_cutoffs <- resolve_threshold_cutoffs(settings, baseline_cutoffs)
   candidate_results <- vector("list", length(candidates))
   for (i in seq_along(candidates)) {
     # Each threshold candidate must run its own full trial simulations because
     # c_T, c_I, and c_E affect interim admissibility, early stopping, and later allocation.
-    # During endpoint-specific calibration, inactive endpoint cutoffs are non-binding.
-    params <- list(c_T = 0, c_E = 0, c_I = 0)
+    # During endpoint-specific calibration, inactive endpoint cutoffs stay fixed at
+    # the configured baseline or previously selected values rather than becoming non-binding.
+    params <- fixed_cutoffs
     params[[param_name]] <- candidates[[i]]
     config <- create_threshold_trial_config(
       settings,
@@ -596,6 +638,7 @@ calibrate_single_threshold <- function(
     achieved_missing_rate = result_table[[selection_metric]][[selected_index]],
     selection_metric = selection_metric,
     target_missing_range = target_missing_range,
+    baseline_cutoffs = fixed_cutoffs,
     status = selection$status,
     selected_row = selected_index,
     n_simulations = n_simulations
@@ -618,6 +661,7 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     c_E = create_threshold_scenario("efficacy", settings)
   )
   endpoint_seed_stride <- threshold_endpoint_seed_stride(settings)
+  baseline_cutoffs <- resolve_threshold_cutoffs(settings)
 
   c_T_result <- calibrate_single_threshold(
     param_name = "c_T",
@@ -625,25 +669,39 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     scenario = scenarios$c_T,
     candidates = settings$c_T_candidates,
     settings = settings,
+    baseline_cutoffs = baseline_cutoffs,
     progress_state = progress_state
   )
 
+  c_I_baseline_cutoffs <- resolve_threshold_cutoffs(
+    settings,
+    list(c_T = c_T_result$optimal_value)
+  )
   c_I_result <- calibrate_single_threshold(
     param_name = "c_I",
     endpoint = "immune",
     scenario = scenarios$c_I,
     candidates = settings$c_I_candidates,
     settings = settings,
+    baseline_cutoffs = c_I_baseline_cutoffs,
     base_seed = settings$calibration_seed + endpoint_seed_stride,
     progress_state = progress_state
   )
 
+  c_E_baseline_cutoffs <- resolve_threshold_cutoffs(
+    settings,
+    list(
+      c_T = c_T_result$optimal_value,
+      c_I = c_I_result$optimal_value
+    )
+  )
   c_E_result <- calibrate_single_threshold(
     param_name = "c_E",
     endpoint = "efficacy",
     scenario = scenarios$c_E,
     candidates = settings$c_E_candidates,
     settings = settings,
+    baseline_cutoffs = c_E_baseline_cutoffs,
     base_seed = settings$calibration_seed + 2L * endpoint_seed_stride,
     progress_state = progress_state
   )
@@ -659,6 +717,7 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
   list(
     settings = settings,
     scenarios = scenarios,
+    baseline_cutoffs = baseline_cutoffs,
     calibrations = list(c_T = c_T_result, c_I = c_I_result, c_E = c_E_result),
     recommended_thresholds = list(
       c_T = c_T_result$optimal_value,
@@ -739,7 +798,7 @@ append_threshold_calibration_log <- function(
     paste0("## ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), title_suffix),
     "",
     paste0(
-      "- Target endpoint-specific missing rate: ",
+      "- Target final admissible-set missing rate: ",
       calibration_results$settings$target_missing_range[[1]] * 100,
       "% to ",
       calibration_results$settings$target_missing_range[[2]] * 100,
@@ -751,7 +810,7 @@ append_threshold_calibration_log <- function(
     paste0("- Recommended `c_I`: ", calibration_results$recommended_thresholds$c_I),
     paste0("- Recommended `c_E`: ", calibration_results$recommended_thresholds$c_E),
     "",
-    "| parameter | endpoint | selected value | endpoint missing rate | target | status |",
+    "| parameter | endpoint | selected value | final missing rate | target | status |",
     "|---|---|---:|---:|---:|---|"
   )
   for (i in seq_len(nrow(summary_table))) {
@@ -812,7 +871,7 @@ plot_threshold_calibration <- function(calibration_result) {
         calibration_result$optimal_value
       ),
       x = calibration_result$param_name,
-      y = "Endpoint-specific missing rate"
+      y = "Final admissible-set missing rate"
     ) +
     theme_bw(base_size = 13)
 }

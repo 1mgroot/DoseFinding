@@ -33,7 +33,7 @@ simulation_settings <- list(
   phi_T = 0.30,
   c_T = 0.35,
   phi_E = 0.25,
-  c_E = 0.60,
+  c_E = 0.55,
   phi_I = 0.20,
   c_I = 0.50,
   c_poc = 0.90,

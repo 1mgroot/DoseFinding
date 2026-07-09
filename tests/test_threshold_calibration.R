@@ -51,6 +51,8 @@ test_that("single threshold calibration returns a structured result", {
   settings <- default_separate_threshold_settings(quick_mode = TRUE)
   settings$n_sim_per_candidate <- 1
   settings$c_T_candidates <- 0.55
+  settings$c_I <- 0.62
+  settings$c_E <- 0.53
 
   result <- calibrate_single_threshold(
     param_name = "c_T",
@@ -63,8 +65,10 @@ test_that("single threshold calibration returns a structured result", {
   expect_equal(result$param_name, "c_T")
   expect_equal(result$optimal_value, 0.55)
   expect_equal(nrow(result$results), 1)
-  expect_equal(result$results$c_E, 0)
-  expect_equal(result$results$c_I, 0)
+  expect_equal(result$results$c_E, settings$c_E)
+  expect_equal(result$results$c_I, settings$c_I)
+  expect_equal(result$baseline_cutoffs$c_E, settings$c_E)
+  expect_equal(result$baseline_cutoffs$c_I, settings$c_I)
   expect_equal(result$selection_metric, "final_admissible_missing_rate")
   expect_true("final_admissible_missing_rate" %in% names(result$results))
   expect_true("target_endpoint_missing_rate" %in% names(result$results))
@@ -112,6 +116,9 @@ test_that("threshold calibration reruns full trials for each c candidate", {
   settings$n_sim_per_candidate <- 2
   settings$calibration_seed <- 1000
   settings$show_progress <- FALSE
+  settings$c_T <- 0.41
+  settings$c_I <- 0.62
+  settings$c_E <- 0.53
   all_params <- c("c_T", "c_I", "c_E")
   checks <- list(
     c_T = list(endpoint = "toxicity", candidates = c(0.45, 0.55)),
@@ -135,7 +142,10 @@ test_that("threshold calibration reruns full trials for each c candidate", {
     expect_equal(result$n_simulations, settings$n_sim_per_candidate)
     expect_equal(recorded_calls[[param_name]], rep(candidates, each = settings$n_sim_per_candidate))
     for (inactive_param in setdiff(all_params, param_name)) {
-      expect_equal(recorded_calls[[inactive_param]], rep(0, nrow(recorded_calls)))
+      expect_equal(
+        recorded_calls[[inactive_param]],
+        rep(settings[[inactive_param]], nrow(recorded_calls))
+      )
     }
     seed_stride <- threshold_seed_stride(settings$n_sim_per_candidate)
     expect_equal(
@@ -148,6 +158,73 @@ test_that("threshold calibration reruns full trials for each c candidate", {
 
   expect_equal(threshold_seed_stride(100001), 100002)
   expect_equal(threshold_candidate_seed(1000, 2, 1, 100001), 101003)
+})
+
+test_that("separate threshold calibration carries selected cutoffs forward", {
+  original_runner <- get("run_threshold_calibration_simulation", envir = .GlobalEnv)
+  on.exit(assign("run_threshold_calibration_simulation", original_runner, envir = .GlobalEnv), add = TRUE)
+
+  recorded_calls <- data.frame(
+    endpoint = character(),
+    c_T = numeric(),
+    c_I = numeric(),
+    c_E = numeric()
+  )
+  assign(
+    "run_threshold_calibration_simulation",
+    function(config, scenario, seed = NULL) {
+      recorded_calls <<- rbind(recorded_calls, data.frame(
+        endpoint = scenario$endpoint,
+        c_T = config$c_T,
+        c_I = config$c_I,
+        c_E = config$c_E
+      ))
+      list(
+        terminated_early = FALSE,
+        termination_stage = NA_integer_,
+        final_admissible_set = 1L,
+        final_admissible_missing = FALSE,
+        target_endpoint_missing = FALSE,
+        mean_admissible_count = 1,
+        total_participants = config$cohort_size * config$n_stages,
+        admissibility = data.frame(),
+        success = TRUE
+      )
+    },
+    envir = .GlobalEnv
+  )
+
+  settings <- default_separate_threshold_settings(quick_mode = TRUE)
+  settings$n_sim_per_candidate <- 1
+  settings$show_progress <- FALSE
+  settings$c_T <- 0.41
+  settings$c_I <- 0.62
+  settings$c_E <- 0.53
+  settings$c_T_candidates <- c(0.45, 0.55)
+  settings$c_I_candidates <- c(0.50, 0.70)
+  settings$c_E_candidates <- c(0.35, 0.50)
+
+  result <- calibrate_separate_thresholds(settings)
+
+  tox_calls <- recorded_calls[recorded_calls$endpoint == "toxicity", , drop = FALSE]
+  immune_calls <- recorded_calls[recorded_calls$endpoint == "immune", , drop = FALSE]
+  eff_calls <- recorded_calls[recorded_calls$endpoint == "efficacy", , drop = FALSE]
+
+  expect_equal(result$recommended_thresholds$c_T, 0.55)
+  expect_equal(result$recommended_thresholds$c_I, 0.70)
+  expect_equal(result$recommended_thresholds$c_E, 0.50)
+
+  expect_equal(tox_calls$c_T, settings$c_T_candidates)
+  expect_equal(tox_calls$c_I, rep(settings$c_I, nrow(tox_calls)))
+  expect_equal(tox_calls$c_E, rep(settings$c_E, nrow(tox_calls)))
+
+  expect_equal(immune_calls$c_T, rep(result$recommended_thresholds$c_T, nrow(immune_calls)))
+  expect_equal(immune_calls$c_I, settings$c_I_candidates)
+  expect_equal(immune_calls$c_E, rep(settings$c_E, nrow(immune_calls)))
+
+  expect_equal(eff_calls$c_T, rep(result$recommended_thresholds$c_T, nrow(eff_calls)))
+  expect_equal(eff_calls$c_I, rep(result$recommended_thresholds$c_I, nrow(eff_calls)))
+  expect_equal(eff_calls$c_E, settings$c_E_candidates)
 })
 
 test_that("threshold candidate selection follows c cutoff direction", {

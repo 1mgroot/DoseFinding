@@ -77,7 +77,7 @@ test_that("simulation notebook defaults use the current calibrated fallback valu
   expect_equal(simulation_settings$phi_T, trial_config$phi_T)
   expect_equal(simulation_settings$c_T, 0.35)
   expect_equal(simulation_settings$phi_E, trial_config$phi_E)
-  expect_equal(simulation_settings$c_E, 0.60)
+  expect_equal(simulation_settings$c_E, 0.55)
   expect_equal(simulation_settings$phi_I, trial_config$phi_I)
   expect_equal(simulation_settings$c_I, 0.50)
   expect_equal(simulation_settings$c_poc, 0.90)
@@ -245,9 +245,9 @@ test_that("PoC calibration notebook separates quick smoke settings from producti
   poc_settings <- settings$poc_settings
 
   expect_false(settings$quick_mode)
-  expect_equal(poc_settings$c_T, trial_config$c_T)
-  expect_equal(poc_settings$c_E, trial_config$c_E)
-  expect_equal(poc_settings$c_I, trial_config$c_I)
+  expect_equal(poc_settings$c_T, 0.35)
+  expect_equal(poc_settings$c_E, 0.55)
+  expect_equal(poc_settings$c_I, 0.50)
   expect_equal(poc_settings$delta_poc, trial_config$delta_poc)
   expect_equal(poc_settings$target_rate, 0.10)
   expect_true(poc_settings$append_history_log)
@@ -280,7 +280,7 @@ test_that("PoC calibration notebook separates quick smoke settings from producti
   expect_equal(quick_settings$progress_interval_seconds, 60)
 })
 
-test_that("threshold calibration notebook settings match the trial configuration", {
+test_that("threshold calibration notebook settings include baseline cutoffs", {
   settings <- evaluate_user_settings(workflow_notebooks[["threshold_calibration"]])
   threshold_settings <- settings$threshold_settings
 
@@ -295,6 +295,9 @@ test_that("threshold calibration notebook settings match the trial configuration
   expect_equal(threshold_settings$delta_poc, trial_config$delta_poc)
   expect_equal(threshold_settings$rho0, trial_config$rho0)
   expect_equal(threshold_settings$rho1, trial_config$rho1)
+  expect_equal(threshold_settings$c_T, 0.35)
+  expect_equal(threshold_settings$c_I, 0.50)
+  expect_equal(threshold_settings$c_E, 0.55)
   expect_false("c_T_start" %in% names(threshold_settings))
   expect_false("c_E_start" %in% names(threshold_settings))
   expect_false("c_I_start" %in% names(threshold_settings))
@@ -355,7 +358,9 @@ test_that("threshold calibration notebook displays parameter explanations", {
   expect_true(grepl("Maximum acceptable marginal toxicity probability", guide_chunk, fixed = TRUE))
   expect_true(grepl("Minimum acceptable marginal efficacy probability", guide_chunk, fixed = TRUE))
   expect_true(grepl("Minimum acceptable immune response probability", guide_chunk, fixed = TRUE))
+  expect_true(grepl("Baseline toxicity credibility cutoff", guide_chunk, fixed = TRUE))
+  expect_true(grepl("inactive endpoint cutoffs held at baseline or previously selected values", guide_chunk, fixed = TRUE))
   expect_true(any(grepl("User settings and parameter meanings", guide_output, fixed = TRUE)))
-  expect_equal(nrow(env$parameter_rows), 31)
+  expect_equal(nrow(env$parameter_rows), 34)
   expect_false(any(c("c_T_start", "c_E_start", "c_I_start") %in% env$parameter_rows$parameter))
 })
