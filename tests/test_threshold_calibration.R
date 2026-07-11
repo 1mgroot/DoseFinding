@@ -34,17 +34,25 @@ test_that("threshold calibration scenarios use endpoint-specific unfavorable set
   immune <- create_threshold_scenario("immune", settings)
   eff <- create_threshold_scenario("efficacy", settings)
 
-  expect_equal(tox$p_YI, rep(0.30, 5))
+  expect_equal(tox$p_YI, rep(0.95, 5))
   expect_equal(tox$marginal_p_T, seq(0.30, 0.50, length.out = 5))
-  expect_equal(tox$marginal_p_E, rep(0.40, 5))
+  expect_equal(tox$marginal_p_E, rep(0.95, 5))
+  expect_true(all(tox$p_YI >= settings$phi_I + 0.70))
+  expect_true(all(tox$marginal_p_E >= settings$phi_E + 0.70))
 
   expect_equal(immune$p_YI, seq(0.10, 0.15, length.out = 5))
-  expect_equal(immune$marginal_p_T, rep(0.15, 5))
-  expect_equal(immune$marginal_p_E, rep(0.40, 5))
+  expect_equal(immune$marginal_p_T, rep(0.01, 5))
+  expect_equal(immune$marginal_p_E, rep(0.95, 5))
+  expect_true(all(immune$p_YI < settings$phi_I))
+  expect_true(all(immune$marginal_p_T <= settings$phi_T - 0.25))
+  expect_true(all(immune$marginal_p_E >= settings$phi_E + 0.70))
 
-  expect_equal(eff$p_YI, rep(0.30, 5))
-  expect_equal(eff$marginal_p_T, rep(0.15, 5))
+  expect_equal(eff$p_YI, rep(0.95, 5))
+  expect_equal(eff$marginal_p_T, rep(0.01, 5))
   expect_equal(eff$marginal_p_E, seq(0.10, 0.20, length.out = 5))
+  expect_true(all(eff$p_YI >= settings$phi_I + 0.70))
+  expect_true(all(eff$marginal_p_T <= settings$phi_T - 0.25))
+  expect_true(all(eff$marginal_p_E < settings$phi_E))
 })
 
 test_that("single threshold calibration returns a structured result", {

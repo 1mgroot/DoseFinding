@@ -122,14 +122,14 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     calibration_seed = 11118,
     show_progress = TRUE,
     progress_interval_seconds = if (quick_mode) 60 else 300,
-    high_tox_p_I = 0.30,
+    high_tox_p_I = 0.95,
     high_tox_marginal_p_T = c(0.30, 0.50),
-    high_tox_marginal_p_E = 0.40,
+    high_tox_marginal_p_E = 0.95,
     low_immune_p_I = c(0.10, 0.15),
-    low_immune_marginal_p_T = 0.15,
-    low_immune_marginal_p_E = 0.40,
-    low_eff_p_I = 0.30,
-    low_eff_marginal_p_T = 0.15,
+    low_immune_marginal_p_T = 0.01,
+    low_immune_marginal_p_E = 0.95,
+    low_eff_p_I = 0.95,
+    low_eff_marginal_p_T = 0.01,
     low_eff_marginal_p_E = c(0.10, 0.20),
     toxicity_immune_effect = 0,
     efficacy_immune_effect = 0,
@@ -294,7 +294,7 @@ create_threshold_scenario <- function(endpoint, settings) {
       n_doses,
       "high_tox_marginal_p_E"
     )
-    description <- "High toxicity: marginal P(T) above phi_T; immune and efficacy acceptable"
+    description <- "High toxicity: marginal P(T) above phi_T; immune and efficacy clearly favorable"
   } else if (endpoint == "immune") {
     p_immune <- make_probability_profile(settings$low_immune_p_I, n_doses, "low_immune_p_I")
     marginal_tox <- make_probability_profile(
@@ -307,7 +307,7 @@ create_threshold_scenario <- function(endpoint, settings) {
       n_doses,
       "low_immune_marginal_p_E"
     )
-    description <- "Low immune: P(I) below phi_I; toxicity and efficacy acceptable"
+    description <- "Low immune: P(I) below phi_I; toxicity and efficacy clearly favorable"
   } else if (endpoint == "efficacy") {
     p_immune <- make_probability_profile(settings$low_eff_p_I, n_doses, "low_eff_p_I")
     marginal_tox <- make_probability_profile(
@@ -320,7 +320,7 @@ create_threshold_scenario <- function(endpoint, settings) {
       n_doses,
       "low_eff_marginal_p_E"
     )
-    description <- "Low efficacy: marginal P(E) below phi_E; toxicity and immune acceptable"
+    description <- "Low efficacy: marginal P(E) below phi_E; toxicity and immune clearly favorable"
   } else {
     stop("endpoint must be one of: toxicity, immune, efficacy.")
   }
