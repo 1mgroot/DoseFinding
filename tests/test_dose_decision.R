@@ -19,6 +19,43 @@ test_that("get_expected_utility returns a single numeric value", {
   expect_length(score, 1)
 })
 
+test_that("get_expected_utility averages utility over posterior draws", {
+  p_i <- c(0.20, 0.80, 0.50, 0.65)
+  p_t0 <- c(0.10, 0.30, 0.15, 0.40)
+  p_t1 <- c(0.20, 0.50, 0.25, 0.55)
+  p_e0 <- c(0.20, 0.80, 0.45, 0.70)
+  p_e1 <- c(0.30, 0.90, 0.60, 0.85)
+  posterior_summaries <- list(
+    tox = data.frame(
+      pava_mean = c(mean(p_t0), mean(p_t1)),
+      samples_pava = I(list(p_t0, p_t1))
+    ),
+    eff = data.frame(
+      pava_mean = c(mean(p_e0), mean(p_e1)),
+      samples_pava = I(list(p_e0, p_e1))
+    ),
+    imm = data.frame(
+      pava_mean = mean(p_i),
+      samples_pava = I(list(p_i))
+    )
+  )
+
+  draw_utilities <- vapply(seq_along(p_i), function(i) {
+    calculate_utility_from_probabilities(
+      p_i[[i]], p_t0[[i]], p_t1[[i]], p_e0[[i]], p_e1[[i]],
+      trial_config$utility_table
+    )
+  }, numeric(1))
+  plugin_utility <- calculate_utility_from_probabilities(
+    mean(p_i), mean(p_t0), mean(p_t1), mean(p_e0), mean(p_e1),
+    trial_config$utility_table
+  )
+
+  expect_equal(get_expected_utility_draws(1, posterior_summaries, trial_config), draw_utilities)
+  expect_equal(get_expected_utility(1, posterior_summaries, trial_config), mean(draw_utilities))
+  expect_gt(abs(get_expected_utility(1, posterior_summaries, trial_config) - plugin_utility), 0.01)
+})
+
 test_that("get_admissible_set returns numeric indices with expected structure", {
   # Create test config with 3 doses to match test data
   test_config <- trial_config
