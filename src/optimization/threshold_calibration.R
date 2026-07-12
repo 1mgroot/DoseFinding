@@ -392,6 +392,19 @@ run_threshold_calibration_simulation <- function(config, scenario, seed = NULL) 
     immune = "imm_pass",
     efficacy = "eff_pass"
   )
+  pass_sets <- list(
+    toxicity = admissibility$dose_index[admissibility$tox_pass],
+    immune = admissibility$dose_index[admissibility$imm_pass],
+    efficacy = admissibility$dose_index[admissibility$eff_pass]
+  )
+  target_pass_set <- pass_sets[[scenario$endpoint]]
+  non_target_endpoint_names <- setdiff(names(pass_sets), scenario$endpoint)
+  non_target_pair_set <- Reduce(
+    intersect,
+    pass_sets[non_target_endpoint_names]
+  )
+  target_blocks_overlap <- length(non_target_pair_set) > 0 &&
+    length(final_admissible_set) == 0
 
   list(
     terminated_early = results$terminated_early,
@@ -399,6 +412,11 @@ run_threshold_calibration_simulation <- function(config, scenario, seed = NULL) 
     final_admissible_set = final_admissible_set,
     final_admissible_missing = length(final_admissible_set) == 0,
     target_endpoint_missing = !any(admissibility[[target_pass_column]]),
+    target_blocks_overlap = target_blocks_overlap,
+    non_target_pair_empty = length(non_target_pair_set) == 0,
+    target_pass_count = length(target_pass_set),
+    non_target_pair_pass_count = length(non_target_pair_set),
+    all_endpoint_pass_count = length(final_admissible_set),
     mean_admissible_count = length(final_admissible_set),
     total_participants = nrow(results$all_data),
     admissibility = admissibility,
@@ -417,6 +435,16 @@ summarise_threshold_runs <- function(simulation_results) {
     function(x) isTRUE(x$target_endpoint_missing),
     logical(1)
   )
+  target_blocks_overlap <- vapply(
+    simulation_results,
+    function(x) isTRUE(x$target_blocks_overlap),
+    logical(1)
+  )
+  non_target_pair_empty <- vapply(
+    simulation_results,
+    function(x) isTRUE(x$non_target_pair_empty),
+    logical(1)
+  )
   early_stop <- vapply(
     simulation_results,
     function(x) isTRUE(x$terminated_early),
@@ -425,6 +453,21 @@ summarise_threshold_runs <- function(simulation_results) {
   admissible_count <- vapply(
     simulation_results,
     function(x) x$mean_admissible_count,
+    numeric(1)
+  )
+  target_pass_count <- vapply(
+    simulation_results,
+    function(x) x$target_pass_count,
+    numeric(1)
+  )
+  non_target_pair_pass_count <- vapply(
+    simulation_results,
+    function(x) x$non_target_pair_pass_count,
+    numeric(1)
+  )
+  all_endpoint_pass_count <- vapply(
+    simulation_results,
+    function(x) x$all_endpoint_pass_count,
     numeric(1)
   )
   n_sim <- length(simulation_results)
@@ -439,8 +482,13 @@ summarise_threshold_runs <- function(simulation_results) {
     missing_rate_ci_lower = max(0, missing_rate - 1.96 * missing_se),
     missing_rate_ci_upper = min(1, missing_rate + 1.96 * missing_se),
     target_endpoint_missing_rate = endpoint_missing_rate,
+    target_blocks_overlap_rate = mean(target_blocks_overlap),
+    non_target_pair_empty_rate = mean(non_target_pair_empty),
     early_stop_rate = mean(early_stop),
     mean_admissible_count = mean(admissible_count),
+    mean_target_pass_count = mean(target_pass_count),
+    mean_non_target_pair_pass_count = mean(non_target_pair_pass_count),
+    mean_all_endpoint_pass_count = mean(all_endpoint_pass_count),
     n_simulations = n_sim
   )
 }
@@ -573,7 +621,8 @@ calibrate_single_threshold <- function(
     # Each threshold candidate must run its own full trial simulations because
     # c_T, c_I, and c_E affect interim admissibility, early stopping, and later allocation.
     # During endpoint-specific calibration, inactive endpoint cutoffs stay fixed at
-    # the configured baseline or previously selected values rather than becoming non-binding.
+    # the configured baseline values rather than becoming non-binding or carrying
+    # forward previously selected values.
     params <- fixed_cutoffs
     params[[param_name]] <- candidates[[i]]
     config <- create_threshold_trial_config(
@@ -673,35 +722,24 @@ calibrate_separate_thresholds <- function(settings = default_separate_threshold_
     progress_state = progress_state
   )
 
-  c_I_baseline_cutoffs <- resolve_threshold_cutoffs(
-    settings,
-    list(c_T = c_T_result$optimal_value)
-  )
   c_I_result <- calibrate_single_threshold(
     param_name = "c_I",
     endpoint = "immune",
     scenario = scenarios$c_I,
     candidates = settings$c_I_candidates,
     settings = settings,
-    baseline_cutoffs = c_I_baseline_cutoffs,
+    baseline_cutoffs = baseline_cutoffs,
     base_seed = settings$calibration_seed + endpoint_seed_stride,
     progress_state = progress_state
   )
 
-  c_E_baseline_cutoffs <- resolve_threshold_cutoffs(
-    settings,
-    list(
-      c_T = c_T_result$optimal_value,
-      c_I = c_I_result$optimal_value
-    )
-  )
   c_E_result <- calibrate_single_threshold(
     param_name = "c_E",
     endpoint = "efficacy",
     scenario = scenarios$c_E,
     candidates = settings$c_E_candidates,
     settings = settings,
-    baseline_cutoffs = c_E_baseline_cutoffs,
+    baseline_cutoffs = baseline_cutoffs,
     base_seed = settings$calibration_seed + 2L * endpoint_seed_stride,
     progress_state = progress_state
   )

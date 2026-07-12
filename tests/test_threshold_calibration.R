@@ -80,8 +80,60 @@ test_that("single threshold calibration returns a structured result", {
   expect_equal(result$selection_metric, "final_admissible_missing_rate")
   expect_true("final_admissible_missing_rate" %in% names(result$results))
   expect_true("target_endpoint_missing_rate" %in% names(result$results))
+  expect_true("target_blocks_overlap_rate" %in% names(result$results))
+  expect_true("non_target_pair_empty_rate" %in% names(result$results))
+  expect_true("mean_target_pass_count" %in% names(result$results))
+  expect_true("mean_non_target_pair_pass_count" %in% names(result$results))
   expect_true("selected" %in% names(result$results))
   expect_false("target_distance" %in% names(result$results))
+})
+
+test_that("threshold run summary separates endpoint-only missing from overlap blocking", {
+  simulation_results <- list(
+    list(
+      final_admissible_missing = TRUE,
+      target_endpoint_missing = FALSE,
+      target_blocks_overlap = TRUE,
+      non_target_pair_empty = FALSE,
+      terminated_early = TRUE,
+      mean_admissible_count = 0,
+      target_pass_count = 1,
+      non_target_pair_pass_count = 2,
+      all_endpoint_pass_count = 0
+    ),
+    list(
+      final_admissible_missing = TRUE,
+      target_endpoint_missing = TRUE,
+      target_blocks_overlap = TRUE,
+      non_target_pair_empty = FALSE,
+      terminated_early = TRUE,
+      mean_admissible_count = 0,
+      target_pass_count = 0,
+      non_target_pair_pass_count = 1,
+      all_endpoint_pass_count = 0
+    ),
+    list(
+      final_admissible_missing = FALSE,
+      target_endpoint_missing = FALSE,
+      target_blocks_overlap = FALSE,
+      non_target_pair_empty = FALSE,
+      terminated_early = FALSE,
+      mean_admissible_count = 1,
+      target_pass_count = 2,
+      non_target_pair_pass_count = 2,
+      all_endpoint_pass_count = 1
+    )
+  )
+
+  summary <- summarise_threshold_runs(simulation_results)
+
+  expect_equal(summary$final_admissible_missing_rate, 2 / 3)
+  expect_equal(summary$target_endpoint_missing_rate, 1 / 3)
+  expect_equal(summary$target_blocks_overlap_rate, 2 / 3)
+  expect_equal(summary$non_target_pair_empty_rate, 0)
+  expect_equal(summary$mean_target_pass_count, 1)
+  expect_equal(summary$mean_non_target_pair_pass_count, 5 / 3)
+  expect_equal(summary$mean_all_endpoint_pass_count, 1 / 3)
 })
 
 test_that("threshold calibration reruns full trials for each c candidate", {
@@ -111,6 +163,11 @@ test_that("threshold calibration reruns full trials for each c candidate", {
         final_admissible_set = 1L,
         final_admissible_missing = FALSE,
         target_endpoint_missing = FALSE,
+        target_blocks_overlap = FALSE,
+        non_target_pair_empty = FALSE,
+        target_pass_count = 1,
+        non_target_pair_pass_count = 1,
+        all_endpoint_pass_count = 1,
         mean_admissible_count = 1,
         total_participants = config$cohort_size * config$n_stages,
         admissibility = data.frame(),
@@ -168,7 +225,7 @@ test_that("threshold calibration reruns full trials for each c candidate", {
   expect_equal(threshold_candidate_seed(1000, 2, 1, 100001), 101003)
 })
 
-test_that("separate threshold calibration carries selected cutoffs forward", {
+test_that("separate threshold calibration keeps inactive cutoffs at fixed baseline values", {
   original_runner <- get("run_threshold_calibration_simulation", envir = .GlobalEnv)
   on.exit(assign("run_threshold_calibration_simulation", original_runner, envir = .GlobalEnv), add = TRUE)
 
@@ -193,6 +250,11 @@ test_that("separate threshold calibration carries selected cutoffs forward", {
         final_admissible_set = 1L,
         final_admissible_missing = FALSE,
         target_endpoint_missing = FALSE,
+        target_blocks_overlap = FALSE,
+        non_target_pair_empty = FALSE,
+        target_pass_count = 1,
+        non_target_pair_pass_count = 1,
+        all_endpoint_pass_count = 1,
         mean_admissible_count = 1,
         total_participants = config$cohort_size * config$n_stages,
         admissibility = data.frame(),
@@ -226,12 +288,12 @@ test_that("separate threshold calibration carries selected cutoffs forward", {
   expect_equal(tox_calls$c_I, rep(settings$c_I, nrow(tox_calls)))
   expect_equal(tox_calls$c_E, rep(settings$c_E, nrow(tox_calls)))
 
-  expect_equal(immune_calls$c_T, rep(result$recommended_thresholds$c_T, nrow(immune_calls)))
+  expect_equal(immune_calls$c_T, rep(settings$c_T, nrow(immune_calls)))
   expect_equal(immune_calls$c_I, settings$c_I_candidates)
   expect_equal(immune_calls$c_E, rep(settings$c_E, nrow(immune_calls)))
 
-  expect_equal(eff_calls$c_T, rep(result$recommended_thresholds$c_T, nrow(eff_calls)))
-  expect_equal(eff_calls$c_I, rep(result$recommended_thresholds$c_I, nrow(eff_calls)))
+  expect_equal(eff_calls$c_T, rep(settings$c_T, nrow(eff_calls)))
+  expect_equal(eff_calls$c_I, rep(settings$c_I, nrow(eff_calls)))
   expect_equal(eff_calls$c_E, settings$c_E_candidates)
 })
 

@@ -364,7 +364,7 @@ test_that("threshold calibration notebook displays parameter explanations", {
   expect_true(grepl("Minimum acceptable marginal efficacy probability", guide_chunk, fixed = TRUE))
   expect_true(grepl("Minimum acceptable immune response probability", guide_chunk, fixed = TRUE))
   expect_true(grepl("Baseline toxicity credibility cutoff", guide_chunk, fixed = TRUE))
-  expect_true(grepl("inactive endpoint cutoffs held at baseline or previously selected values", guide_chunk, fixed = TRUE))
+  expect_true(grepl("inactive endpoint cutoffs held at fixed baseline values", guide_chunk, fixed = TRUE))
   expect_true(any(grepl("User settings and parameter meanings", guide_output, fixed = TRUE)))
   expect_equal(nrow(env$parameter_rows), 34)
   expect_false(any(c("c_T_start", "c_E_start", "c_I_start") %in% env$parameter_rows$parameter))

@@ -24,7 +24,7 @@ This notebook calibrates the three admissibility credibility cutoffs separately:
 2.  `c_I`: evidence required to keep a dose when immune response is judged acceptable.
 3.  `c_E`: evidence required to keep a dose when efficacy is judged acceptable.
 
-The calibration target is the final admissible set missing rate under an endpoint-specific unfavorable scenario. During each endpoint calibration, the active cutoff is varied over its candidate grid and the two inactive endpoint cutoffs are held at baseline values from the settings, with previously selected values used as calibration proceeds. The default target is 80%-90%.
+The calibration target is the final admissible set missing rate under an endpoint-specific unfavorable scenario. During each endpoint calibration, the active cutoff is varied over its candidate grid and the two inactive endpoint cutoffs are held at the fixed baseline values from the settings. The selected cutoff from one endpoint is not carried forward into the calibration of another endpoint. The default target is 80%-90%.
 
 After this notebook selects `c_T`, `c_I`, and `c_E`, use those values as fixed inputs in the PoC calibration notebook.
 
@@ -264,7 +264,7 @@ parameter_rows <- data.frame(
     "Baseline toxicity credibility cutoff used when c_T is not the active candidate.",
     "Baseline immune-response credibility cutoff used when c_I is not the active candidate.",
     "Baseline efficacy credibility cutoff used when c_E is not the active candidate.",
-    "Target proportion of simulations where the final admissible set is empty with inactive endpoint cutoffs held at baseline or previously selected values.",
+    "Target proportion of simulations where the final admissible set is empty with inactive endpoint cutoffs held at fixed baseline values.",
     "Grid searched for the toxicity credibility cutoff. Larger values require stronger safety evidence.",
     "Grid searched for the immune-response credibility cutoff. Larger values require stronger immune evidence.",
     "Grid searched for the efficacy credibility cutoff. Larger values require stronger efficacy evidence.",
@@ -397,12 +397,16 @@ for (name in names(calibration_results$calibrations)) {
       c_E = round(c_E, 3),
       final_missing_rate = paste0(round(final_admissible_missing_rate * 100, 1), "%"),
       target_endpoint_missing_rate = paste0(round(target_endpoint_missing_rate * 100, 1), "%"),
+      target_blocks_overlap_rate = paste0(round(target_blocks_overlap_rate * 100, 1), "%"),
+      non_target_pair_empty_rate = paste0(round(non_target_pair_empty_rate * 100, 1), "%"),
       early_stop_rate = paste0(round(early_stop_rate * 100, 1), "%"),
+      mean_target_pass_count = round(mean_target_pass_count, 2),
+      mean_non_target_pair_pass_count = round(mean_non_target_pair_pass_count, 2),
       mean_admissible_count = round(mean_admissible_count, 2)
     )
   cat("\n\n### Candidate Results for ", name, "\n\n", sep = "")
   cat("The selected row is the least strict candidate inside the target range. If no row is inside the range, the direction follows the design rule that larger c values require stronger posterior evidence.\n\n")
-  cat("For this endpoint-specific calibration, the endpoint being calibrated uses the displayed candidate value and the other two endpoint cutoffs are fixed at the baseline values or previously selected values shown in the table. `final_missing_rate` is the selection metric and includes early stops caused by the resulting admissible set becoming empty. `target_endpoint_missing_rate` is retained as a diagnostic endpoint-only check for the active endpoint.\n\n")
+  cat("For this endpoint-specific calibration, the endpoint being calibrated uses the displayed candidate value and the other two endpoint cutoffs are fixed at the baseline values shown in the table. `final_missing_rate` is the selection metric and includes early stops caused by the resulting admissible set becoming empty. `target_endpoint_missing_rate` is an endpoint-only diagnostic. `target_blocks_overlap_rate` estimates how often the target endpoint makes the final three-endpoint intersection empty when the two non-target endpoints still have a non-empty intersection.\n\n")
   print(kable(candidate_table))
 }
 ```
