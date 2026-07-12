@@ -111,7 +111,8 @@ The simulation notebook repeats this trial process automatically:
 5. Build the admissible dose set using clinical thresholds (`phi_*`) and
    posterior credibility cutoffs (`c_*`).
 6. Stop early if no dose remains admissible.
-7. Allocate later stages toward higher-utility admissible doses.
+7. Allocate later stages by posterior probability of being optimal among
+   admissible doses.
 8. At the final stage, form the PoC-eligible set from immune-response evidence
    against dose 1, then recommend the highest-utility dose in that set.
 

@@ -653,13 +653,13 @@ kable(alloc_prob_wide, digits = 3,
 
 ### Mathematical Design
 
-From **Design2.tex Notes**, adaptive randomization assigns patients based on utility-weighted probabilities:
+Adaptive randomization assigns patients based on posterior probability of being optimal among the current admissible doses:
 
 $$
-\text{Allocation probability} \propto \frac{\hat{U}(d_j)}{\sum_{j \in A} \hat{U}(d_j)}
+\Pr\{d_j = \arg\max_{k \in A} U_k^{(s)} \mid \text{posterior data}\}
 $$
 
-where $A$ is the current admissible set.
+where $A$ is the current admissible set and $U_k^{(s)}$ is the draw-level utility for dose $k$. Ties are split equally within each posterior draw.
 
 **Control arm handling** (OUT-OF-SCOPE): The design specifies special handling for control arms to avoid over-allocation (equations 11-12). This is not implemented.
 
@@ -669,8 +669,8 @@ where $A$ is the current admissible set.
 # Adaptive randomization
 # See src/decision/dose_decision.R: adaptive_randomization()
 
-# 1. Compute expected utility for each admissible dose
-# 2. Normalize to get allocation probabilities
+# 1. Compute draw-level utility for each admissible dose
+# 2. Estimate posterior probability that each dose is optimal
 # 3. Set probability = 0 for non-admissible doses
 ```
 
@@ -682,7 +682,7 @@ ggplot(trial_results$all_alloc_probs, aes(x = Stage, y = Prob, color = factor(Do
   geom_line(linewidth = 1) +
   geom_point(size = 3) +
   labs(title = "Adaptive Allocation Probabilities Over Time",
-       subtitle = "Probabilities shift toward higher-utility doses",
+       subtitle = "Probabilities shift toward doses more often optimal in posterior draws",
        x = "Stage",
        y = "Allocation Probability",
        color = "Dose") +
@@ -872,7 +872,7 @@ if (toxic_trial$terminated_early) {
 
 1. **Statistical rigor**: All posteriors use conjugate Beta-Bernoulli models with isotonic regression
 2. **Causal modeling**: Mediator factorization properly implemented
-3. **Adaptive design**: Allocation shifts toward high-utility doses
+3. **Adaptive design**: Allocation shifts toward doses with higher posterior probability of being optimal
 4. **Safety**: Multi-criteria admissibility screening
 5. **Validation**: PoC probability ensures confident selection
 6. **Efficiency**: Early termination prevents enrollment in futile trials

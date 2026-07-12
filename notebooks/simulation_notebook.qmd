@@ -247,7 +247,7 @@ This chunk runs the backend simulation automatically. It repeats the full trial 
 1.  **Stage 1**: Equal randomization to all dose levels
 2.  **Interim Analysis**: Update admissible set based on posterior probabilities
 3.  **Early Termination Check**: Terminate if admissible set is empty (checked after interim analysis, before adaptive randomization)
-4.  **Adaptive Randomization**: Allocate patients based on utility scores (Stages 2+ only, only if trial continues)
+4.  **Adaptive Randomization**: Allocate patients by posterior probability of being optimal among admissible doses (Stages 2+ only, only if trial continues)
 5.  **Final Selection**: Choose OD with highest utility from admissible set + PoC validation
 
 ```{r simulation}

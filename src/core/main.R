@@ -205,7 +205,7 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
     # Step 3: Adaptive Randomization (only if trial continues)
     if (stage < trial_config$n_stages) {
       if (verbose) {
-        cat("Workflow: Step 3 - Adaptive Randomization (allocate patients based on utility scores)
+        cat("Workflow: Step 3 - Adaptive Randomization (allocate by posterior probability of being optimal)
 ")
       }
       alloc_probs <- adaptive_randomization(admissible_set, posterior_summaries, trial_config)
