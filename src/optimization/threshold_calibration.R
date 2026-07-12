@@ -114,7 +114,7 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     c_T = 0.35,
     c_I = 0.50,
     c_E = 0.55,
-    target_missing_range = c(0.80, 0.90),
+    target_missing_range = c(0.80, 0.85),
     c_T_candidates = if (quick_mode) c(0.45, 0.55, 0.65) else seq(0.35, 0.75, by = 0.05),
     c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
     c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),

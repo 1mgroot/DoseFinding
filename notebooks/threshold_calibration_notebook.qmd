@@ -24,7 +24,7 @@ This notebook calibrates the three admissibility credibility cutoffs separately:
 2.  `c_I`: evidence required to keep a dose when immune response is judged acceptable.
 3.  `c_E`: evidence required to keep a dose when efficacy is judged acceptable.
 
-The calibration target is the final admissible set missing rate under an endpoint-specific unfavorable scenario. During each endpoint calibration, the active cutoff is varied over its candidate grid and the two inactive endpoint cutoffs are held at the fixed baseline values from the settings. The selected cutoff from one endpoint is not carried forward into the calibration of another endpoint. The default target is 80%-90%.
+The calibration target is the final admissible set missing rate under an endpoint-specific unfavorable scenario. During each endpoint calibration, the active cutoff is varied over its candidate grid and the two inactive endpoint cutoffs are held at the fixed baseline values from the settings. The selected cutoff from one endpoint is not carried forward into the calibration of another endpoint. The default target is 80%-85%.
 
 After this notebook selects `c_T`, `c_I`, and `c_E`, use those values as fixed inputs in the PoC calibration notebook.
 
@@ -57,7 +57,7 @@ threshold_settings <- list(
   c_I = 0.50,
   c_E = 0.55,
 
-  target_missing_range = c(0.80, 0.90),
+  target_missing_range = c(0.80, 0.85),
   c_T_candidates = if (quick_mode) c(0.45, 0.55, 0.65) else seq(0.35, 0.75, by = 0.05),
   c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
   c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),

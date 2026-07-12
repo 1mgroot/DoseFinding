@@ -302,7 +302,7 @@ test_that("threshold candidate selection follows c cutoff direction", {
     param_value = c(0.45, 0.55, 0.65),
     final_admissible_missing_rate = c(0.78, 0.82, 0.88)
   )
-  selected <- select_threshold_candidate(in_range_table, c(0.80, 0.90))
+  selected <- select_threshold_candidate(in_range_table, c(0.80, 0.85))
   expect_equal(selected$selected_index, 2)
   expect_match(selected$status, "least strict")
 
@@ -310,15 +310,15 @@ test_that("threshold candidate selection follows c cutoff direction", {
     param_value = c(0.45, 0.55, 0.65),
     final_admissible_missing_rate = c(0.40, 0.55, 0.70)
   )
-  selected <- select_threshold_candidate(below_range_table, c(0.80, 0.90))
+  selected <- select_threshold_candidate(below_range_table, c(0.80, 0.85))
   expect_equal(selected$selected_index, 3)
   expect_match(selected$status, "strictest")
 
   above_range_table <- data.frame(
     param_value = c(0.45, 0.55, 0.65),
-    final_admissible_missing_rate = c(0.92, 0.96, 0.99)
+    final_admissible_missing_rate = c(0.86, 0.90, 0.99)
   )
-  selected <- select_threshold_candidate(above_range_table, c(0.80, 0.90))
+  selected <- select_threshold_candidate(above_range_table, c(0.80, 0.85))
   expect_equal(selected$selected_index, 1)
   expect_match(selected$status, "least strict")
 })
@@ -335,7 +335,7 @@ test_that("threshold calibration history records runtime", {
         endpoint = "toxicity",
         optimal_value = 0.45,
         achieved_missing_rate = 0.82,
-        target_missing_range = c(0.80, 0.90),
+        target_missing_range = c(0.80, 0.85),
         status = "within target range",
         n_simulations = 5
       )

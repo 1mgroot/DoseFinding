@@ -105,7 +105,7 @@ calibration. It generates:
 - readable calibration history under `results/threshold_calibration/`
 - saved RDS and CSV summaries under `results/threshold_calibration/`
 
-The default target is a final admissible set missing rate of 80%-90%. During
+The default target is a final admissible set missing rate of 80%-85%. During
 each endpoint-specific calibration, the active cutoff is varied over its
 candidate grid and the two inactive endpoint cutoffs are set to `0`. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.

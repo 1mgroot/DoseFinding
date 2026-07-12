@@ -301,7 +301,7 @@ test_that("threshold calibration notebook settings include baseline cutoffs", {
   expect_false("c_T_start" %in% names(threshold_settings))
   expect_false("c_E_start" %in% names(threshold_settings))
   expect_false("c_I_start" %in% names(threshold_settings))
-  expect_equal(threshold_settings$target_missing_range, c(0.80, 0.90))
+  expect_equal(threshold_settings$target_missing_range, c(0.80, 0.85))
   expect_equal(threshold_settings$high_tox_p_I, 0.95)
   expect_equal(threshold_settings$high_tox_marginal_p_T, c(0.30, 0.50))
   expect_equal(threshold_settings$high_tox_marginal_p_E, 0.95)
