@@ -240,7 +240,9 @@ Simulation truth:
 - `p_YI`: true immune response probabilities by dose.
 - `p_YT_given_I`: true toxicity probabilities by dose and immune status.
 - `p_YE_given_I`: true efficacy probabilities by dose and immune status.
-- `rho0`, `rho1`: toxicity-efficacy dependence parameters.
+- `rho0`, `rho1`: optional toxicity-efficacy dependence parameters. The active
+  design uses `rho0 = rho1 = 0`, matching conditional independence of toxicity
+  and efficacy given immune response and dose.
 
 ## Troubleshooting
 

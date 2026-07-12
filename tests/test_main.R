@@ -23,6 +23,24 @@ test_that("trial stage seeds are reproducible without adjacent simulation overla
   expect_null(formals(simulate_data_gumbel)$seed)
 })
 
+test_that("rho zero matches conditional independence for T and E", {
+  p_t <- 0.25
+  p_e <- 0.50
+  cells <- as.numeric(Gumbel(p_t, p_e, 0))
+  independent_cells <- c(
+    (1 - p_t) * (1 - p_e),
+    (1 - p_t) * p_e,
+    p_t * (1 - p_e),
+    p_t * p_e
+  )
+
+  expect_equal(cells, independent_cells)
+  expect_equal(rho0, 0)
+  expect_equal(rho1, 0)
+  expect_equal(formals(simulate_data_gumbel)$rho0, 0)
+  expect_equal(formals(simulate_data_gumbel)$rho1, 0)
+})
+
 test_that("run_trial_simulation returns expected structure", {
   result <- run_trial_simulation(
     quiet_trial_config,

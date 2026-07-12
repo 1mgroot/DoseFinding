@@ -50,8 +50,8 @@ threshold_settings <- list(
 
   c_poc = 0.995,
   delta_poc = 0.8,
-  rho0 = 1.5,
-  rho1 = 2.0,
+  rho0 = 0,
+  rho1 = 0,
 
   c_T = 0.35,
   c_I = 0.50,
@@ -282,8 +282,8 @@ parameter_rows <- data.frame(
     "Target marginal efficacy probabilities used to make the c_E scenario unfavorable.",
     "How much P(T | I=1) differs from P(T | I=0), while preserving the target marginal P(T).",
     "How much P(E | I=1) differs from P(E | I=0), while preserving the target marginal P(E).",
-    "Gumbel copula dependence parameter for toxicity and efficacy when I=0.",
-    "Gumbel copula dependence parameter for toxicity and efficacy when I=1.",
+    "Dependence parameter for toxicity and efficacy when I=0; rho=0 matches the TeX conditional-independence design.",
+    "Dependence parameter for toxicity and efficacy when I=1; rho=0 matches the TeX conditional-independence design.",
     "Whether this run is appended to the readable Markdown calibration history.",
     "Folder where RDS and CSV calibration outputs are saved.",
     "Readable Markdown log that keeps a history of threshold calibration runs."

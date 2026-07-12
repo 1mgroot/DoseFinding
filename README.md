@@ -133,8 +133,9 @@ Simulation truth parameters define the world being simulated:
 - `p_YI`: true immune response probability by dose.
 - `p_YT_given_I`: true toxicity probability by dose and immune status.
 - `p_YE_given_I`: true efficacy probability by dose and immune status.
-- `rho0`, `rho1`: toxicity-efficacy dependence parameters for `I = 0` and
-  `I = 1`.
+- `rho0`, `rho1`: optional toxicity-efficacy dependence parameters for `I = 0`
+  and `I = 1`; the active design uses `rho0 = rho1 = 0` so toxicity and
+  efficacy are conditionally independent given immune response and dose.
 
 Clinical thresholds define what is acceptable:
 

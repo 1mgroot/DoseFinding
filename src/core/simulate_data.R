@@ -12,8 +12,8 @@ simulate_data_gumbel <- function(
     p_YI = c(0.2, 0.5, 0.8), # immune prob per dose
     p_YT_given_I, # marginal tox prob for I=0, I=1
     p_YE_given_I, # marginal eff prob for I=0, I=1
-    rho0 = 1, # correlation under I=0
-    rho1 = 1, # correlation under I=1
+    rho0 = 0, # rho=0 gives conditional T/E independence under I=0
+    rho1 = 0, # rho=0 gives conditional T/E independence under I=1
     seed = NULL,
     debug = FALSE) {
   # Only set seed if provided (not NULL)

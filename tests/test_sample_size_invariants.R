@@ -52,8 +52,8 @@ test_that("sample size invariants hold with early termination enabled", {
       0.20, 0.25, 0.30, 0.35, 0.40,
       0.30, 0.35, 0.40, 0.45, 0.50
     ), nrow = 5, ncol = 2),
-    rho0 = 1.5,
-    rho1 = 2.0
+    rho0 = 0,
+    rho1 = 0
   )
 
   max_n <- test_config$n_stages * test_config$cohort_size

@@ -40,9 +40,9 @@ create_null_flat_scenario <- function(
   # Set P_T = (tox_flat, tox_flat, ..., tox_flat) - all doses have same safe toxicity
   p_YT_given_I <- matrix(rep(tox_flat, n_doses * 2), nrow = n_doses, ncol = 2)
 
-  # Correlation parameters (can be kept constant)
-  rho0 <- 1.5
-  rho1 <- 2
+  # rho=0 matches the TeX design factorization conditional on immune response.
+  rho0 <- 0
+  rho1 <- 0
 
   return(list(
     p_YI = p_YI,

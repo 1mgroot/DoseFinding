@@ -56,8 +56,8 @@ scenarios <- list(
       0.10, 0.20, 0.35, 0.45, 0.50,
       0.30, 0.50, 0.70, 0.80, 0.75
     ), nrow = length(dose_levels), ncol = 2),
-    rho0 = 1.5,
-    rho1 = 2
+    rho0 = 0,
+    rho1 = 0
   ),
   list(
     name = "Middle dose best",
@@ -70,8 +70,8 @@ scenarios <- list(
       0.08, 0.22, 0.40, 0.38, 0.30,
       0.25, 0.48, 0.75, 0.70, 0.55
     ), nrow = length(dose_levels), ncol = 2),
-    rho0 = 1.5,
-    rho1 = 2
+    rho0 = 0,
+    rho1 = 0
   ),
   list(
     name = "Flat null",
@@ -84,8 +84,8 @@ scenarios <- list(
       0.20, 0.20, 0.20, 0.20, 0.20,
       0.20, 0.20, 0.20, 0.20, 0.20
     ), nrow = length(dose_levels), ncol = 2),
-    rho0 = 1.5,
-    rho1 = 2
+    rho0 = 0,
+    rho1 = 0
   )
 )
 ```

@@ -76,9 +76,9 @@ This factorization is implemented in our data generation (`simulate_data.R`) and
 ```{r show-factorization, eval=FALSE}
 # Data generation follows the factorization:
 # 1. Generate Y_I ~ Bernoulli(p_YI[dose])
-# 2. Given Y_I, generate (Y_T, Y_E) from Gumbel copula with:
+# 2. Given Y_I, generate (Y_T, Y_E) from the joint-cell generator with:
 #    - Marginals: p_YT_given_I[dose, Y_I], p_YE_given_I[dose, Y_I]
-#    - Correlation: rho0 (if Y_I=0) or rho1 (if Y_I=1)
+#    - rho0/rho1; rho=0 gives the TeX conditional-independence design
 
 # See src/core/simulate_data.R: simulate_data_gumbel()
 ```
@@ -819,8 +819,8 @@ toxic_trial <- run_trial_simulation(
   toxic_scenario$p_YI,
   toxic_scenario$p_YT_given_I,
   toxic_scenario$p_YE_given_I,
-  rho0 = 1.5,
-  rho1 = 2.0,
+  rho0 = 0,
+  rho1 = 0,
   seed = 11118
 )
 
