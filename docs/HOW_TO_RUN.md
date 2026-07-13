@@ -107,7 +107,8 @@ calibration. It generates:
 
 The default target is a final admissible set missing rate of 80%-85%. During
 each endpoint-specific calibration, the active cutoff is varied over its
-candidate grid and the two inactive endpoint cutoffs are set to `0`. Set
+candidate grid and the two inactive endpoint cutoffs are held at fixed baseline
+values. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.
 Progress logs are printed during long production runs; the default interval is
 about every 5 minutes (`progress_interval_seconds = 300`).
@@ -117,9 +118,9 @@ set became empty. In those simulations, the final available posterior is the
 posterior at the stopping stage.
 
 In the candidate tables, `final_missing_rate` is the main selection target.
-Because inactive endpoint cutoffs are set to `0`, it should usually be close to
-`target_endpoint_missing_rate`, which is retained as an endpoint-only
-diagnostic.
+The inactive endpoint cutoffs remain binding at their fixed baseline values, so
+`final_missing_rate` can differ from `target_endpoint_missing_rate`, which is
+retained as an endpoint-only diagnostic.
 
 ### 4. Calibrate PoC
 
