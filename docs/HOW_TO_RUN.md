@@ -197,7 +197,7 @@ Posterior credibility cutoffs:
 - `c_I`: required confidence that immune response is acceptable.
 - `target_missing_range`: threshold calibration target for the final admissible
   set missing rate under endpoint-specific unfavorable scenarios, with inactive
-  endpoint cutoffs set to `0`.
+  endpoint cutoffs held at fixed baseline values.
   `target_endpoint_missing_rate` in the notebook output is endpoint-only
   diagnostic information.
 
@@ -232,15 +232,20 @@ Simulation calibration reuse:
 
 Current calibrated defaults:
 
-- `c_T = 0.35`, `c_E = 0.60`, `c_I = 0.50`
-- `c_poc = 0.90`, `delta_poc = 0.8`
+- Latest production threshold calibration selected `c_T = 0.50`, `c_I = 0.60`,
+  and `c_E = 0.75`.
+- Latest production PoC calibration selected `c_poc = 0.80`; `delta_poc = 0.8`.
 - The focused PoC search is set up to target about `10%` null/flat PoC detection.
 
 Simulation truth:
 
 - `p_YI`: true immune response probabilities by dose.
-- `p_YT_given_I`: true toxicity probabilities by dose and immune status.
-- `p_YE_given_I`: true efficacy probabilities by dose and immune status.
+- `p_YT_given_I`: true conditional toxicity probabilities by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- `p_YE_given_I`: true conditional efficacy probabilities by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- Marginal toxicity and efficacy are calculated from these conditional values,
+  for example `p_T = p_I * p_T_given_I1 + (1 - p_I) * p_T_given_I0`.
 - `rho0`, `rho1`: optional toxicity-efficacy dependence parameters. The active
   design uses `rho0 = rho1 = 0`, matching conditional independence of toxicity
   and efficacy given immune response and dose.

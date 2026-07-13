@@ -10,8 +10,8 @@ simulate_data_gumbel <- function(
     n_per_dose_vector = c(10, 10, 10),
     dose_levels = c(1, 2, 3),
     p_YI = c(0.2, 0.5, 0.8), # immune prob per dose
-    p_YT_given_I, # marginal tox prob for I=0, I=1
-    p_YE_given_I, # marginal eff prob for I=0, I=1
+    p_YT_given_I, # conditional tox prob by dose for I=0, I=1
+    p_YE_given_I, # conditional eff prob by dose for I=0, I=1
     rho0 = 0, # rho=0 gives conditional T/E independence under I=0
     rho1 = 0, # rho=0 gives conditional T/E independence under I=1
     seed = NULL,
@@ -23,7 +23,7 @@ simulate_data_gumbel <- function(
   J <- length(dose_levels)
   d_vec <- rep(dose_levels, times = n_per_dose_vector)
   n_total <- length(d_vec)
-  # Generate Gumbel joint distributions for all dose levels
+  # Generate conditional joint distributions for all dose levels.
   pi0 <- Gumbel(p_YT_given_I[1], p_YE_given_I[1], rho0)
   pi1 <- Gumbel(p_YT_given_I[2], p_YE_given_I[2], rho1)
   pi0_mat <- matrix(0, nrow = 4, ncol = J)

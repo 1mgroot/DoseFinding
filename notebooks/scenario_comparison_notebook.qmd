@@ -4,7 +4,6 @@ format:
   html:
     toc: true
     code-fold: true
-  pdf: default
 execute:
   message: false
   warning: false
@@ -474,7 +473,10 @@ This chunk organizes the scenario outputs into final tables.
 
 ```{r results}
 #| echo: false
-dir.create("results/scenario_comparison", recursive = TRUE, showWarnings = FALSE)
+scenario_output_dir <- file.path(project_root_abs, "results", "scenario_comparison")
+scenario_output_path <- function(filename) file.path(scenario_output_dir, filename)
+
+dir.create(scenario_output_dir, recursive = TRUE, showWarnings = FALSE)
 
 selection_levels <- c(paste("Dose", comparison_settings$dose_levels), "No OD")
 
@@ -546,17 +548,17 @@ scenario_summary_display$true_optimal_utility <- round(scenario_summary_display$
 
 kable(scenario_summary_display, caption = "Scenario comparison summary with true optimal dose")
 
-write.csv(scenario_truth_table, "results/scenario_comparison/scenario_truth_table.csv", row.names = FALSE)
-write.csv(scenario_true_utility_table, "results/scenario_comparison/scenario_true_utility_table.csv", row.names = FALSE)
-write.csv(scenario_metrics, "results/scenario_comparison/scenario_metrics.csv", row.names = FALSE)
-write.csv(scenario_selection_table, "results/scenario_comparison/scenario_selection_table.csv", row.names = FALSE)
-write.csv(scenario_summary_table, "results/scenario_comparison/scenario_summary_table.csv", row.names = FALSE)
+write.csv(scenario_truth_table, scenario_output_path("scenario_truth_table.csv"), row.names = FALSE)
+write.csv(scenario_true_utility_table, scenario_output_path("scenario_true_utility_table.csv"), row.names = FALSE)
+write.csv(scenario_metrics, scenario_output_path("scenario_metrics.csv"), row.names = FALSE)
+write.csv(scenario_selection_table, scenario_output_path("scenario_selection_table.csv"), row.names = FALSE)
+write.csv(scenario_summary_table, scenario_output_path("scenario_summary_table.csv"), row.names = FALSE)
 
-cat("\nSaved scenario truth table to results/scenario_comparison/scenario_truth_table.csv\n")
-cat("Saved true utility table to results/scenario_comparison/scenario_true_utility_table.csv\n")
-cat("Saved simulation-level metrics to results/scenario_comparison/scenario_metrics.csv\n")
-cat("Saved selection table to results/scenario_comparison/scenario_selection_table.csv\n")
-cat("Saved final summary table to results/scenario_comparison/scenario_summary_table.csv\n")
+cat("\nSaved scenario truth table to ", scenario_output_path("scenario_truth_table.csv"), "\n", sep = "")
+cat("Saved true utility table to ", scenario_output_path("scenario_true_utility_table.csv"), "\n", sep = "")
+cat("Saved simulation-level metrics to ", scenario_output_path("scenario_metrics.csv"), "\n", sep = "")
+cat("Saved selection table to ", scenario_output_path("scenario_selection_table.csv"), "\n", sep = "")
+cat("Saved final summary table to ", scenario_output_path("scenario_summary_table.csv"), "\n", sep = "")
 ```
 
 ## Summary

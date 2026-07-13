@@ -22,18 +22,18 @@ dose while controlling safety, efficacy, immune response, and false PoC claims.
 The standard workflow is notebook-first. Routine users should not edit files in
 `src/` or call backend R functions directly.
 
-Current calibrated defaults:
+Latest production calibration results:
 
-- `c_T = 0.35`
-- `c_E = 0.60`
-- `c_I = 0.50`
-- `c_poc = 0.90`
+- `c_T = 0.50`
+- `c_I = 0.60`
+- `c_E = 0.75`
+- `c_poc = 0.80`
 - `delta_poc = 0.8`
 
-The threshold calibration notebook is set up to tune `c_T`, `c_I`, and `c_E`
-separately before PoC calibration. The PoC calibration notebook then reads the
-saved threshold calibration results by default and treats those values as fixed
-inputs while targeting about `10%` null PoC detection.
+The notebook **User Settings** chunks still include fallback values for cases
+where saved calibration RDS files are unavailable. By default, the simulation
+and PoC notebooks read the saved calibration results and use the latest
+calibrated values above.
 
 ## Quick Start
 
@@ -132,8 +132,12 @@ counts.
 Simulation truth parameters define the world being simulated:
 
 - `p_YI`: true immune response probability by dose.
-- `p_YT_given_I`: true toxicity probability by dose and immune status.
-- `p_YE_given_I`: true efficacy probability by dose and immune status.
+- `p_YT_given_I`: true conditional toxicity probability by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- `p_YE_given_I`: true conditional efficacy probability by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- Marginal toxicity and efficacy are derived from those conditional values and
+  `p_YI`.
 - `rho0`, `rho1`: optional toxicity-efficacy dependence parameters for `I = 0`
   and `I = 1`; the active design uses `rho0 = rho1 = 0` so toxicity and
   efficacy are conditionally independent given immune response and dose.

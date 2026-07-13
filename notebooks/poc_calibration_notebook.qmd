@@ -4,7 +4,6 @@ format:
   html:
     toc: true
     code-fold: true
-  pdf: default
 execute:
   message: false
   warning: false
@@ -21,7 +20,7 @@ Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` for product
 
 ### Key Features
 
-- **Null/Flat Scenario Construction**: Uses total probability formula for marginal efficacy calculation
+- **Null/Flat Scenario Construction**: Uses conditional endpoint inputs that reproduce the intended marginal efficacy and toxicity rates
 - **C_poc Calibration**: Finds optimal threshold to achieve \~10% Type I error rate
 
 ## User Settings
@@ -122,8 +121,8 @@ poc_settings$calibration_results_path <- resolve_project_path(poc_settings$calib
 
 1.  **`null_p_*`** = True probability values in the NULL scenario (used to generate data)
     - `null_p_I` = True immune response rate (e.g., 0.25)
-    - `null_p_E` = True efficacy rate (e.g., 0.30)
-    - `null_p_T` = True toxicity rate (e.g., 0.05)
+    - `null_p_E` = Target marginal efficacy rate (e.g., 0.30)
+    - `null_p_T` = Target marginal toxicity rate (e.g., 0.05)
 2.  **`phi_*`** = Admissibility thresholds (used for decision making)
     - `phi_I` = Immune response threshold for admissibility (e.g., 0.20)
     - `phi_E` = Efficacy threshold for admissibility (e.g., 0.25)
@@ -239,8 +238,8 @@ trial_config$utility_table <- utility_table
 cat("Configuration loaded successfully!\n")
 cat("\nNull Scenario True Values (for data generation):\n")
 cat("  null_p_I (immune) =", calibration_params$null_p_I, "\n")
-cat("  null_p_E (efficacy) =", calibration_params$null_p_E, "\n")
-cat("  null_p_T (toxicity) =", calibration_params$null_p_T, "\n")
+cat("  null_p_E (target marginal efficacy) =", calibration_params$null_p_E, "\n")
+cat("  null_p_T (target marginal toxicity) =", calibration_params$null_p_T, "\n")
 cat("\nAdmissibility Thresholds (for decision making):\n")
 cat("  phi_I (immune threshold) =", trial_config$phi_I, "\n")
 cat("  phi_E (efficacy threshold) =", trial_config$phi_E, "\n")
@@ -275,9 +274,9 @@ This section demonstrates the construction of the null/flat scenario using the t
 null_scenario <- create_null_flat_scenario(
   n_doses = length(poc_settings$dose_levels),
   phi_I = calibration_params$null_p_I,   # True immune response rate in null scenario
-  phi_E = calibration_params$null_p_E,   # True efficacy rate in null scenario
+  phi_E = calibration_params$null_p_E,   # Target marginal efficacy rate in null scenario
   tox_upper = calibration_params$tox_upper,
-  tox_flat = calibration_params$null_p_T  # True toxicity rate in null scenario
+  tox_flat = calibration_params$null_p_T  # Target marginal toxicity rate in null scenario
 )
 
 cat("Null/Flat Scenario Parameters:\n")

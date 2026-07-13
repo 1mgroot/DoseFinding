@@ -4,7 +4,6 @@ format:
   html:
     toc: true
     code-fold: true
-  pdf: default
 execute:
   message: false
   warning: false

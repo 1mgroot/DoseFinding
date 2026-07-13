@@ -4,7 +4,6 @@ format:
   html:
     toc: true
     code-fold: true
-  pdf: default
 execute:
   echo: false
   message: false
@@ -77,7 +76,8 @@ This factorization is implemented in our data generation (`simulate_data.R`) and
 # Data generation follows the factorization:
 # 1. Generate Y_I ~ Bernoulli(p_YI[dose])
 # 2. Given Y_I, generate (Y_T, Y_E) from the joint-cell generator with:
-#    - Marginals: p_YT_given_I[dose, Y_I], p_YE_given_I[dose, Y_I]
+#    - Conditional endpoint probabilities: p_YT_given_I[dose, Y_I],
+#      p_YE_given_I[dose, Y_I]
 #    - rho0/rho1; rho=0 gives the TeX conditional-independence design
 
 # See src/core/simulate_data.R: simulate_data_gumbel()

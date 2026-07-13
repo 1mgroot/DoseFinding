@@ -233,11 +233,13 @@ test_that("scenario comparison notebook saves final comparison tables", {
   expect_true(grepl("selection_rate_true_optimal", results_chunk, fixed = TRUE))
   expect_true(grepl("selection_rate_Dose_", results_chunk, fixed = TRUE))
   expect_true(grepl("selection_rate_No_OD", results_chunk, fixed = TRUE))
-  expect_true(grepl("results/scenario_comparison/scenario_truth_table.csv", results_chunk, fixed = TRUE))
-  expect_true(grepl("results/scenario_comparison/scenario_true_utility_table.csv", results_chunk, fixed = TRUE))
-  expect_true(grepl("results/scenario_comparison/scenario_metrics.csv", results_chunk, fixed = TRUE))
-  expect_true(grepl("results/scenario_comparison/scenario_selection_table.csv", results_chunk, fixed = TRUE))
-  expect_true(grepl("results/scenario_comparison/scenario_summary_table.csv", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_dir <- file.path(project_root_abs, \"results\", \"scenario_comparison\")", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_path <- function(filename) file.path(scenario_output_dir, filename)", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_path(\"scenario_truth_table.csv\")", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_path(\"scenario_true_utility_table.csv\")", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_path(\"scenario_metrics.csv\")", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_path(\"scenario_selection_table.csv\")", results_chunk, fixed = TRUE))
+  expect_true(grepl("scenario_output_path(\"scenario_summary_table.csv\")", results_chunk, fixed = TRUE))
 })
 
 test_that("PoC calibration notebook separates quick smoke settings from production calibration", {
