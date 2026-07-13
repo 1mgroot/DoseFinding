@@ -48,8 +48,6 @@ threshold_settings <- list(
   phi_E = 0.25,
   phi_I = 0.20,
 
-  c_poc = 0.995,
-  delta_poc = 0.8,
   rho0 = 0,
   rho1 = 0,
 
@@ -173,7 +171,7 @@ parameter_rows <- data.frame(
   group = c(
     rep("Trial size", 4),
     rep("Clinical thresholds", 3),
-    rep("Credibility cutoffs", 4),
+    rep("Credibility cutoffs", 3),
     rep("Calibration target", 7),
     rep("Scenario truth", 9),
     rep("Conditional effects", 2),
@@ -188,7 +186,6 @@ parameter_rows <- data.frame(
     "phi_T",
     "phi_E",
     "phi_I",
-    "c_poc",
     "c_T",
     "c_I",
     "c_E",
@@ -224,7 +221,6 @@ parameter_rows <- data.frame(
     format_setting(threshold_settings$phi_T),
     format_setting(threshold_settings$phi_E),
     format_setting(threshold_settings$phi_I),
-    format_setting(threshold_settings$c_poc),
     format_setting(threshold_settings$c_T),
     format_setting(threshold_settings$c_I),
     format_setting(threshold_settings$c_E),
@@ -260,7 +256,6 @@ parameter_rows <- data.frame(
     "Maximum acceptable marginal toxicity probability. Doses above this clinical limit should be treated as unsafe.",
     "Minimum acceptable marginal efficacy probability. Doses below this clinical limit should be treated as inactive.",
     "Minimum acceptable immune response probability. Doses below this clinical limit should be treated as biologically weak.",
-    "Final PoC cutoff carried through this notebook for consistency; calibrate it in the PoC notebook.",
     "Baseline toxicity credibility cutoff used when c_T is not the active candidate.",
     "Baseline immune-response credibility cutoff used when c_I is not the active candidate.",
     "Baseline efficacy credibility cutoff used when c_E is not the active candidate.",
