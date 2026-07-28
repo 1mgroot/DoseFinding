@@ -36,13 +36,6 @@ results/
 *.jpeg
 *.svg
 
-# Local project handoff notes
-docs/CHATGPT_PROJECT_CONTEXT.md
-docs/PROJECT_READALOUD_EXPLANATION.md
-docs/PROJECT_READALOUD_EXPLANATION.html
-docs/PROJECT_READALOUD_MOBILE.html
-docs/STAT_METHODS_AS_BUILT.md
-
 # IDE
 .vscode/
 .idea/

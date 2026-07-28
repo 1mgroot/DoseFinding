@@ -15,6 +15,12 @@ editor: visual
 
 This notebook is an explanatory walkthrough, not a routine run notebook. Open it when you want to understand how the design maps to the implementation; routine users should start with `simulation_notebook.qmd`, then use the calibration notebooks as needed.
 
+The numerical output in this walkthrough uses the standalone demonstration
+defaults from `src/core/config.R`. It does not load the saved production
+calibration RDS files. Use the threshold calibration, PoC calibration,
+simulation, and scenario-comparison notebooks for current calibrated values and
+production results.
+
 This notebook demonstrates that our Bayesian dose-finding trial implementation fully realizes the mathematical design specified in `Design1.tex` and `Design2.tex`. We walk through each component of the design, showing:
 
 1. **The mathematical formulation** from the design documents

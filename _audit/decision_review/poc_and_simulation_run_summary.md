@@ -1,5 +1,11 @@
 # PoC Calibration and Production Simulation Run Summary
 
+> Historical production-run record. The numerical calibration and simulation
+> results remain valid. The PDF/double-render and output-freshness notes near the
+> end were superseded later on 2026-07-13 by commit `a3c8f5a`; current notebook
+> source renders HTML only. See `f004_f006_f007_repair_summary.md` for the latest
+> repair status.
+
 Generated: 2026-07-13 01:11 EDT
 
 Branch: `codex/fix-design-alignment-dr-f001-f004`
@@ -103,7 +109,8 @@ Output files:
 - `results/simulation/final_participant_allocation_summary.csv`
 - `results/simulation/stage_enrollment_summary.csv`
 - `notebooks/simulation_notebook.html`
-- `notebooks/simulation_notebook.pdf`
+- `notebooks/simulation_notebook.pdf` (historical output; later removed when
+  notebook rendering became HTML-only)
 
 Overall Monte Carlo summary:
 
@@ -152,7 +159,10 @@ Interpretation:
 - The final overdose selection probability was low in this scenario: `0.95%`.
 - The no-OD rate remained high at `68.75%`, consistent with the conservative threshold and PoC filters in this configured scenario.
 
-## Runtime Warnings and Reproducibility Notes
+## Historical Runtime Warnings and Reproducibility Notes
+
+The double-render and PDF-specific warnings below describe this recorded run,
+not the current HTML-only notebook workflow.
 
 Both PoC and simulation renders emitted this knitr warning:
 

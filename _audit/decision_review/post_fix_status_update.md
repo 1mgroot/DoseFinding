@@ -1,5 +1,10 @@
 # Post-Fix Status Update
 
+> Historical checkpoint from before production PoC calibration and simulation.
+> Its “Next Steps” section was completed later on 2026-07-13. For the resulting
+> production run, see `poc_and_simulation_run_summary.md`; for the latest repair
+> status, see `f004_f006_f007_repair_summary.md`.
+
 Date: 2026-07-13
 
 Branch: `codex/fix-design-alignment-dr-f001-f004`
@@ -71,7 +76,7 @@ Full test suite after the threshold notebook cleanup and production threshold re
 PASS 644 | FAIL 0 | WARN 0 | SKIP 0
 ```
 
-## Next Steps
+## Historical Next Steps (Completed Later on 2026-07-13)
 
 1. Push `codex/fix-design-alignment-dr-f001-f004` to GitHub.
 2. Run production PoC calibration using the new threshold calibration RDS.

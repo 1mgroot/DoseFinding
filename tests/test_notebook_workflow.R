@@ -15,6 +15,39 @@ workflow_notebooks <- c(
   threshold_calibration = "notebooks/threshold_calibration_notebook.qmd"
 )
 
+test_that("deprecated handoff documents and stale output paths stay absent", {
+  deprecated_paths <- c(
+    ".cursorrules",
+    "docs/CHATGPT_PROJECT_CONTEXT.md",
+    "docs/PROJECT_READALOUD_EXPLANATION.md",
+    "docs/PROJECT_READALOUD_EXPLANATION.html",
+    "docs/PROJECT_READALOUD_MOBILE.html",
+    "docs/PROJECT_READALOUD_EXPLANATION_files",
+    "docs/STAT_METHODS_AS_BUILT.md",
+    "notebooks/poc_calibration_notebook.pdf",
+    "notebooks/simulation_notebook.pdf",
+    "notebooks/results",
+    "notebooks/threshold_calibration_notebook_cache"
+  )
+
+  expect_false(
+    any(file.exists(deprecated_paths)),
+    info = paste(
+      "Deprecated documentation or stale output paths were recreated:",
+      paste(deprecated_paths[file.exists(deprecated_paths)], collapse = ", ")
+    )
+  )
+
+  notebook_text <- vapply(
+    c(workflow_notebooks, design_walkthrough = "notebooks/design_walkthrough.qmd"),
+    function(path) paste(readLines(path, warn = FALSE), collapse = "\n"),
+    character(1)
+  )
+
+  expect_false(any(grepl("(?m)^\\s*pdf\\s*:", notebook_text, perl = TRUE)))
+  expect_false(any(grepl("notebooks/results", notebook_text, fixed = TRUE)))
+})
+
 extract_qmd_chunk <- function(path, label) {
   lines <- readLines(path, warn = FALSE)
   start <- grep(paste0("^```\\{r ", label, "\\}"), lines)

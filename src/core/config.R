@@ -5,7 +5,8 @@ library(purrr)
 library(ggplot2)
 library(Iso)
 
-# Trial configuration - aligned with simulation_notebook.qmd
+# Standalone backend defaults. Production notebooks may override credibility
+# cutoffs with saved threshold and PoC calibration results.
 trial_config <- list(
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
