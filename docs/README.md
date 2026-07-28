@@ -9,7 +9,7 @@ For a project-status review:
 
 1. `../README.md`
 2. `../_audit/decision_review/f004_f006_f007_repair_summary.md`
-3. `../_audit/decision_review/poc_and_simulation_run_summary.md`
+3. `../_audit/decision_review/n1000_calibration_and_downstream_run_summary.md`
 4. The rendered notebook HTML files in dependency order:
    threshold calibration, PoC calibration, simulation, then scenario comparison
 

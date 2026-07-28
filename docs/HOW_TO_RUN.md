@@ -232,7 +232,7 @@ Simulation calibration reuse:
 
 Current calibrated defaults:
 
-- Latest production threshold calibration selected `c_T = 0.50`, `c_I = 0.60`,
+- Latest production threshold calibration selected `c_T = 0.45`, `c_I = 0.60`,
   and `c_E = 0.75`.
 - Latest production PoC calibration selected `c_poc = 0.80`; `delta_poc = 0.8`.
 - The focused PoC search is set up to target about `10%` null/flat PoC detection.

@@ -24,7 +24,7 @@ The standard workflow is notebook-first. Routine users should not edit files in
 
 Latest production calibration results:
 
-- `c_T = 0.50`
+- `c_T = 0.45`
 - `c_I = 0.60`
 - `c_E = 0.75`
 - `c_poc = 0.80`

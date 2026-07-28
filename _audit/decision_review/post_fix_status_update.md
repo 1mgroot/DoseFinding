@@ -2,8 +2,9 @@
 
 > Historical checkpoint from before production PoC calibration and simulation.
 > Its “Next Steps” section was completed later on 2026-07-13. For the resulting
-> production run, see `poc_and_simulation_run_summary.md`; for the latest repair
-> status, see `f004_f006_f007_repair_summary.md`.
+> historical production run, see `poc_and_simulation_run_summary.md`; for the
+> current production results, see
+> `n1000_calibration_and_downstream_run_summary.md`.
 
 Date: 2026-07-13
 

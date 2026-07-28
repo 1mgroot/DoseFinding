@@ -1,5 +1,9 @@
 # F-004, F-006, and F-007 Repair Summary
 
+> The implementation repair status in this document remains current. Numerical
+> production-run summaries in this file were superseded by
+> `n1000_calibration_and_downstream_run_summary.md` on 2026-07-28.
+
 Generated: 2026-07-13
 
 Branch: `codex/fix-design-alignment-dr-f001-f004`

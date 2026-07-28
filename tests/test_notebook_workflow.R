@@ -346,7 +346,7 @@ test_that("threshold calibration notebook settings include baseline cutoffs", {
   expect_equal(threshold_settings$low_eff_p_I, 0.95)
   expect_equal(threshold_settings$low_eff_marginal_p_T, 0.01)
   expect_equal(threshold_settings$low_eff_marginal_p_E, c(0.10, 0.20))
-  expect_equal(threshold_settings$n_sim_per_candidate, if (settings$quick_mode) 5 else 500)
+  expect_equal(threshold_settings$n_sim_per_candidate, if (settings$quick_mode) 5 else 1000)
   expect_true(threshold_settings$show_progress)
   expect_equal(threshold_settings$progress_interval_seconds, 300)
   expect_true(threshold_settings$append_history_log)

@@ -1,10 +1,10 @@
 # PoC Calibration and Production Simulation Run Summary
 
-> Historical production-run record. The numerical calibration and simulation
-> results remain valid. The PDF/double-render and output-freshness notes near the
-> end were superseded later on 2026-07-13 by commit `a3c8f5a`; current notebook
-> source renders HTML only. See `f004_f006_f007_repair_summary.md` for the latest
-> repair status.
+> Historical production-run record. Its numerical results were superseded by
+> the 1,000-simulation-per-threshold-candidate production rerun on 2026-07-28;
+> see `n1000_calibration_and_downstream_run_summary.md` for current values. The
+> PDF/double-render and output-freshness notes near the end were superseded
+> earlier by commit `a3c8f5a`; current notebook source renders HTML only.
 
 Generated: 2026-07-13 01:11 EDT
 
