@@ -123,7 +123,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       p_YE_given_I = p_YE_given_I,
       rho0 = rho0,
       rho1 = rho1,
-      seed = stage_seed
+      seed = stage_seed,
+      id_start = nrow(all_data) + 1L
     )
     stage_data$stage <- stage
     all_data <- rbind(all_data, stage_data)
