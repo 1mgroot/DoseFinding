@@ -14,19 +14,23 @@ setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
 # 加载必要的库和函数
 source("src/utils/helpers.R")
 source("src/utils/plotting_extensions.R")
+output_dir <- Sys.getenv(
+  "DOSEFINDING_EXAMPLE_OUTPUT_DIR",
+  unset = "results/plots"
+)
 
 # 显示使用指南
 print_plotting_guide()
 
 # 运行演示
 cat("\n=== 开始演示 ===\n")
-demo_plots <- demo_new_plots()
+demo_plots <- demo_new_plots(output_dir = output_dir)
 
 # 显示创建的图表
 cat("\n=== 创建的图表 ===\n")
-cat("1. 多场景剂量-反应曲线图: results/plots/demo_multi_scenarios.png\n")
-cat("2. OBD选择率对比图: results/plots/demo_obd_selection.png\n")
-cat("3. 完整评估图表集: results/plots/demo_*.png\n")
+cat("1. 多场景剂量-反应曲线图:", file.path(output_dir, "demo_multi_scenarios.png"), "\n")
+cat("2. OBD选择率对比图:", file.path(output_dir, "demo_obd_selection.png"), "\n")
+cat("3. 完整评估图表集:", file.path(output_dir, "demo_*.png"), "\n")
 
 # 展示如何在你的项目中使用
 cat("\n=== 在你的项目中使用 ===\n")

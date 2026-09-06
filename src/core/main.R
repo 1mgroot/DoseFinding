@@ -52,6 +52,25 @@ generate_trial_stage_seeds <- function(seed, n_stages) {
   sample.int(.Machine$integer.max - 1L, n_stages)
 }
 
+dose_labels_from_indices <- function(dose_levels, dose_indices) {
+  if (length(dose_indices) == 0) {
+    return(dose_levels[integer(0)])
+  }
+  if (any(!is.na(dose_indices) &
+          (dose_indices < 1 | dose_indices > length(dose_levels)))) {
+    stop("dose_indices contains an index outside dose_levels.")
+  }
+  unname(dose_levels[dose_indices])
+}
+
+name_values_by_dose_label <- function(values, dose_labels) {
+  if (length(values) != length(dose_labels)) {
+    stop("values and dose_labels must have the same length.")
+  }
+  names(values) <- as.character(dose_labels)
+  values
+}
+
 run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed = NULL) {
   all_data <- data.frame()
   all_alloc_probs <- data.frame()
@@ -189,13 +208,16 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       }
       
       return(list(
-        final_od = NA,
+        final_od = dose_labels_from_indices(trial_config$dose_levels, NA_integer_),
+        final_od_index = NA_integer_,
         final_utility = NA_real_,
         poc_validated = FALSE,
         poc_probability = 0,
         selection_reason = termination_info$reason,
-        final_admissible_set = admissible_set,
-        poc_eligible_set = integer(0),
+        final_admissible_set = dose_labels_from_indices(trial_config$dose_levels, admissible_set),
+        final_admissible_indices = admissible_set,
+        poc_eligible_set = trial_config$dose_levels[integer(0)],
+        poc_eligible_indices = integer(0),
         poc_pairwise_probs = numeric(0),
         final_candidate_utilities = numeric(0),
         all_data = all_data,
@@ -240,16 +262,37 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
                  "Expected", expected_N, "but enrolled", N_enrolled))
   }
 
+  final_od_index <- final_selection$optimal_dose
+  final_admissible_indices <- final_selection$admissible_doses
+  poc_eligible_indices <- final_selection$P_final
+  final_admissible_labels <- dose_labels_from_indices(
+    trial_config$dose_levels,
+    final_admissible_indices
+  )
+  poc_eligible_labels <- dose_labels_from_indices(
+    trial_config$dose_levels,
+    poc_eligible_indices
+  )
+
   return(list(
-    final_od = final_selection$optimal_dose,
+    final_od = dose_labels_from_indices(trial_config$dose_levels, final_od_index),
+    final_od_index = final_od_index,
     final_utility = final_selection$optimal_utility,
     poc_validated = final_selection$poc_validated,
     poc_probability = final_selection$poc_probability,
     selection_reason = final_selection$reason,
-    final_admissible_set = final_selection$admissible_doses,
-    poc_eligible_set = final_selection$P_final,
-    poc_pairwise_probs = final_selection$pairwise_probs,
-    final_candidate_utilities = final_selection$utilities,
+    final_admissible_set = final_admissible_labels,
+    final_admissible_indices = final_admissible_indices,
+    poc_eligible_set = poc_eligible_labels,
+    poc_eligible_indices = poc_eligible_indices,
+    poc_pairwise_probs = name_values_by_dose_label(
+      final_selection$pairwise_probs,
+      final_admissible_labels
+    ),
+    final_candidate_utilities = name_values_by_dose_label(
+      final_selection$utilities,
+      final_admissible_labels
+    ),
     all_data = all_data,
     all_alloc_probs = all_alloc_probs,
     posterior_summaries = posterior_summaries,

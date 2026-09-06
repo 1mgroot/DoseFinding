@@ -55,12 +55,15 @@ test_that("run_trial_simulation returns expected structure", {
   expect_type(result, "list")
   expected_names <- c(
     "final_od",
+    "final_od_index",
     "final_utility",
     "poc_validated",
     "poc_probability",
     "selection_reason",
     "final_admissible_set",
+    "final_admissible_indices",
     "poc_eligible_set",
+    "poc_eligible_indices",
     "poc_pairwise_probs",
     "final_candidate_utilities",
     "all_data",
@@ -75,7 +78,15 @@ test_that("run_trial_simulation returns expected structure", {
   expect_s3_class(result$all_data, "data.frame")
   expect_s3_class(result$all_alloc_probs, "data.frame")
   expect_true(all(result$final_admissible_set %in% quiet_trial_config$dose_levels))
+  expect_equal(
+    result$final_admissible_set,
+    quiet_trial_config$dose_levels[result$final_admissible_indices]
+  )
   expect_true(all(result$poc_eligible_set %in% result$final_admissible_set))
+  expect_equal(
+    result$poc_eligible_set,
+    quiet_trial_config$dose_levels[result$poc_eligible_indices]
+  )
   expect_length(result$poc_pairwise_probs, length(result$final_admissible_set))
   expect_length(result$final_candidate_utilities, length(result$final_admissible_set))
 })
@@ -112,8 +123,12 @@ test_that("early termination returns traceable empty final candidate sets", {
   )
 
   expect_true(result$terminated_early)
+  expect_true(is.na(result$final_od))
+  expect_true(is.na(result$final_od_index))
   expect_length(result$final_admissible_set, 0)
+  expect_length(result$final_admissible_indices, 0)
   expect_length(result$poc_eligible_set, 0)
+  expect_length(result$poc_eligible_indices, 0)
   expect_length(result$poc_pairwise_probs, 0)
   expect_length(result$final_candidate_utilities, 0)
   expect_false(result$poc_validated)

@@ -86,6 +86,7 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
       terminated_early = results$terminated_early,
       termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
       final_od = ifelse(results$terminated_early, NA, results$final_od),
+      final_od_index = ifelse(results$terminated_early, NA, results$final_od_index),
       poc_validated = ifelse(results$terminated_early, FALSE, results$poc_validated),
       poc_probability = ifelse(results$terminated_early, 0, results$poc_probability),
       total_participants = nrow(results$all_data),
@@ -129,6 +130,7 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
         terminated_early = TRUE,
         termination_stage = 1,
         final_od = NA,
+        final_od_index = NA_integer_,
         poc_validated = FALSE,
         poc_probability = 0,
         total_participants = 0,
@@ -166,7 +168,8 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
       metrics = list(
         terminated_early = TRUE,
         termination_stage = base_result$metrics$termination_stage,
-        final_od = NA_integer_,
+        final_od = dose_labels_from_indices(config$dose_levels, NA_integer_),
+        final_od_index = NA_integer_,
         poc_validated = FALSE,
         poc_probability = 0,
         total_participants = total_participants,
@@ -187,7 +190,8 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
   admissible_set <- get_admissible_set(posterior_summaries, config, verbose = FALSE)
   poc_results <- calculate_poc_probability(admissible_set, posterior_summaries, config)
   poc_validated <- length(poc_results$P_final) > 0
-  final_od <- if (poc_validated) poc_results$best_dose else NA_integer_
+  final_od_index <- if (poc_validated) poc_results$best_dose else NA_integer_
+  final_od <- dose_labels_from_indices(config$dose_levels, final_od_index)
   true_optimal_dose <- if (!is.null(scenario_params$true_optimal_dose)) {
     scenario_params$true_optimal_dose
   } else {
@@ -202,6 +206,7 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
       terminated_early = FALSE,
       termination_stage = NA_integer_,
       final_od = final_od,
+      final_od_index = final_od_index,
       poc_validated = poc_validated,
       poc_probability = poc_results$poc_probability,
       total_participants = total_participants,

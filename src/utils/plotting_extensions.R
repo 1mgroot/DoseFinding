@@ -90,8 +90,9 @@ create_example_evaluation_data <- function() {
 }
 
 # 快速演示函数
-demo_new_plots <- function() {
+demo_new_plots <- function(output_dir = "results/plots") {
   cat("=== 演示新的图表功能 ===\n")
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   
   # 创建示例数据
   example_data <- create_example_evaluation_data()
@@ -101,7 +102,7 @@ demo_new_plots <- function() {
   multi_scenario_plot <- plot_multi_scenario_curves(
     example_data$scenarios,
     title = "Dose-Response Curves Across Scenarios",
-    file_path = "results/plots/demo_multi_scenarios.png"
+    file_path = file.path(output_dir, "demo_multi_scenarios.png")
   )
   
   # 创建方法对比图
@@ -112,18 +113,19 @@ demo_new_plots <- function() {
     title = "OBD Selection Rate Comparison",
     y_label = "OBD Selection (%)",
     limits = c(0, 100),
-    file_path = "results/plots/demo_obd_selection.png"
+    file_path = file.path(output_dir, "demo_obd_selection.png")
   )
   
   # 创建完整的评估图表集
   cat("3. 创建完整的评估图表集...\n")
   all_plots <- create_comprehensive_evaluation_plots(
     example_data,
-    file_prefix = "demo"
+    file_prefix = "demo",
+    output_dir = output_dir
   )
   
   cat("✅ 所有图表已创建完成！\n")
-  cat("📁 图表保存在 results/plots/ 目录中\n")
+  cat("📁 图表保存在", output_dir, "目录中\n")
   
   return(all_plots)
 }
@@ -173,4 +175,3 @@ print_plotting_guide <- function() {
   cat("2. 使用 create_comprehensive_evaluation_plots() 创建完整图表集\n")
   cat("3. 根据需要调整数据和样式\n")
 }
-

@@ -53,3 +53,45 @@ test_that("a multi-stage trial assigns globally unique patient IDs", {
   expect_equal(length(unique(result$all_data$id)), nrow(result$all_data))
   expect_equal(sort(unique(result$all_data$stage)), seq_len(test_config$n_stages))
 })
+
+test_that("trial-level dose results expose labels and indices separately", {
+  source("src/core/config.R")
+  source("src/core/main.R")
+
+  test_config <- within(trial_config, {
+    dose_levels <- c(10, 20)
+    n_stages <- 2
+    cohort_size <- 4
+    enable_early_termination <- FALSE
+    verbose_logging <- FALSE
+    log_early_termination <- FALSE
+    c_T <- -1
+    c_E <- -1
+    c_I <- -1
+    c_poc <- -1
+  })
+
+  result <- run_trial_simulation(
+    test_config,
+    p_YI = c(0.2, 0.8),
+    p_YT_given_I = matrix(c(0.1, 0.2, 0.2, 0.3), nrow = 2, byrow = TRUE),
+    p_YE_given_I = matrix(c(0.3, 0.4, 0.6, 0.7), nrow = 2, byrow = TRUE),
+    rho0 = 0,
+    rho1 = 0,
+    seed = 11118
+  )
+
+  expect_equal(result$final_od, test_config$dose_levels[result$final_od_index])
+  expect_equal(
+    result$final_admissible_set,
+    test_config$dose_levels[result$final_admissible_indices]
+  )
+  expect_equal(
+    result$poc_eligible_set,
+    test_config$dose_levels[result$poc_eligible_indices]
+  )
+  expect_equal(names(result$poc_pairwise_probs), as.character(result$final_admissible_set))
+  expect_equal(names(result$final_candidate_utilities), as.character(result$final_admissible_set))
+  expect_true(all(result$all_data$dose_label %in% test_config$dose_levels))
+  expect_true(all(result$all_data$dose_index %in% seq_along(test_config$dose_levels)))
+})

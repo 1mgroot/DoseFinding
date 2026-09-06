@@ -14,6 +14,10 @@ if (length(project_root_matches) == 0) {
   stop("Could not find project root containing DoseFinding.Rproj.")
 }
 setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
+output_dir <- Sys.getenv(
+  "DOSEFINDING_EXAMPLE_OUTPUT_DIR",
+  unset = "results"
+)
 
 # Source the functions
 source("src/core/simulate_data.R")
@@ -84,7 +88,7 @@ cat("  Difference:", round(abs(validation_results$validation_rate - validation_r
 
 # 7. Save and load demonstration
 cat("7. Save and load calibration results...\n")
-demo_file <- "results/demo_calibration_results.RData"
+demo_file <- file.path(output_dir, "demo_calibration_results.RData")
 save_calibration_results(quick_results, demo_file)
 
 # Load the results
