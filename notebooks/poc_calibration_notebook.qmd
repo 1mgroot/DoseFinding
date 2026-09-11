@@ -4,7 +4,6 @@ format:
   html:
     toc: true
     code-fold: true
-  pdf: default
 execute:
   message: false
   warning: false
@@ -21,7 +20,7 @@ Use quick mode for a fast smoke test. Switch `quick_mode` to `FALSE` for product
 
 ### Key Features
 
-- **Null/Flat Scenario Construction**: Uses total probability formula for marginal efficacy calculation
+- **Null/Flat Scenario Construction**: Uses conditional endpoint inputs that reproduce the intended marginal efficacy and toxicity rates
 - **C_poc Calibration**: Finds optimal threshold to achieve \~10% Type I error rate
 
 ## User Settings
@@ -40,11 +39,11 @@ poc_settings <- list(
   null_p_T = 0.05,
   tox_upper = 0.30,
   phi_T = 0.30,
-  c_T = 0.55,
+  c_T = 0.35,
   phi_E = 0.25,
-  c_E = 0.50,
+  c_E = 0.55,
   phi_I = 0.20,
-  c_I = 0.70,
+  c_I = 0.50,
   use_threshold_calibration_results = TRUE,
   threshold_calibration_results_path = "results/threshold_calibration/threshold_calibration_results.rds",
   delta_poc = 0.8,
@@ -60,7 +59,8 @@ poc_settings <- list(
     # Do not include 1.0 because the PoC rule uses a strict ">" threshold.
     c(0.80, 0.90, 0.95, 0.98, 0.99, 0.995)
   },
-  n_simulations = if (quick_mode) 5 else 1000,
+  n_simulations = if (quick_mode) 5 else 2000,
+  store_simulation_results = quick_mode,
   append_history_log = TRUE,
   history_log_path = "results/notebook_calibration/poc_calibration_history.md",
   calibration_results_path = "results/notebook_calibration/poc_calibration_results.rds"
@@ -121,8 +121,8 @@ poc_settings$calibration_results_path <- resolve_project_path(poc_settings$calib
 
 1.  **`null_p_*`** = True probability values in the NULL scenario (used to generate data)
     - `null_p_I` = True immune response rate (e.g., 0.25)
-    - `null_p_E` = True efficacy rate (e.g., 0.30)
-    - `null_p_T` = True toxicity rate (e.g., 0.05)
+    - `null_p_E` = Target marginal efficacy rate (e.g., 0.30)
+    - `null_p_T` = Target marginal toxicity rate (e.g., 0.05)
 2.  **`phi_*`** = Admissibility thresholds (used for decision making)
     - `phi_I` = Immune response threshold for admissibility (e.g., 0.20)
     - `phi_E` = Efficacy threshold for admissibility (e.g., 0.25)
@@ -131,7 +131,7 @@ poc_settings$calibration_results_path <- resolve_project_path(poc_settings$calib
 **Example**: We set `null_p_I = 0.20` (true value) = `phi_I = 0.20` (threshold) for a true null scenario.
 
 | Parameter Type | Immune | Efficacy | Toxicity | Purpose |
-|---------------|---------------|---------------|---------------|---------------|
+|----|----|----|----|----|
 | **Null Scenario** | null_p_I = 0.20 | null_p_E = 0.25 | null_p_T = 0.05 | Generate data |
 | **Thresholds** | phi_I = 0.20 | phi_E = 0.25 | phi_T = 0.30 | Make decisions |
 | **Relationship** | null_p_I = phi_I | null_p_E = phi_E | null_p_T \< phi_T | Null scenario |
@@ -238,8 +238,8 @@ trial_config$utility_table <- utility_table
 cat("Configuration loaded successfully!\n")
 cat("\nNull Scenario True Values (for data generation):\n")
 cat("  null_p_I (immune) =", calibration_params$null_p_I, "\n")
-cat("  null_p_E (efficacy) =", calibration_params$null_p_E, "\n")
-cat("  null_p_T (toxicity) =", calibration_params$null_p_T, "\n")
+cat("  null_p_E (target marginal efficacy) =", calibration_params$null_p_E, "\n")
+cat("  null_p_T (target marginal toxicity) =", calibration_params$null_p_T, "\n")
 cat("\nAdmissibility Thresholds (for decision making):\n")
 cat("  phi_I (immune threshold) =", trial_config$phi_I, "\n")
 cat("  phi_E (efficacy threshold) =", trial_config$phi_E, "\n")
@@ -257,6 +257,7 @@ cat("  Calibration seed =", poc_settings$calibration_seed, "\n")
 cat("  Common random numbers =", poc_settings$use_common_random_numbers, "\n")
 cat("  Show progress =", poc_settings$show_progress, "\n")
 cat("  Progress interval seconds =", poc_settings$progress_interval_seconds, "\n")
+cat("  Store detailed simulation results =", poc_settings$store_simulation_results, "\n")
 cat("  Append history log =", poc_settings$append_history_log, "\n")
 cat("  History log path =", poc_settings$history_log_path, "\n")
 cat("  Calibration results path =", poc_settings$calibration_results_path, "\n")
@@ -273,9 +274,9 @@ This section demonstrates the construction of the null/flat scenario using the t
 null_scenario <- create_null_flat_scenario(
   n_doses = length(poc_settings$dose_levels),
   phi_I = calibration_params$null_p_I,   # True immune response rate in null scenario
-  phi_E = calibration_params$null_p_E,   # True efficacy rate in null scenario
+  phi_E = calibration_params$null_p_E,   # Target marginal efficacy rate in null scenario
   tox_upper = calibration_params$tox_upper,
-  tox_flat = calibration_params$null_p_T  # True toxicity rate in null scenario
+  tox_flat = calibration_params$null_p_T  # Target marginal toxicity rate in null scenario
 )
 
 cat("Null/Flat Scenario Parameters:\n")
@@ -341,7 +342,6 @@ Quick mode uses fewer simulations and fewer candidates, so its result is only a 
 # Run C_poc calibration
 cat("Starting C_poc calibration...\n")
 cat("This may take several minutes...\n")
-start_time <- Sys.time()
 
 calibration_results <- calibrate_c_poc(
   null_scenario = null_scenario,
@@ -354,13 +354,13 @@ calibration_results <- calibrate_c_poc(
   common_random_numbers = poc_settings$use_common_random_numbers,
   calibration_seed = poc_settings$calibration_seed,
   progress = poc_settings$show_progress,
-  progress_interval_seconds = poc_settings$progress_interval_seconds
+  progress_interval_seconds = poc_settings$progress_interval_seconds,
+  store_simulation_results = poc_settings$store_simulation_results
 )
 
-end_time <- Sys.time()
-calibration_duration <- difftime(end_time, start_time, units = "mins")
 cat("\nC_poc Calibration Complete!\n")
-cat("Duration:", round(calibration_duration, 2), "minutes\n")
+cat("Runtime:", poc_format_duration(calibration_results$run_duration_seconds), "\n")
+cat("Full trial simulations run:", calibration_results$full_trial_simulations, "\n")
 cat("\nCalibration Results:\n")
 cat("Optimal C_poc:", calibration_results$optimal_c_poc, "\n")
 cat("Target PoC detection rate:", calibration_params$target_rate, "\n")

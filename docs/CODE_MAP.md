@@ -1,106 +1,121 @@
 # Code Map
 
-This document outlines the structure and purpose of each file in the DoseFinding project.
+This document maps the current DoseFinding implementation. It intentionally
+avoids hard-coded line numbers so it remains useful as functions move.
 
-## Source Code (`src/`)
+## Standard Workflow
 
-### Core Logic (`src/core/`)
--   **`main.R`**: Master script containing the `run_trial_simulation()` function that executes the entire multi-stage trial simulation workflow.
-    -   Orchestrates stage loops, data generation, posterior updates, admissible set screening, early termination checks, adaptive randomization, and final selection
-    -   Returns comprehensive results including allocation history, posterior summaries, and final OD
-    -   Evidence: L15-L202
--   **`config.R`**: Configuration parameters for the trial (default: 5 doses, 5 stages, cohort=15)
-    -   Defines admissibility thresholds (phi_T, phi_E, phi_I) and credibility cutoffs (c_T, c_E, c_I)
-    -   PoC parameters (c_poc, delta_poc) and early termination settings
-    -   Utility table (3D array: E × T × I)
-    -   Evidence: L8-L64
--   **`simulate_data.R`**: Data generation using Gumbel copula for correlated toxicity/efficacy endpoints
-    -   `Gumbel()`: Calculates four-cell probabilities from marginal probabilities and correlation parameter
-    -   `simulate_data_gumbel()`: Generates patient-level outcomes (Y_I, Y_T, Y_E) with optional seed
-    -   Evidence: L1-L61
--   **`model_utils.R`**: Bayesian model utilities including posterior distributions, isotonic regression, and marginal calculations
-    -   `simulate_beta_posterior()`: Beta conjugate posterior sampling (n_sims=1000)
-    -   `apply_pava_on_samples()`: Univariate isotonic regression (immune response)
-    -   `apply_biviso_on_matrix()`: Bivariate isotonic regression (toxicity, efficacy | immune)
-    -   `compute_marginal_probability()`: Marginal probabilities via mixing
-    -   Evidence: L1-L128
+Routine work is notebook-first. The dependency order is:
 
-### Decision Logic (`src/decision/`)
--   **`dose_decision.R`**: Complete decision-making pipeline for admissibility, utility, early termination, and PoC validation
-    -   `get_expected_utility()`: Two-layer expected utility calculation (I=0, I=1 scenarios)
-    -   `get_admissible_set()`: Filters doses based on posterior probability thresholds
-    -   `adaptive_randomization()`: Utility-proportional allocation over admissible set
-    -   `check_early_termination()`: Triggers when admissible set empty
-    -   `calculate_poc_probability()`: Design2 immune-response PoC set, `Pr(pi_I1 < delta * pi_Ij | D_n) > c_poc`
-    -   `select_final_od_with_poc()`: Final selection from the PoC-eligible set (can return NA)
-    -   Evidence: L1-L425
+1. `notebooks/threshold_calibration_notebook.qmd`
+2. `notebooks/poc_calibration_notebook.qmd`
+3. `notebooks/simulation_notebook.qmd`
+4. `notebooks/scenario_comparison_notebook.qmd`
 
-### Optimization (`src/optimization/`)
--   **`poc_calibration.R`**: PoC calibration system using null/flat scenarios
-    -   `create_null_flat_scenario()`: Constructs scenarios where all doses identical (P_I=φ_I, P_E=φ_E for all doses)
-    -   `calibrate_c_poc()`: Tests multiple c_poc candidates with 1000+ simulations each
-    -   `plot_calibration_curve()`: Visualizes c_poc vs PoC detection rate
-    -   `generate_calibration_report()`: Detailed text report with early termination analysis
-    -   Target: ~10% Type I error rate (PoC detection in null scenario)
-    -   Evidence: L1-L970
--   **`threshold_calibration.R`**: Separate calibration system for `c_T`, `c_I`, and `c_E`
-    -   `default_separate_threshold_settings()`: Front-loaded defaults for notebook use
-    -   `create_threshold_scenario()`: Builds endpoint-specific unfavorable scenarios from marginal probability targets
-    -   `make_conditional_probability_matrix()`: Calculates conditional endpoint probabilities that preserve requested marginals
-    -   `calibrate_separate_thresholds()`: Calibrates `c_T`, then `c_I`, then `c_E` before PoC calibration
-    -   `append_threshold_calibration_log()`: Appends readable Markdown run history
-    -   Target: final admissible set missing rate under endpoint-specific unfavorable scenarios
+The PoC notebook reads the threshold calibration RDS by default. The simulation
+and scenario-comparison notebooks read both calibration RDS files by default.
+Fallback values in their User Settings chunks are used only when saved
+calibration results are unavailable.
+
+`notebooks/design_walkthrough.qmd` is an explanatory notebook. It uses
+standalone demonstration defaults and is not a production calibration report.
+
+## Source Code
+
+### Core (`src/core/`)
+
+- `main.R`
+  - `run_trial_simulation()` orchestrates stage allocation, data generation,
+    posterior updates, admissibility, early termination, adaptive allocation,
+    and final PoC-gated selection.
+  - Returns final admissible and PoC-eligible sets, pairwise PoC probabilities,
+    candidate utilities, allocation history, and posterior summaries.
+- `config.R`
+  - Standalone backend defaults, utility table, scenario inputs, and trial
+    settings.
+  - Notebook production runs may replace its credibility cutoffs with saved
+    calibration results.
+- `simulate_data.R`
+  - Generates patient-level immune, toxicity, and efficacy outcomes.
+  - `rho0 = rho1 = 0` is the active design default and gives conditional T/E
+    independence given dose and immune response.
+- `model_utils.R`
+  - Beta posterior sampling, PAVA, BIVISO, and conditional-to-marginal
+    probability calculations.
+
+### Decisions (`src/decision/`)
+
+- `dose_decision.R`
+  - Computes utility per posterior draw and averages it as `E[U(pi)]`.
+  - Builds the admissible set using the toxicity, efficacy, and immune criteria
+    jointly.
+  - Allocates by posterior probability of being optimal among admissible doses,
+    with equal credit for ties within a posterior draw.
+  - Builds the Design2 immune-response PoC-eligible set and selects the
+    highest-utility eligible dose.
+
+### Calibration (`src/optimization/`)
+
+- `threshold_calibration.R`
+  - Separately calibrates `c_T`, `c_I`, and `c_E` under endpoint-specific
+    unfavorable scenarios.
+  - The production target is an 80%-85% final admissible-set missing rate.
+  - Inactive endpoint cutoffs remain fixed at baseline values.
+- `poc_calibration.R`
+  - Calibrates `c_poc` under a null/flat scenario.
+  - Supports common random numbers, progress reporting, summary-only production
+    runs, and readable history logs.
 
 ### Utilities (`src/utils/`)
--   **`helpers.R`**: Core visualization and helper functions
-    -   `plot_posterior_summary()`: Posterior means with credible intervals
-    -   `compute_rn()`: r/n summaries for Beta posteriors
-    -   Additional plotting utilities
--   **`plotting_extensions.R`**: Publication-ready plotting functions
-    -   `plot_dose_response_curves()`: Toxicity, efficacy, utility vs dose
-    -   `plot_method_comparison_bars()`: Compare methods across scenarios
-    -   `plot_multi_scenario_curves()`: Multi-panel scenario comparisons
 
-## Interactive Notebooks (`notebooks/`)
--   **`simulation_notebook.qmd`**: Interactive single trial simulation with visualization
-    -   Configures 5-dose trial (aligned with default config)
-    -   Runs `run_trial_simulation()` with specified parameters
-    -   Generates publication-ready plots (posteriors, allocation, dose-response curves)
-    -   Evidence: L1-L369
--   **`poc_calibration_notebook.qmd`**: Interactive PoC calibration workflow
-    -   Creates null/flat scenarios using `create_null_flat_scenario()`
-    -   Runs `calibrate_c_poc()` across c_poc candidates
-    -   Uses saved `c_T`, `c_I`, and `c_E` results from threshold calibration as fixed inputs
-    -   Generates calibration curves and detailed reports
-    -   Outputs optimal c_poc for ~10% Type I error rate
--   **`threshold_calibration_notebook.qmd`**: Interactive threshold calibration workflow
-    -   Calibrates `c_T`, `c_I`, and `c_E` separately before PoC calibration
-    -   Uses endpoint-specific unfavorable scenarios from front-loaded settings
-    -   Saves RDS, CSV, and readable Markdown history under `results/threshold_calibration/`
+- `helpers.R`: posterior summaries and core plotting helpers.
+- `plotting_extensions.R`: dose-response and multi-scenario plots.
 
-## Testing (`tests/`)
--   **`test_main.R`**: Integration tests for complete trial simulation
-    -   Structure/field validation
-    -   Allocation probability sums
--   **`test_dose_decision.R`**: Unit tests for decision logic
-    -   Expected utility calculations
-    -   Admissible set structure
-    -   Adaptive allocation normalization
--   **`test_early_termination_poc.R`**: Tests for early termination and PoC scenarios
-    -   Empty admissible set handling
-    -   PoC validation logic
--   **`test_workflow_order.R`**: Workflow execution order verification
-    -   Stage 1 equal allocation
-    -   Adaptive allocation in later stages
-    -   Early termination timing
+## Notebooks
 
-## Documentation (`docs/`)
--   **`README.md`**: Documentation index and recommended reading order
--   **`CODE_MAP.md`**: This file - file structure and organization
--   **`HOW_TO_RUN.md`**: Usage instructions and examples
--   **`Design1.tex`, `Design2.tex`**: LaTeX design documents
-Generated outputs such as rendered notebooks, plots, and calibration reports are ignored by git and should be regenerated from the notebooks or scripts when needed.
+- `threshold_calibration_notebook.qmd`
+  - Saves `results/threshold_calibration/threshold_calibration_results.rds`.
+- `poc_calibration_notebook.qmd`
+  - Reads the threshold RDS and saves
+    `results/notebook_calibration/poc_calibration_results.rds`.
+- `simulation_notebook.qmd`
+  - Runs 5 simulations in quick mode or 2,000 in production mode.
+  - Writes aggregate metrics under `results/simulation/`.
+- `scenario_comparison_notebook.qmd`
+  - Runs multiple truth scenarios and writes comparison tables under
+    `results/scenario_comparison/`.
+- `design_walkthrough.qmd`
+  - Explains the relationship between Design1, Design2, and the implementation.
 
-## Configuration Files
--   **`.cursorrules`**: Cursor AI coding guidelines and project context
--   **`DoseFinding.Rproj`**: RStudio project file
+Notebook source supports HTML rendering only. Generated HTML, figures, caches,
+RDS files, CSV results, and plots are intentionally ignored by Git.
+
+## Tests
+
+- `test_main.R`: integration behavior and returned traceability fields.
+- `test_dose_decision.R`: draw-average utility, admissibility, posterior
+  optimality allocation, and final selection.
+- `test_threshold_calibration.R`: scenario construction, target metric, and
+  candidate selection.
+- `test_poc_calibration.R`: null calibration and reporting.
+- `test_notebook_workflow.R`: notebook settings, dependency reuse, output
+  paths, and repository hygiene.
+- `test_sample_size_invariants.R`: enrollment invariants.
+- `test_workflow_order.R`: stage order and early termination placement.
+- Additional focused tests cover flat scenarios, Bayesian PoC, and early
+  termination.
+
+## Documentation and Audit Evidence
+
+- `README.md`: current status, calibrated values, and project entry point.
+- `docs/HOW_TO_RUN.md`: supported notebook workflow.
+- `docs/Design1.tex`, `docs/Design2.tex`: original design drafts.
+- `_audit/decision_review/f004_f006_f007_repair_summary.md`: latest repair and
+  verification summary on the current branch.
+- `_audit/decision_review/poc_and_simulation_run_summary.md`: dated production
+  calibration and simulation record; later rendering notes are marked as
+  superseded.
+
+The original design-alignment audit is preserved on commit `b57e150` in the
+`codex/check-code-design-alignment` branch rather than duplicated in the current
+working tree.

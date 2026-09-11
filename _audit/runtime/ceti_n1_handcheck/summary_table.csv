@@ -1,0 +1,4 @@
+"parameter","endpoint","selected_value","selection_metric","achieved_missing_rate","target_low","target_high","status","n_simulations"
+"c_T","toxicity",0.55,"final_admissible_missing_rate",1,0.8,0.85,"closest to target range; least strict tie-break",1
+"c_I","immune",0.7,"final_admissible_missing_rate",1,0.8,0.85,"closest to target range; least strict tie-break",1
+"c_E","efficacy",0.35,"final_admissible_missing_rate",1,0.8,0.85,"above target range; least strict closest candidate",1

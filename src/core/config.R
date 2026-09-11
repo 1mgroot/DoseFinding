@@ -5,7 +5,8 @@ library(purrr)
 library(ggplot2)
 library(Iso)
 
-# Trial configuration - aligned with simulation_notebook.qmd
+# Standalone backend defaults. Production notebooks may override credibility
+# cutoffs with saved threshold and PoC calibration results.
 trial_config <- list(
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
@@ -37,8 +38,8 @@ p_YE_given_I <- matrix(c(
 ), nrow = 5, ncol = 2)
 
 p_YI <- c(0.10, 0.30, 0.50, 0.60, 0.70)  # Immune response probability per dose
-rho0 <- 1.5  # Gumbel copula correlation under I=0
-rho1 <- 2    # Gumbel copula correlation under I=1
+rho0 <- 0  # rho=0 gives conditional T/E independence under I=0
+rho1 <- 0  # rho=0 gives conditional T/E independence under I=1
 
 # Utility table
 # Rows: Efficacy (0, 1)

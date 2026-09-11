@@ -14,6 +14,10 @@ if (length(project_root_matches) == 0) {
   stop("Could not find project root containing DoseFinding.Rproj.")
 }
 setwd(normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE))
+output_dir <- Sys.getenv(
+  "DOSEFINDING_EXAMPLE_OUTPUT_DIR",
+  unset = "results"
+)
 
 # Source the functions
 source("src/core/simulate_data.R")
@@ -138,8 +142,10 @@ p <- ggplot(rates_data, aes(x = Dose, y = Rate, color = Scenario)) +
   )
 
 # Save plot
-ggsave("results/flat_scenario_comparison.png", plot = p, width = 10, height = 6, dpi = 300)
-cat("   Plot saved to: results/flat_scenario_comparison.png\n\n")
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+plot_path <- file.path(output_dir, "flat_scenario_comparison.png")
+ggsave(plot_path, plot = p, width = 10, height = 6, dpi = 300)
+cat("   Plot saved to:", plot_path, "\n\n")
 
 # 6. Show conditional efficacy calculation
 cat("6. Conditional efficacy calculation demonstration...\n")

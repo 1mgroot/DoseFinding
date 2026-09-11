@@ -400,8 +400,15 @@ plot_method_comparison_bars <- function(data, x_var, y_var, fill_var,
 }
 
 # 创建完整的试验评估图表集
-create_comprehensive_evaluation_plots <- function(simulation_results, 
-                                                 file_prefix = "evaluation") {
+create_comprehensive_evaluation_plots <- function(
+  simulation_results,
+  file_prefix = "evaluation",
+  output_dir = "results/plots"
+) {
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  output_path <- function(suffix) {
+    file.path(output_dir, paste0(file_prefix, suffix))
+  }
   
   plots <- list()
   
@@ -413,7 +420,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
       title = "OBD Selection Rate Comparison",
       y_label = "OBD Selection (%)",
       limits = c(0, 100),
-      file_path = paste0("results/plots/", file_prefix, "_obd_selection.png")
+      file_path = output_path("_obd_selection.png")
     )
   }
   
@@ -424,7 +431,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
       x_var = "scenario", y_var = "mtd_rate", fill_var = "method",
       title = "MTD Selection Rate Comparison",
       y_label = "MTD Selection (%)",
-      file_path = paste0("results/plots/", file_prefix, "_mtd_selection.png")
+      file_path = output_path("_mtd_selection.png")
     )
   }
   
@@ -436,7 +443,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
       title = "Average Sample Size Comparison",
       y_label = "Average Sample Size",
       limits = c(0, 50),
-      file_path = paste0("results/plots/", file_prefix, "_sample_sizes.png")
+      file_path = output_path("_sample_sizes.png")
     )
   }
   
@@ -448,7 +455,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
       title = "Overdose Patient Percentage",
       y_label = "Overdose Pts (%)",
       limits = c(0, 25),
-      file_path = paste0("results/plots/", file_prefix, "_overdose_rates.png")
+      file_path = output_path("_overdose_rates.png")
     )
   }
   
@@ -460,7 +467,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
       title = "Trial Duration Comparison",
       y_label = "Duration (months)",
       limits = c(0, 50),
-      file_path = paste0("results/plots/", file_prefix, "_durations.png")
+      file_path = output_path("_durations.png")
     )
   }
   
@@ -471,7 +478,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
       x_var = "scenario", y_var = "efficiency", fill_var = "method",
       title = "Enrollment Efficiency",
       y_label = "Relative Efficiency",
-      file_path = paste0("results/plots/", file_prefix, "_efficiency.png")
+      file_path = output_path("_efficiency.png")
     )
   }
   
@@ -480,7 +487,7 @@ create_comprehensive_evaluation_plots <- function(simulation_results,
     plots$multi_scenarios <- plot_multi_scenario_curves(
       simulation_results$scenarios,
       title = "Dose-Response Curves Across Scenarios",
-      file_path = paste0("results/plots/", file_prefix, "_multi_scenarios.png")
+      file_path = output_path("_multi_scenarios.png")
     )
   }
   

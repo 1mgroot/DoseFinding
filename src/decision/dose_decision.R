@@ -1,29 +1,126 @@
-get_expected_utility <- function(dose_idx, posterior_summaries, config) {
-  # Get posterior probabilities for the given dose
-  # Note: This assumes the posterior_summaries dataframes are ordered by dose and then by group
-  pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]
-  pi_T_given_I1 <- posterior_summaries$tox$pava_mean[2 * dose_idx]
-  pi_E_given_I0 <- posterior_summaries$eff$pava_mean[2 * dose_idx - 1]
-  pi_E_given_I1 <- posterior_summaries$eff$pava_mean[2 * dose_idx]
-  pi_I <- posterior_summaries$imm$pava_mean[dose_idx]
-
-  # Probabilities of T=0 and T=1 given I
+calculate_utility_from_probabilities <- function(
+  pi_I,
+  pi_T_given_I0,
+  pi_T_given_I1,
+  pi_E_given_I0,
+  pi_E_given_I1,
+  utility_table
+) {
   p_T_given_I0 <- c(1 - pi_T_given_I0, pi_T_given_I0)
   p_T_given_I1 <- c(1 - pi_T_given_I1, pi_T_given_I1)
-
-  # Probabilities of E=0 and E=1 given I
   p_E_given_I0 <- c(1 - pi_E_given_I0, pi_E_given_I0)
   p_E_given_I1 <- c(1 - pi_E_given_I1, pi_E_given_I1)
 
-  # Expected utility for I=0
-  utility_I0 <- sum(config$utility_table[,,1] * (p_E_given_I0 %o% p_T_given_I0))
+  utility_I0 <- sum(utility_table[, , 1] * (p_E_given_I0 %o% p_T_given_I0))
+  utility_I1 <- sum(utility_table[, , 2] * (p_E_given_I1 %o% p_T_given_I1))
 
-  # Expected utility for I=1
-  utility_I1 <- sum(config$utility_table[,,2] * (p_E_given_I1 %o% p_T_given_I1))
+  (1 - pi_I) * utility_I0 + pi_I * utility_I1
+}
 
-  # Total expected utility
-  total_utility <- (1 - pi_I) * utility_I0 + pi_I * utility_I1
-  return(total_utility)
+order_endpoint_summary <- function(endpoint_df) {
+  if (all(c("d", "Y_I") %in% names(endpoint_df))) {
+    endpoint_df[order(endpoint_df$d, endpoint_df$Y_I), , drop = FALSE]
+  } else {
+    endpoint_df
+  }
+}
+
+order_immune_summary <- function(immune_df) {
+  if ("d" %in% names(immune_df)) {
+    immune_df[order(immune_df$d), , drop = FALSE]
+  } else {
+    immune_df
+  }
+}
+
+posterior_samples_or_mean <- function(summary_df, index) {
+  if ("samples_pava" %in% names(summary_df) &&
+      length(summary_df$samples_pava) >= index &&
+      length(summary_df$samples_pava[[index]]) > 0) {
+    return(as.numeric(summary_df$samples_pava[[index]]))
+  }
+  as.numeric(summary_df$pava_mean[index])
+}
+
+get_expected_utility_draws <- function(dose_idx, posterior_summaries, config) {
+  tox_df <- order_endpoint_summary(posterior_summaries$tox)
+  eff_df <- order_endpoint_summary(posterior_summaries$eff)
+  imm_df <- order_immune_summary(posterior_summaries$imm)
+
+  pi_T_given_I0 <- posterior_samples_or_mean(tox_df, 2 * dose_idx - 1)
+  pi_T_given_I1 <- posterior_samples_or_mean(tox_df, 2 * dose_idx)
+  pi_E_given_I0 <- posterior_samples_or_mean(eff_df, 2 * dose_idx - 1)
+  pi_E_given_I1 <- posterior_samples_or_mean(eff_df, 2 * dose_idx)
+  pi_I <- posterior_samples_or_mean(imm_df, dose_idx)
+
+  n_draws <- min(
+    length(pi_T_given_I0),
+    length(pi_T_given_I1),
+    length(pi_E_given_I0),
+    length(pi_E_given_I1),
+    length(pi_I)
+  )
+  if (n_draws < 1) {
+    stop("Posterior utility calculation requires at least one posterior draw.")
+  }
+
+  vapply(seq_len(n_draws), function(draw_idx) {
+    calculate_utility_from_probabilities(
+      pi_I = pi_I[[draw_idx]],
+      pi_T_given_I0 = pi_T_given_I0[[draw_idx]],
+      pi_T_given_I1 = pi_T_given_I1[[draw_idx]],
+      pi_E_given_I0 = pi_E_given_I0[[draw_idx]],
+      pi_E_given_I1 = pi_E_given_I1[[draw_idx]],
+      utility_table = config$utility_table
+    )
+  }, numeric(1))
+}
+
+get_expected_utility <- function(dose_idx, posterior_summaries, config) {
+  mean(get_expected_utility_draws(dose_idx, posterior_summaries, config))
+}
+
+posterior_optimality_from_utility_draws <- function(utility_draw_matrix, tie_tolerance = sqrt(.Machine$double.eps)) {
+  if (!is.matrix(utility_draw_matrix)) {
+    utility_draw_matrix <- as.matrix(utility_draw_matrix)
+  }
+  if (nrow(utility_draw_matrix) < 1 || ncol(utility_draw_matrix) < 1) {
+    stop("utility_draw_matrix must contain at least one draw and one dose.")
+  }
+
+  optimality_credit <- do.call(rbind, lapply(seq_len(nrow(utility_draw_matrix)), function(draw_idx) {
+    draw_utilities <- utility_draw_matrix[draw_idx, ]
+    max_utility <- max(draw_utilities)
+    tied <- abs(draw_utilities - max_utility) <= tie_tolerance
+    as.numeric(tied) / sum(tied)
+  }))
+  colMeans(optimality_credit)
+}
+
+get_posterior_optimality_probabilities <- function(admissible_set, posterior_summaries, config) {
+  n_doses <- length(config$dose_levels)
+  alloc_probs <- numeric(n_doses)
+  if (length(admissible_set) == 0) {
+    return(alloc_probs)
+  }
+
+  utility_draws <- lapply(
+    admissible_set,
+    get_expected_utility_draws,
+    posterior_summaries = posterior_summaries,
+    config = config
+  )
+  n_draws <- min(vapply(utility_draws, length, integer(1)))
+  if (n_draws < 1) {
+    stop("Posterior optimality allocation requires at least one posterior utility draw.")
+  }
+
+  utility_draw_matrix <- do.call(
+    cbind,
+    lapply(utility_draws, function(draws) draws[seq_len(n_draws)])
+  )
+  alloc_probs[admissible_set] <- posterior_optimality_from_utility_draws(utility_draw_matrix)
+  alloc_probs
 }
 
 # Calculate utility from TRUE probabilities (for plotting true dose-response curves)
@@ -140,19 +237,7 @@ get_admissible_set <- function(posterior_summaries, config, verbose = TRUE) {
 }
 
 adaptive_randomization <- function(admissible_set, posterior_summaries, config) {
-  n_doses <- length(config$dose_levels)
-  alloc_probs <- numeric(n_doses)
-
-  if (length(admissible_set) > 0) {
-    utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)
-    if (sum(utilities) > 0) {
-      alloc_probs[admissible_set] <- utilities / sum(utilities)
-    } else {
-      alloc_probs[admissible_set] <- 1 / length(admissible_set) # Equal probability if all utilities are zero
-    }
-  }
-
-  return(alloc_probs)
+  get_posterior_optimality_probabilities(admissible_set, posterior_summaries, config)
 }
 
 select_final_od <- function(admissible_set, posterior_summaries, config) {

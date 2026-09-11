@@ -8,7 +8,7 @@ files in `src/` or call backend functions from the R console.
 1. Open `DoseFinding.Rproj` in RStudio.
 2. Open a notebook from `notebooks/`.
 3. Edit only the **User Settings** chunk near the top.
-4. Leave `quick_mode <- TRUE` for a fast smoke test.
+4. Set `quick_mode <- TRUE` for a fast smoke test, or `FALSE` for production.
 5. Click **Run All** or **Render**.
 6. Review generated tables, plots, and files under `results/`.
 
@@ -17,15 +17,21 @@ reporting final results.
 
 ## Notebook Decision Guide
 
-### 1. Run One Trial
+### 1. Run Trial Simulations
 
 Use `notebooks/simulation_notebook.qmd`.
 
-This notebook is for learning the design, checking one scenario, and inspecting:
+This notebook is for learning the design, checking one scenario, and inspecting
+repeated trial simulation behavior. Production mode runs `2,000` independent
+trial simulations by default. Quick mode runs `5` simulations for a fast smoke
+test.
+
+The notebook reports:
 
 - final OD selection
 - early termination status
 - PoC validation status
+- Monte Carlo selection rates
 - posterior summaries
 - allocation by dose and stage
 - dose-response and allocation plots
@@ -40,6 +46,15 @@ By default, the simulation notebook reads
 uses those calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values. If either file is
 missing, the notebook falls back to the values in **User Settings**.
 
+The Monte Carlo summary, mean posterior summaries, mean allocation probability
+plot, mean participant-allocation plots, and
+`results/simulation/simulation_metrics.csv` describe all simulation replicates.
+Participant allocation plots are unconditional means across all planned
+simulations, so stages after early termination count as `0` for that simulation.
+The stage enrollment summary also reports how many trials reached each stage;
+among trials that reach a stage, the conditional mean should match the cohort
+size.
+
 The allocation plots intentionally keep all doses in one graph. When several
 doses have the same value, the notebook uses a small display-only horizontal
 dodge so overlapping points are visible. For cumulative participant allocation,
@@ -48,7 +63,36 @@ calculating cumulative counts. This makes doses with no new patients in a stage
 show as flat lines instead of disappearing or being connected across missing
 stages.
 
-### 2. Calibrate Thresholds
+### 2. Compare Multiple Scenarios
+
+Use `notebooks/scenario_comparison_notebook.qmd`.
+
+This notebook is for running the same design across multiple truth scenarios and
+organizing the final operating characteristics into tables. Edit the `scenarios`
+list in the **User Settings** chunk. Each scenario can define different:
+
+- `p_YI`
+- `p_YT_given_I`
+- `p_YE_given_I`
+- `rho0`
+- `rho1`
+
+The notebook writes:
+
+- scenario truth table
+- true utility table by scenario and dose
+- simulation-level metrics
+- selection-rate table
+- final scenario comparison summary, including the true optimal dose and the
+  rate at which the simulated design selected that dose
+
+Common output location:
+
+```text
+results/scenario_comparison/
+```
+
+### 3. Calibrate Thresholds
 
 Use `notebooks/threshold_calibration_notebook.qmd`.
 
@@ -61,10 +105,24 @@ calibration. It generates:
 - readable calibration history under `results/threshold_calibration/`
 - saved RDS and CSV summaries under `results/threshold_calibration/`
 
-The default target is a final admissible set missing rate of 80%-90%. Set
+The default target is a final admissible set missing rate of 80%-85%. During
+each endpoint-specific calibration, the active cutoff is varied over its
+candidate grid and the two inactive endpoint cutoffs are held at fixed baseline
+values. Set
 `quick_mode <- TRUE` when you only want a fast smoke test.
+Progress logs are printed during long production runs; the default interval is
+about every 5 minutes (`progress_interval_seconds = 300`).
 
-### 3. Calibrate PoC
+`final_missing_rate` includes trials that stopped early because the admissible
+set became empty. In those simulations, the final available posterior is the
+posterior at the stopping stage.
+
+In the candidate tables, `final_missing_rate` is the main selection target.
+The inactive endpoint cutoffs remain binding at their fixed baseline values, so
+`final_missing_rate` can differ from `target_endpoint_missing_rate`, which is
+retained as an endpoint-only diagnostic.
+
+### 4. Calibrate PoC
 
 Use `notebooks/poc_calibration_notebook.qmd`.
 
@@ -92,7 +150,7 @@ or denser `c_poc` candidate grid. If that still fails, rerun the separate
 threshold calibration workflow or revisit the protocol's PoC target definition;
 do not tune `c_T`, `c_I`, or `c_E` inside the PoC notebook.
 
-### 4. Understand the Design
+### 5. Understand the Design
 
 Use `notebooks/design_walkthrough.qmd`.
 
@@ -106,6 +164,8 @@ Generated outputs are intentionally ignored by git. Common locations:
 ```text
 results/
 ├── plots/
+├── simulation/
+├── scenario_comparison/
 ├── notebook_calibration/
 └── threshold_calibration/
 ```
@@ -118,7 +178,11 @@ Trial scale:
 
 - `dose_levels`: dose labels used by the design.
 - `n_stages`: number of trial stages.
+- `n_simulations`: number of independent trial simulations. The simulation
+  notebook defaults to `2,000` in production mode and `5` in quick mode.
 - `cohort_size`: patients enrolled per stage.
+- `scenarios`: scenario comparison list; each item contains one set of true
+  probability inputs for `p_YI`, `p_YT_given_I`, and `p_YE_given_I`.
 
 Clinical thresholds:
 
@@ -132,7 +196,10 @@ Posterior credibility cutoffs:
 - `c_E`: required confidence that efficacy is acceptable.
 - `c_I`: required confidence that immune response is acceptable.
 - `target_missing_range`: threshold calibration target for the final admissible
-  set missing rate under endpoint-specific unfavorable scenarios.
+  set missing rate under endpoint-specific unfavorable scenarios, with inactive
+  endpoint cutoffs held at fixed baseline values.
+  `target_endpoint_missing_rate` in the notebook output is endpoint-only
+  diagnostic information.
 
 PoC settings:
 
@@ -157,7 +224,7 @@ PoC settings:
 Simulation calibration reuse:
 
 - `use_calibration_results`: whether the simulation notebook should read saved
-  calibration results before running one trial.
+  calibration results before running trial simulations.
 - `threshold_calibration_results_path`: threshold calibration RDS used by the
   simulation notebook.
 - `poc_calibration_results_path`: PoC calibration RDS used by the simulation
@@ -165,16 +232,23 @@ Simulation calibration reuse:
 
 Current calibrated defaults:
 
-- `c_T = 0.35`, `c_E = 0.60`, `c_I = 0.50`
-- `c_poc = 0.90`, `delta_poc = 0.8`
+- Latest production threshold calibration selected `c_T = 0.45`, `c_I = 0.60`,
+  and `c_E = 0.75`.
+- Latest production PoC calibration selected `c_poc = 0.80`; `delta_poc = 0.8`.
 - The focused PoC search is set up to target about `10%` null/flat PoC detection.
 
 Simulation truth:
 
 - `p_YI`: true immune response probabilities by dose.
-- `p_YT_given_I`: true toxicity probabilities by dose and immune status.
-- `p_YE_given_I`: true efficacy probabilities by dose and immune status.
-- `rho0`, `rho1`: toxicity-efficacy dependence parameters.
+- `p_YT_given_I`: true conditional toxicity probabilities by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- `p_YE_given_I`: true conditional efficacy probabilities by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- Marginal toxicity and efficacy are calculated from these conditional values,
+  for example `p_T = p_I * p_T_given_I1 + (1 - p_I) * p_T_given_I0`.
+- `rho0`, `rho1`: optional toxicity-efficacy dependence parameters. The active
+  design uses `rho0 = rho1 = 0`, matching conditional independence of toxicity
+  and efficacy given immune response and dose.
 
 ## Troubleshooting
 

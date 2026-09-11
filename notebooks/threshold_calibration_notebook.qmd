@@ -24,7 +24,7 @@ This notebook calibrates the three admissibility credibility cutoffs separately:
 2.  `c_I`: evidence required to keep a dose when immune response is judged acceptable.
 3.  `c_E`: evidence required to keep a dose when efficacy is judged acceptable.
 
-The calibration target is the final admissible set missing rate: the proportion of simulated trials where the final admissible set is empty under an endpoint-specific unfavorable scenario. The default target is 80%-90%.
+The calibration target is the final admissible set missing rate under an endpoint-specific unfavorable scenario. During each endpoint calibration, the active cutoff is varied over its candidate grid and the two inactive endpoint cutoffs are held at the fixed baseline values from the settings. The selected cutoff from one endpoint is not carried forward into the calibration of another endpoint. The default target is 80%-85%.
 
 After this notebook selects `c_T`, `c_I`, and `c_E`, use those values as fixed inputs in the PoC calibration notebook.
 
@@ -48,31 +48,32 @@ threshold_settings <- list(
   phi_E = 0.25,
   phi_I = 0.20,
 
-  c_T_start = 0.55,
-  c_E_start = 0.50,
-  c_I_start = 0.70,
-  c_poc = 0.995,
-  delta_poc = 0.8,
-  rho0 = 1.5,
-  rho1 = 2.0,
+  rho0 = 0,
+  rho1 = 0,
 
-  target_missing_range = c(0.80, 0.90),
+  c_T = 0.35,
+  c_I = 0.50,
+  c_E = 0.55,
+
+  target_missing_range = c(0.80, 0.85),
   c_T_candidates = if (quick_mode) c(0.45, 0.55, 0.65) else seq(0.35, 0.75, by = 0.05),
   c_I_candidates = if (quick_mode) c(0.50, 0.70, 0.90) else seq(0.45, 0.95, by = 0.05),
   c_E_candidates = if (quick_mode) c(0.35, 0.50, 0.65) else seq(0.30, 0.80, by = 0.05),
-  n_sim_per_candidate = if (quick_mode) 5 else 500,
+  n_sim_per_candidate = if (quick_mode) 5 else 1000,
   calibration_seed = 11118,
+  show_progress = TRUE,
+  progress_interval_seconds = if (quick_mode) 60 else 300,
 
-  high_tox_p_I = 0.30,
-  high_tox_marginal_p_T = c(0.35, 0.60),
-  high_tox_marginal_p_E = 0.40,
+  high_tox_p_I = 0.95,
+  high_tox_marginal_p_T = c(0.30, 0.50),
+  high_tox_marginal_p_E = 0.95,
 
   low_immune_p_I = c(0.10, 0.15),
-  low_immune_marginal_p_T = 0.15,
-  low_immune_marginal_p_E = 0.40,
+  low_immune_marginal_p_T = 0.01,
+  low_immune_marginal_p_E = 0.95,
 
-  low_eff_p_I = 0.30,
-  low_eff_marginal_p_T = 0.15,
+  low_eff_p_I = 0.95,
+  low_eff_marginal_p_T = 0.01,
   low_eff_marginal_p_E = c(0.10, 0.20),
 
   toxicity_immune_effect = 0,
@@ -170,8 +171,8 @@ parameter_rows <- data.frame(
   group = c(
     rep("Trial size", 4),
     rep("Clinical thresholds", 3),
-    rep("Credibility cutoffs", 4),
-    rep("Calibration target", 5),
+    rep("Credibility cutoffs", 3),
+    rep("Calibration target", 7),
     rep("Scenario truth", 9),
     rep("Conditional effects", 2),
     rep("Dependence", 2),
@@ -185,15 +186,16 @@ parameter_rows <- data.frame(
     "phi_T",
     "phi_E",
     "phi_I",
-    "c_T_start",
-    "c_I_start",
-    "c_E_start",
-    "c_poc",
+    "c_T",
+    "c_I",
+    "c_E",
     "target_missing_range",
     "c_T_candidates",
     "c_I_candidates",
     "c_E_candidates",
     "n_sim_per_candidate",
+    "show_progress",
+    "progress_interval_seconds",
     "high_tox_p_I",
     "high_tox_marginal_p_T",
     "high_tox_marginal_p_E",
@@ -219,15 +221,16 @@ parameter_rows <- data.frame(
     format_setting(threshold_settings$phi_T),
     format_setting(threshold_settings$phi_E),
     format_setting(threshold_settings$phi_I),
-    format_setting(threshold_settings$c_T_start),
-    format_setting(threshold_settings$c_I_start),
-    format_setting(threshold_settings$c_E_start),
-    format_setting(threshold_settings$c_poc),
+    format_setting(threshold_settings$c_T),
+    format_setting(threshold_settings$c_I),
+    format_setting(threshold_settings$c_E),
     format_setting(threshold_settings$target_missing_range),
     format_setting(threshold_settings$c_T_candidates),
     format_setting(threshold_settings$c_I_candidates),
     format_setting(threshold_settings$c_E_candidates),
     format_setting(threshold_settings$n_sim_per_candidate),
+    format_setting(threshold_settings$show_progress),
+    format_setting(threshold_settings$progress_interval_seconds),
     format_setting(threshold_settings$high_tox_p_I),
     format_setting(threshold_settings$high_tox_marginal_p_T),
     format_setting(threshold_settings$high_tox_marginal_p_E),
@@ -253,28 +256,29 @@ parameter_rows <- data.frame(
     "Maximum acceptable marginal toxicity probability. Doses above this clinical limit should be treated as unsafe.",
     "Minimum acceptable marginal efficacy probability. Doses below this clinical limit should be treated as inactive.",
     "Minimum acceptable immune response probability. Doses below this clinical limit should be treated as biologically weak.",
-    "Initial toxicity credibility cutoff. Calibration tests the candidate grid and may replace this value.",
-    "Initial immune-response credibility cutoff. Calibration tests the candidate grid and may replace this value.",
-    "Initial efficacy credibility cutoff. Calibration tests the candidate grid and may replace this value.",
-    "Final PoC cutoff carried through this notebook for consistency; calibrate it in the PoC notebook.",
-    "Target proportion of simulations where the final admissible set is empty in each unfavorable scenario.",
+    "Baseline toxicity credibility cutoff used when c_T is not the active candidate.",
+    "Baseline immune-response credibility cutoff used when c_I is not the active candidate.",
+    "Baseline efficacy credibility cutoff used when c_E is not the active candidate.",
+    "Target proportion of simulations where the final admissible set is empty with inactive endpoint cutoffs held at fixed baseline values.",
     "Grid searched for the toxicity credibility cutoff. Larger values require stronger safety evidence.",
     "Grid searched for the immune-response credibility cutoff. Larger values require stronger immune evidence.",
     "Grid searched for the efficacy credibility cutoff. Larger values require stronger efficacy evidence.",
     "Number of Monte Carlo trial simulations per candidate value.",
-    "Immune response probability used while testing high toxicity.",
+    "Whether to print periodic progress updates while calibration is running.",
+    "Approximate number of seconds between progress updates.",
+    "Clearly favorable immune response probability used while testing high toxicity.",
     "Target marginal toxicity probabilities used to make the c_T scenario unfavorable.",
-    "Marginal efficacy probability kept acceptable while calibrating c_T.",
+    "Clearly favorable marginal efficacy probability while calibrating c_T.",
     "Immune response probabilities used to make the c_I scenario unfavorable.",
-    "Marginal toxicity probability kept acceptable while calibrating c_I.",
-    "Marginal efficacy probability kept acceptable while calibrating c_I.",
-    "Immune response probability kept acceptable while calibrating c_E.",
-    "Marginal toxicity probability kept acceptable while calibrating c_E.",
+    "Clearly favorable marginal toxicity probability while calibrating c_I.",
+    "Clearly favorable marginal efficacy probability while calibrating c_I.",
+    "Clearly favorable immune response probability while calibrating c_E.",
+    "Clearly favorable marginal toxicity probability while calibrating c_E.",
     "Target marginal efficacy probabilities used to make the c_E scenario unfavorable.",
     "How much P(T | I=1) differs from P(T | I=0), while preserving the target marginal P(T).",
     "How much P(E | I=1) differs from P(E | I=0), while preserving the target marginal P(E).",
-    "Gumbel copula dependence parameter for toxicity and efficacy when I=0.",
-    "Gumbel copula dependence parameter for toxicity and efficacy when I=1.",
+    "Dependence parameter for toxicity and efficacy when I=0; rho=0 matches the TeX conditional-independence design.",
+    "Dependence parameter for toxicity and efficacy when I=1; rho=0 matches the TeX conditional-independence design.",
     "Whether this run is appended to the readable Markdown calibration history.",
     "Folder where RDS and CSV calibration outputs are saved.",
     "Readable Markdown log that keeps a history of threshold calibration runs."
@@ -350,7 +354,14 @@ kable(scenario_table, caption = "Endpoint-specific calibration scenarios")
 ## 5. Run Calibration
 
 ```{r run_calibration}
+calibration_start_time <- Sys.time()
 calibration_results <- calibrate_separate_thresholds(threshold_settings)
+calibration_end_time <- Sys.time()
+calibration_results$run_started_at <- calibration_start_time
+calibration_results$run_finished_at <- calibration_end_time
+calibration_results$run_duration_seconds <- as.numeric(
+  difftime(calibration_end_time, calibration_start_time, units = "secs")
+)
 summary_table <- threshold_calibration_summary_table(calibration_results)
 
 display_summary <- summary_table %>%
@@ -362,6 +373,8 @@ display_summary <- summary_table %>%
   select(parameter, endpoint, selected_value, achieved_missing_rate, target, status, n_simulations)
 
 kable(display_summary, caption = "Recommended threshold values")
+
+cat("Calibration runtime:", format_duration_seconds(calibration_results$run_duration_seconds), "\n")
 ```
 
 ```{r candidate_tables}
@@ -371,14 +384,24 @@ for (name in names(calibration_results$calibrations)) {
   result <- calibration_results$calibrations[[name]]
   candidate_table <- result$results %>%
     transmute(
+      selected = ifelse(selected, "yes", ""),
       parameter = param_name,
       candidate = round(param_value, 3),
+      c_T = round(c_T, 3),
+      c_I = round(c_I, 3),
+      c_E = round(c_E, 3),
       final_missing_rate = paste0(round(final_admissible_missing_rate * 100, 1), "%"),
       target_endpoint_missing_rate = paste0(round(target_endpoint_missing_rate * 100, 1), "%"),
+      target_blocks_overlap_rate = paste0(round(target_blocks_overlap_rate * 100, 1), "%"),
+      non_target_pair_empty_rate = paste0(round(non_target_pair_empty_rate * 100, 1), "%"),
       early_stop_rate = paste0(round(early_stop_rate * 100, 1), "%"),
+      mean_target_pass_count = round(mean_target_pass_count, 2),
+      mean_non_target_pair_pass_count = round(mean_non_target_pair_pass_count, 2),
       mean_admissible_count = round(mean_admissible_count, 2)
     )
   cat("\n\n### Candidate Results for ", name, "\n\n", sep = "")
+  cat("The selected row is the least strict candidate inside the target range. If no row is inside the range, the direction follows the design rule that larger c values require stronger posterior evidence.\n\n")
+  cat("For this endpoint-specific calibration, the endpoint being calibrated uses the displayed candidate value and the other two endpoint cutoffs are fixed at the baseline values shown in the table. `final_missing_rate` is the selection metric and includes early stops caused by the resulting admissible set becoming empty. `target_endpoint_missing_rate` is an endpoint-only diagnostic. `target_blocks_overlap_rate` estimates how often the target endpoint makes the final three-endpoint intersection empty when the two non-target endpoints still have a non-empty intersection.\n\n")
   print(kable(candidate_table))
 }
 ```

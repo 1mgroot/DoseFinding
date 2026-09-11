@@ -10,22 +10,42 @@ simulate_data_gumbel <- function(
     n_per_dose_vector = c(10, 10, 10),
     dose_levels = c(1, 2, 3),
     p_YI = c(0.2, 0.5, 0.8), # immune prob per dose
-    p_YT_given_I, # marginal tox prob for I=0, I=1
-    p_YE_given_I, # marginal eff prob for I=0, I=1
-    rho0 = 1, # correlation under I=0
-    rho1 = 1, # correlation under I=1
-    seed = 11118,
-    debug = FALSE) {
+    p_YT_given_I, # conditional tox prob by dose for I=0, I=1
+    p_YE_given_I, # conditional eff prob by dose for I=0, I=1
+    rho0 = 0, # rho=0 gives conditional T/E independence under I=0
+    rho1 = 0, # rho=0 gives conditional T/E independence under I=1
+    seed = NULL,
+    debug = FALSE,
+    id_start = 1L) {
   # Only set seed if provided (not NULL)
   if (!is.null(seed)) {
     set.seed(seed)
   }
   J <- length(dose_levels)
-  d_vec <- rep(dose_levels, times = n_per_dose_vector)
-  n_total <- length(d_vec)
-  # Generate Gumbel joint distributions for all dose levels
-  pi0 <- Gumbel(p_YT_given_I[1], p_YE_given_I[1], rho0)
-  pi1 <- Gumbel(p_YT_given_I[2], p_YE_given_I[2], rho1)
+  if (length(n_per_dose_vector) != J) {
+    stop("n_per_dose_vector must have one entry per dose level.")
+  }
+  if (anyDuplicated(dose_levels)) {
+    stop("dose_levels must contain unique labels.")
+  }
+  if (!is.numeric(n_per_dose_vector) ||
+      anyNA(n_per_dose_vector) ||
+      any(n_per_dose_vector < 0) ||
+      any(n_per_dose_vector != floor(n_per_dose_vector))) {
+    stop("n_per_dose_vector must contain non-negative integers.")
+  }
+  if (!is.numeric(id_start) ||
+      length(id_start) != 1 ||
+      is.na(id_start) ||
+      id_start < 1 ||
+      id_start != floor(id_start)) {
+    stop("id_start must be a positive integer.")
+  }
+
+  dose_index_vec <- rep(seq_len(J), times = n_per_dose_vector)
+  dose_label_vec <- rep(dose_levels, times = n_per_dose_vector)
+  n_total <- length(dose_index_vec)
+  # Generate conditional joint distributions for all dose levels.
   pi0_mat <- matrix(0, nrow = 4, ncol = J)
   pi1_mat <- matrix(0, nrow = 4, ncol = J)
   for (j in seq_len(J)) {
@@ -33,19 +53,22 @@ simulate_data_gumbel <- function(
     pi1_mat[, j] <- Gumbel(p_YT_given_I[j, 2], p_YE_given_I[j, 2], rho1)
   }
   records <- vector("list", n_total)
-  for (i in seq_along(d_vec)) {
-    d <- d_vec[i]
-    I <- rbinom(1, 1, p_YI[d])
+  for (i in seq_along(dose_index_vec)) {
+    dose_index <- dose_index_vec[i]
+    dose_label <- dose_label_vec[i]
+    I <- rbinom(1, 1, p_YI[dose_index])
     if (I == 0) {
-      res <- rmultinom(1, 1, pi0_mat[, d])
+      res <- rmultinom(1, 1, pi0_mat[, dose_index])
     } else {
-      res <- rmultinom(1, 1, pi1_mat[, d])
+      res <- rmultinom(1, 1, pi1_mat[, dose_index])
     }
     Y_T <- res[3] + res[4]
     Y_E <- res[2] + res[4]
     records[[i]] <- data.frame(
-      id = i,
-      d = d,
+      id = id_start + i - 1L,
+      dose_index = dose_index,
+      dose_label = dose_label,
+      d = dose_label,
       Y_I = I,
       Y_T = Y_T,
       Y_E = Y_E

@@ -36,6 +36,10 @@ cat("  启用早期终止:", trial_config$enable_early_termination, "\n\n")
 example_config <- trial_config
 example_config$verbose_logging <- FALSE
 example_config$log_early_termination <- FALSE
+output_dir <- Sys.getenv(
+  "DOSEFINDING_EXAMPLE_OUTPUT_DIR",
+  unset = "results/simple_example"
+)
 
 # 运行试验仿真
 cat("正在运行试验仿真...\n")
@@ -45,7 +49,8 @@ results <- run_trial_simulation(
   p_YT_given_I = p_YT_given_I,
   p_YE_given_I = p_YE_given_I,
   rho0 = rho0,
-  rho1 = rho1
+  rho1 = rho1,
+  seed = 11118
 )
 
 # 显示结果
@@ -96,7 +101,7 @@ if (!is.null(results$posterior_summaries)) {
     for (i in 1:nrow(results$posterior_summaries$tox)) {
       cat("  剂量", results$posterior_summaries$tox$d[i], 
           " (I=", results$posterior_summaries$tox$Y_I[i], "): ", 
-          round(results$posterior_summaries$tox$mean[i], 3), "\n")
+          round(results$posterior_summaries$tox$pava_mean[i], 3), "\n")
     }
   }
   
@@ -106,7 +111,7 @@ if (!is.null(results$posterior_summaries)) {
     for (i in 1:nrow(results$posterior_summaries$eff)) {
       cat("  剂量", results$posterior_summaries$eff$d[i], 
           " (I=", results$posterior_summaries$eff$Y_I[i], "): ", 
-          round(results$posterior_summaries$eff$mean[i], 3), "\n")
+          round(results$posterior_summaries$eff$pava_mean[i], 3), "\n")
     }
   }
 }
@@ -115,7 +120,7 @@ if (!is.null(results$posterior_summaries)) {
 cat("\n正在创建可视化...\n")
 
 # 创建结果目录
-dir.create("results/simple_example", showWarnings = FALSE, recursive = TRUE)
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # 1. 参与者分配图
 if (!is.null(results$all_data)) {
@@ -126,9 +131,10 @@ if (!is.null(results$all_data)) {
          y = "参与者数量") +
     theme_minimal()
   
-  ggsave("results/simple_example/allocation_plot.png", allocation_plot, 
+  allocation_plot_path <- file.path(output_dir, "allocation_plot.png")
+  ggsave(allocation_plot_path, allocation_plot,
          width = 8, height = 6, dpi = 300)
-  cat("  参与者分配图已保存: results/simple_example/allocation_plot.png\n")
+  cat("  参与者分配图已保存:", allocation_plot_path, "\n")
 }
 
 # 2. 后验概率图
@@ -136,9 +142,10 @@ if (!is.null(results$posterior_summaries$imm)) {
   posterior_plot <- plot_posterior_summary(
     results$posterior_summaries$imm,
     title = "免疫反应后验概率",
-    file_path = "results/simple_example/posterior_immune_response.png"
+    file_path = file.path(output_dir, "posterior_immune_response.png")
   )
-  cat("  后验概率图已保存: results/simple_example/posterior_immune_response.png\n")
+  cat("  后验概率图已保存:",
+      file.path(output_dir, "posterior_immune_response.png"), "\n")
 }
 
 # 3. 试验总结
@@ -156,5 +163,5 @@ if (isTRUE(results$poc_validated)) {
   cat("PoC验证未通过\n")
 }
 
-cat("\n所有结果已保存到 results/simple_example/ 目录\n")
+cat("\n所有结果已保存到", output_dir, "目录\n")
 cat("示例完成!\n")

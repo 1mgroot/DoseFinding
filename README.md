@@ -22,42 +22,57 @@ dose while controlling safety, efficacy, immune response, and false PoC claims.
 The standard workflow is notebook-first. Routine users should not edit files in
 `src/` or call backend R functions directly.
 
-Current calibrated defaults:
+Latest production calibration results:
 
-- `c_T = 0.35`
-- `c_E = 0.60`
-- `c_I = 0.50`
-- `c_poc = 0.90`
+- `c_T = 0.45`
+- `c_I = 0.60`
+- `c_E = 0.75`
+- `c_poc = 0.80`
 - `delta_poc = 0.8`
 
-The threshold calibration notebook is set up to tune `c_T`, `c_I`, and `c_E`
-separately before PoC calibration. The PoC calibration notebook then reads the
-saved threshold calibration results by default and treats those values as fixed
-inputs while targeting about `10%` null PoC detection.
+The notebook **User Settings** chunks still include fallback values for cases
+where saved calibration RDS files are unavailable. By default, the simulation
+and PoC notebooks read the saved calibration results and use the latest
+calibrated values above.
 
 ## Quick Start
 
 1. Open `DoseFinding.Rproj` in RStudio.
 2. Open a notebook from `notebooks/`.
 3. Edit only the **User Settings** chunk near the top.
-4. Keep `quick_mode <- TRUE` for a fast smoke test.
+4. Set `quick_mode <- TRUE` for a fast smoke test, or `FALSE` for production.
 5. Click **Run All** or **Render**.
 6. Review the rendered notebook and generated files under `results/`.
 
-Switch `quick_mode <- FALSE` only after the quick run works and you are ready
-for production-scale simulation or calibration.
+Use `quick_mode <- FALSE` only after the quick run works and you are ready for
+production-scale simulation or calibration.
 
 ## Which Notebook Should I Use?
 
 Use [notebooks/simulation_notebook.qmd](notebooks/simulation_notebook.qmd) to
-run one adaptive trial and inspect allocation, posterior summaries, early
-termination, PoC validation, and final OD selection. By default, it reads saved
+run repeated adaptive trial simulations and inspect Monte Carlo summaries,
+allocation, posterior summaries, early termination, PoC validation, and final OD
+selection. Production mode runs `2,000` independent trial simulations by
+default; quick mode runs `5` for a fast smoke test. By default, it reads saved
 threshold and PoC calibration result files when they exist, then uses the
-calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values for the simulation.
+calibrated `c_T`, `c_I`, `c_E`, and `c_poc` values for the simulations. Summary
+tables, posterior summaries, allocation probability plots, and participant
+allocation plots are all aggregate outputs across the simulation replicates.
+Participant allocation plots use unconditional means: stages after early
+termination count as `0` for that simulation, while the stage enrollment summary
+also reports the conditional mean among trials that reached each stage.
 Allocation plots are kept in a single panel by dose color. The cumulative
 allocation plot fills missing dose-stage combinations with `0` participants, so
 doses that receive no new patients in a stage remain visible as flat lines
 rather than disappearing or being connected across missing stages.
+
+Use [notebooks/scenario_comparison_notebook.qmd](notebooks/scenario_comparison_notebook.qmd)
+to compare multiple truth scenarios in one run. Edit the `scenarios` list in
+the **User Settings** chunk to define different `p_YI`, `p_YT_given_I`,
+`p_YE_given_I`, `rho0`, and `rho1` values. The notebook runs each scenario with
+the same design settings, calculates the true optimal dose from the scenario
+probabilities and utility table, and writes final comparison tables under
+`results/scenario_comparison/`.
 
 Use [notebooks/poc_calibration_notebook.qmd](notebooks/poc_calibration_notebook.qmd)
 to calibrate `c_poc` under a null/flat scenario. By default, it uses the saved
@@ -82,10 +97,12 @@ Recommended order for a new analysis:
 4. Run PoC calibration in quick mode; it automatically uses the saved threshold values.
 5. Run PoC calibration in production mode.
 6. Return to the simulation notebook with the calibrated values.
+7. Run the scenario comparison notebook when you need a table across multiple
+   probability scenarios.
 
 ## Main Workflow
 
-The simulation notebook runs this trial process automatically:
+The simulation notebook repeats this trial process automatically:
 
 1. Allocate stage 1 patients equally across doses.
 2. Simulate immune response, toxicity, and efficacy outcomes.
@@ -94,14 +111,16 @@ The simulation notebook runs this trial process automatically:
 5. Build the admissible dose set using clinical thresholds (`phi_*`) and
    posterior credibility cutoffs (`c_*`).
 6. Stop early if no dose remains admissible.
-7. Allocate later stages toward higher-utility admissible doses.
+7. Allocate later stages by posterior probability of being optimal among
+   admissible doses.
 8. At the final stage, form the PoC-eligible set from immune-response evidence
    against dose 1, then recommend the highest-utility dose in that set.
 
-The notebook plots allocation probabilities and cumulative participant counts
-for all dose levels in one graph. A small horizontal dodge is used only for
-display, so overlapping points can be seen; it does not change the simulated
-allocation data.
+In production mode, this process is repeated `2,000` times and summarized as
+Monte Carlo output. Allocation probabilities and cumulative participant counts
+are shown for all dose levels in one graph. A small horizontal dodge is used
+only for display, so overlapping points can be seen; it does not change the
+simulated allocation data.
 
 The calibration notebooks use the same backend engine, but expose only the
 settings users normally need: dose levels, stage count, cohort size, scenario
@@ -113,10 +132,15 @@ counts.
 Simulation truth parameters define the world being simulated:
 
 - `p_YI`: true immune response probability by dose.
-- `p_YT_given_I`: true toxicity probability by dose and immune status.
-- `p_YE_given_I`: true efficacy probability by dose and immune status.
-- `rho0`, `rho1`: toxicity-efficacy dependence parameters for `I = 0` and
-  `I = 1`.
+- `p_YT_given_I`: true conditional toxicity probability by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- `p_YE_given_I`: true conditional efficacy probability by dose and immune
+  status, with columns for `I = 0` and `I = 1`.
+- Marginal toxicity and efficacy are derived from those conditional values and
+  `p_YI`.
+- `rho0`, `rho1`: optional toxicity-efficacy dependence parameters for `I = 0`
+  and `I = 1`; the active design uses `rho0 = rho1 = 0` so toxicity and
+  efficacy are conditionally independent given immune response and dose.
 
 Clinical thresholds define what is acceptable:
 
@@ -148,6 +172,8 @@ ignored by git. Common output locations:
 ```text
 results/
 ├── plots/
+├── simulation/
+├── scenario_comparison/
 ├── notebook_calibration/
 └── threshold_calibration/
 ```

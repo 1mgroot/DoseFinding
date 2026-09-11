@@ -4,7 +4,6 @@ format:
   html:
     toc: true
     code-fold: true
-  pdf: default
 execute:
   echo: false
   message: false
@@ -15,6 +14,12 @@ editor: visual
 ## Introduction
 
 This notebook is an explanatory walkthrough, not a routine run notebook. Open it when you want to understand how the design maps to the implementation; routine users should start with `simulation_notebook.qmd`, then use the calibration notebooks as needed.
+
+The numerical output in this walkthrough uses the standalone demonstration
+defaults from `src/core/config.R`. It does not load the saved production
+calibration RDS files. Use the threshold calibration, PoC calibration,
+simulation, and scenario-comparison notebooks for current calibrated values and
+production results.
 
 This notebook demonstrates that our Bayesian dose-finding trial implementation fully realizes the mathematical design specified in `Design1.tex` and `Design2.tex`. We walk through each component of the design, showing:
 
@@ -76,9 +81,10 @@ This factorization is implemented in our data generation (`simulate_data.R`) and
 ```{r show-factorization, eval=FALSE}
 # Data generation follows the factorization:
 # 1. Generate Y_I ~ Bernoulli(p_YI[dose])
-# 2. Given Y_I, generate (Y_T, Y_E) from Gumbel copula with:
-#    - Marginals: p_YT_given_I[dose, Y_I], p_YE_given_I[dose, Y_I]
-#    - Correlation: rho0 (if Y_I=0) or rho1 (if Y_I=1)
+# 2. Given Y_I, generate (Y_T, Y_E) from the joint-cell generator with:
+#    - Conditional endpoint probabilities: p_YT_given_I[dose, Y_I],
+#      p_YE_given_I[dose, Y_I]
+#    - rho0/rho1; rho=0 gives the TeX conditional-independence design
 
 # See src/core/simulate_data.R: simulate_data_gumbel()
 ```
@@ -653,13 +659,13 @@ kable(alloc_prob_wide, digits = 3,
 
 ### Mathematical Design
 
-From **Design2.tex Notes**, adaptive randomization assigns patients based on utility-weighted probabilities:
+Adaptive randomization assigns patients based on posterior probability of being optimal among the current admissible doses:
 
 $$
-\text{Allocation probability} \propto \frac{\hat{U}(d_j)}{\sum_{j \in A} \hat{U}(d_j)}
+\Pr\{d_j = \arg\max_{k \in A} U_k^{(s)} \mid \text{posterior data}\}
 $$
 
-where $A$ is the current admissible set.
+where $A$ is the current admissible set and $U_k^{(s)}$ is the draw-level utility for dose $k$. Ties are split equally within each posterior draw.
 
 **Control arm handling** (OUT-OF-SCOPE): The design specifies special handling for control arms to avoid over-allocation (equations 11-12). This is not implemented.
 
@@ -669,8 +675,8 @@ where $A$ is the current admissible set.
 # Adaptive randomization
 # See src/decision/dose_decision.R: adaptive_randomization()
 
-# 1. Compute expected utility for each admissible dose
-# 2. Normalize to get allocation probabilities
+# 1. Compute draw-level utility for each admissible dose
+# 2. Estimate posterior probability that each dose is optimal
 # 3. Set probability = 0 for non-admissible doses
 ```
 
@@ -682,7 +688,7 @@ ggplot(trial_results$all_alloc_probs, aes(x = Stage, y = Prob, color = factor(Do
   geom_line(linewidth = 1) +
   geom_point(size = 3) +
   labs(title = "Adaptive Allocation Probabilities Over Time",
-       subtitle = "Probabilities shift toward higher-utility doses",
+       subtitle = "Probabilities shift toward doses more often optimal in posterior draws",
        x = "Stage",
        y = "Allocation Probability",
        color = "Dose") +
@@ -819,8 +825,8 @@ toxic_trial <- run_trial_simulation(
   toxic_scenario$p_YI,
   toxic_scenario$p_YT_given_I,
   toxic_scenario$p_YE_given_I,
-  rho0 = 1.5,
-  rho1 = 2.0,
+  rho0 = 0,
+  rho1 = 0,
   seed = 11118
 )
 
@@ -872,7 +878,7 @@ if (toxic_trial$terminated_early) {
 
 1. **Statistical rigor**: All posteriors use conjugate Beta-Bernoulli models with isotonic regression
 2. **Causal modeling**: Mediator factorization properly implemented
-3. **Adaptive design**: Allocation shifts toward high-utility doses
+3. **Adaptive design**: Allocation shifts toward doses with higher posterior probability of being optimal
 4. **Safety**: Multi-criteria admissibility screening
 5. **Validation**: PoC probability ensures confident selection
 6. **Efficiency**: Early termination prevents enrollment in futile trials

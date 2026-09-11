@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Production Threshold Calibration Summary</title>
+  <style>
+    body{margin:0;background:#fbfaf7;color:#1f2933;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;line-height:1.58}
+    main{max-width:980px;margin:0 auto;padding:18px 14px 48px}
+    section{background:#fff;border:1px solid #ddd6ca;border-radius:8px;padding:15px;margin:13px 0}
+    h1{font-size:28px;line-height:1.12;margin:16px 0 8px}
+    h2{font-size:20px;margin:0 0 9px}
+    table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}
+    th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;white-space:nowrap}
+    th{background:#f3f4f6}
+    code{background:#f1f1f1;padding:1px 5px;border-radius:5px}
+    .note{border-left:4px solid #0969da;background:#eef6ff;padding:10px 12px;border-radius:6px}
+    .ok{color:#067647;font-weight:600}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Production Threshold Calibration Summary<br>生产规模 threshold calibration 留档</h1>
+  <p class="note">Rendered from <code>notebooks/threshold_calibration_notebook.qmd</code> on 2026-07-13. Production run used <code>quick_mode=FALSE</code>, <code>n_sim_per_candidate=500</code>, <code>rho0=rho1=0</code>, and target final admissible-set missing rate <code>80%-85%</code>.</p>
+
+  <section>
+    <h2>Recommended Cutoffs</h2>
+    <table>
+      <tr><th>parameter</th><th>endpoint</th><th>selected value</th><th>final missing rate</th><th>target</th><th>n</th><th>status</th></tr>
+      <tr><td>c_T</td><td>toxicity</td><td>0.50</td><td>84.4%</td><td>80%-85%</td><td>500</td><td class="ok">within target; least strict</td></tr>
+      <tr><td>c_I</td><td>immune</td><td>0.60</td><td>81.4%</td><td>80%-85%</td><td>500</td><td class="ok">within target; least strict</td></tr>
+      <tr><td>c_E</td><td>efficacy</td><td>0.75</td><td>83.6%</td><td>80%-85%</td><td>500</td><td class="ok">within target; least strict</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Interpretation</h2>
+    <p>Yes, this production run is materially better than the earlier smoke checks. All three selected cutoffs land inside the intended <code>80%-85%</code> range. The n=1 hand-check could only produce missing rates of 0% or 100%, so it was useful for arithmetic verification but not calibration quality. This production run gives graded candidate curves and selects in-range values for all three endpoints.</p>
+    <p>The selected values are not jointly validated. They are endpoint-specific threshold calibration results only; joint validation and <code>C_PoC</code> calibration remain separate steps.</p>
+  </section>
+
+  <section>
+    <h2>Candidate Details: c_T</h2>
+    <table>
+      <tr><th>candidate</th><th>final missing</th><th>MC SE</th><th>target endpoint missing</th><th>early stop</th><th>selected</th></tr>
+      <tr><td>0.35</td><td>68.6%</td><td>2.08%</td><td>68.6%</td><td>68.6%</td><td></td></tr>
+      <tr><td>0.40</td><td>76.2%</td><td>1.90%</td><td>76.2%</td><td>76.2%</td><td></td></tr>
+      <tr><td>0.45</td><td>79.4%</td><td>1.81%</td><td>79.4%</td><td>79.4%</td><td></td></tr>
+      <tr><td>0.50</td><td>84.4%</td><td>1.62%</td><td>84.4%</td><td>84.4%</td><td>yes</td></tr>
+      <tr><td>0.55</td><td>86.0%</td><td>1.55%</td><td>86.0%</td><td>86.0%</td><td></td></tr>
+      <tr><td>0.60</td><td>90.6%</td><td>1.31%</td><td>90.6%</td><td>90.6%</td><td></td></tr>
+      <tr><td>0.65</td><td>90.6%</td><td>1.31%</td><td>90.6%</td><td>90.6%</td><td></td></tr>
+      <tr><td>0.70</td><td>97.2%</td><td>0.74%</td><td>97.2%</td><td>97.2%</td><td></td></tr>
+      <tr><td>0.75</td><td>97.8%</td><td>0.66%</td><td>97.8%</td><td>97.8%</td><td></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Candidate Details: c_I</h2>
+    <table>
+      <tr><th>candidate</th><th>final missing</th><th>MC SE</th><th>target endpoint missing</th><th>early stop</th><th>selected</th></tr>
+      <tr><td>0.45</td><td>59.6%</td><td>2.19%</td><td>51.2%</td><td>59.6%</td><td></td></tr>
+      <tr><td>0.50</td><td>63.8%</td><td>2.15%</td><td>56.4%</td><td>63.8%</td><td></td></tr>
+      <tr><td>0.55</td><td>74.4%</td><td>1.95%</td><td>64.0%</td><td>74.4%</td><td></td></tr>
+      <tr><td>0.60</td><td>81.4%</td><td>1.74%</td><td>55.4%</td><td>81.4%</td><td>yes</td></tr>
+      <tr><td>0.65</td><td>87.0%</td><td>1.50%</td><td>59.4%</td><td>87.0%</td><td></td></tr>
+      <tr><td>0.70</td><td>89.0%</td><td>1.40%</td><td>56.0%</td><td>89.0%</td><td></td></tr>
+      <tr><td>0.75</td><td>93.4%</td><td>1.11%</td><td>65.4%</td><td>93.4%</td><td></td></tr>
+      <tr><td>0.80</td><td>95.0%</td><td>0.97%</td><td>68.0%</td><td>95.0%</td><td></td></tr>
+      <tr><td>0.85</td><td>97.2%</td><td>0.74%</td><td>68.8%</td><td>97.2%</td><td></td></tr>
+      <tr><td>0.90</td><td>98.2%</td><td>0.59%</td><td>67.4%</td><td>98.2%</td><td></td></tr>
+      <tr><td>0.95</td><td>99.6%</td><td>0.28%</td><td>78.4%</td><td>99.6%</td><td></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Candidate Details: c_E</h2>
+    <table>
+      <tr><th>candidate</th><th>final missing</th><th>MC SE</th><th>target endpoint missing</th><th>early stop</th><th>selected</th></tr>
+      <tr><td>0.30</td><td>36.6%</td><td>2.15%</td><td>34.4%</td><td>36.6%</td><td></td></tr>
+      <tr><td>0.35</td><td>43.0%</td><td>2.21%</td><td>40.6%</td><td>43.0%</td><td></td></tr>
+      <tr><td>0.40</td><td>45.6%</td><td>2.23%</td><td>43.0%</td><td>45.6%</td><td></td></tr>
+      <tr><td>0.45</td><td>52.6%</td><td>2.23%</td><td>49.2%</td><td>52.6%</td><td></td></tr>
+      <tr><td>0.50</td><td>58.2%</td><td>2.21%</td><td>56.4%</td><td>58.2%</td><td></td></tr>
+      <tr><td>0.55</td><td>63.0%</td><td>2.16%</td><td>59.4%</td><td>63.0%</td><td></td></tr>
+      <tr><td>0.60</td><td>68.8%</td><td>2.07%</td><td>65.2%</td><td>68.8%</td><td></td></tr>
+      <tr><td>0.65</td><td>75.2%</td><td>1.93%</td><td>70.2%</td><td>75.2%</td><td></td></tr>
+      <tr><td>0.70</td><td>79.4%</td><td>1.81%</td><td>75.0%</td><td>79.4%</td><td></td></tr>
+      <tr><td>0.75</td><td>83.6%</td><td>1.66%</td><td>79.4%</td><td>83.6%</td><td>yes</td></tr>
+      <tr><td>0.80</td><td>86.0%</td><td>1.55%</td><td>75.4%</td><td>86.0%</td><td></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Generated Files</h2>
+    <p>Production render updated ignored runtime outputs:</p>
+    <ul>
+      <li><code>notebooks/threshold_calibration_notebook.html</code></li>
+      <li><code>results/threshold_calibration/threshold_calibration_summary.csv</code></li>
+      <li><code>results/threshold_calibration/threshold_calibration_results.rds</code></li>
+      <li><code>results/threshold_calibration/threshold_calibration_history.md</code></li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

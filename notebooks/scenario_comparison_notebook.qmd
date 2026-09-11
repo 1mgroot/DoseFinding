@@ -1,0 +1,566 @@
+---
+title: "Scenario Comparison Notebook"
+format:
+  html:
+    toc: true
+    code-fold: true
+execute:
+  message: false
+  warning: false
+editor: visual
+---
+
+## Introduction
+
+This notebook compares multiple simulation scenarios in one run. Edit only the **User Settings** chunk, then click **Run All** or **Render** in RStudio. Each scenario can use different true probability settings. The final output is a set of aggregate comparison tables.
+
+Use quick mode for a fast smoke test with 5 trial simulations per scenario. Switch `quick_mode` to `FALSE` for the production default of 2,000 trial simulations per scenario.
+
+## User Settings
+
+Edit this chunk only for routine use.
+
+```{r user_settings}
+quick_mode <- FALSE
+dose_levels <- c(1, 2, 3, 4, 5)
+
+comparison_settings <- list(
+  dose_levels = dose_levels,
+  n_stages = if (quick_mode) 3 else 5,
+  n_simulations = if (quick_mode) 5 else 2000,
+  cohort_size = 15,
+  phi_T = 0.30,
+  c_T = 0.35,
+  phi_E = 0.25,
+  c_E = 0.60,
+  phi_I = 0.20,
+  c_I = 0.50,
+  c_poc = 0.90,
+  delta_poc = 0.8,
+  use_calibration_results = TRUE,
+  threshold_calibration_results_path = "results/threshold_calibration/threshold_calibration_results.rds",
+  poc_calibration_results_path = "results/notebook_calibration/poc_calibration_results.rds",
+  seed = 11118
+)
+
+scenarios <- list(
+  list(
+    name = "Increasing immune and efficacy",
+    p_YI = c(0.10, 0.30, 0.50, 0.60, 0.70),
+    p_YT_given_I = matrix(c(
+      0.05, 0.10, 0.12, 0.18, 0.25,
+      0.08, 0.12, 0.15, 0.25, 0.35
+    ), nrow = length(dose_levels), ncol = 2),
+    p_YE_given_I = matrix(c(
+      0.10, 0.20, 0.35, 0.45, 0.50,
+      0.30, 0.50, 0.70, 0.80, 0.75
+    ), nrow = length(dose_levels), ncol = 2),
+    rho0 = 0,
+    rho1 = 0
+  ),
+  list(
+    name = "Middle dose best",
+    p_YI = c(0.08, 0.22, 0.45, 0.55, 0.60),
+    p_YT_given_I = matrix(c(
+      0.04, 0.08, 0.15, 0.25, 0.40,
+      0.06, 0.10, 0.20, 0.32, 0.50
+    ), nrow = length(dose_levels), ncol = 2),
+    p_YE_given_I = matrix(c(
+      0.08, 0.22, 0.40, 0.38, 0.30,
+      0.25, 0.48, 0.75, 0.70, 0.55
+    ), nrow = length(dose_levels), ncol = 2),
+    rho0 = 0,
+    rho1 = 0
+  ),
+  list(
+    name = "Flat null",
+    p_YI = rep(0.20, length(dose_levels)),
+    p_YT_given_I = matrix(c(
+      0.15, 0.15, 0.15, 0.15, 0.15,
+      0.15, 0.15, 0.15, 0.15, 0.15
+    ), nrow = length(dose_levels), ncol = 2),
+    p_YE_given_I = matrix(c(
+      0.20, 0.20, 0.20, 0.20, 0.20,
+      0.20, 0.20, 0.20, 0.20, 0.20
+    ), nrow = length(dose_levels), ncol = 2),
+    rho0 = 0,
+    rho1 = 0
+  )
+)
+```
+
+## Internal Setup
+
+This chunk loads the backend code automatically.
+
+```{r setup}
+#| echo: false
+library(knitr)
+
+project_root_candidates <- c(".", "..", "../..")
+project_root_matches <- project_root_candidates[
+  file.exists(file.path(project_root_candidates, "DoseFinding.Rproj"))
+]
+if (length(project_root_matches) == 0) {
+  stop("Could not find project root containing DoseFinding.Rproj.")
+}
+project_root <- normalizePath(project_root_matches[[1]], winslash = "/", mustWork = TRUE)
+project_root_abs <- project_root
+setwd(project_root)
+cat("Project root:", project_root, "\n")
+
+source(file.path(project_root, "src/core/config.R"))
+source(file.path(project_root, "src/utils/helpers.R"))
+source(file.path(project_root, "src/utils/plotting_extensions.R"))
+source(file.path(project_root, "src/core/simulate_data.R"))
+source(file.path(project_root, "src/core/model_utils.R"))
+source(file.path(project_root, "src/decision/dose_decision.R"))
+source(file.path(project_root, "src/core/main.R"))
+
+resolve_project_path <- function(path) {
+  if (is.null(path) || length(path) == 0 || is.na(path) || path == "") {
+    return(path)
+  }
+  if (grepl("^(/|[A-Za-z]:[\\\\/])", path)) {
+    return(path)
+  }
+  file.path(project_root_abs, path)
+}
+
+comparison_settings$threshold_calibration_results_path <- resolve_project_path(
+  comparison_settings$threshold_calibration_results_path
+)
+comparison_settings$poc_calibration_results_path <- resolve_project_path(
+  comparison_settings$poc_calibration_results_path
+)
+```
+
+## Calibrated Inputs
+
+This chunk reads saved calibration results when available.
+
+```{r calibrated_inputs}
+#| echo: false
+calibration_source <- c(
+  c_T = "User Settings fallback",
+  c_I = "User Settings fallback",
+  c_E = "User Settings fallback",
+  c_poc = "User Settings fallback"
+)
+
+apply_scalar_calibration_value <- function(settings, sources, name, value, source_label) {
+  if (!is.numeric(value) || length(value) != 1 || is.na(value)) {
+    stop("Invalid calibration value for ", name, ".")
+  }
+  settings[[name]] <- as.numeric(value)
+  sources[[name]] <- source_label
+  list(settings = settings, sources = sources)
+}
+
+if (isTRUE(comparison_settings$use_calibration_results)) {
+  threshold_path <- comparison_settings$threshold_calibration_results_path
+  if (file.exists(threshold_path)) {
+    threshold_results <- readRDS(threshold_path)
+    recommended_thresholds <- threshold_results$recommended_thresholds
+    required_thresholds <- c("c_T", "c_I", "c_E")
+    missing_thresholds <- setdiff(required_thresholds, names(recommended_thresholds))
+    if (length(missing_thresholds) > 0) {
+      stop(
+        "Threshold calibration results are missing: ",
+        paste(missing_thresholds, collapse = ", ")
+      )
+    }
+    for (name in required_thresholds) {
+      applied <- apply_scalar_calibration_value(
+        comparison_settings,
+        calibration_source,
+        name,
+        recommended_thresholds[[name]],
+        paste0("Threshold calibration results: ", threshold_path)
+      )
+      comparison_settings <- applied$settings
+      calibration_source <- applied$sources
+    }
+  } else {
+    warning(
+      "Threshold calibration results were not found at ",
+      threshold_path,
+      ". Using c_T, c_I, and c_E from User Settings."
+    )
+  }
+
+  poc_path <- comparison_settings$poc_calibration_results_path
+  if (file.exists(poc_path)) {
+    poc_results <- readRDS(poc_path)
+    applied <- apply_scalar_calibration_value(
+      comparison_settings,
+      calibration_source,
+      "c_poc",
+      poc_results$optimal_c_poc,
+      paste0("PoC calibration results: ", poc_path)
+    )
+    comparison_settings <- applied$settings
+    calibration_source <- applied$sources
+  } else {
+    warning(
+      "PoC calibration results were not found at ",
+      poc_path,
+      ". Using c_poc from User Settings."
+    )
+  }
+}
+
+calibration_input_table <- data.frame(
+  parameter = names(calibration_source),
+  current_value = vapply(names(calibration_source), function(name) {
+    comparison_settings[[name]]
+  }, numeric(1)),
+  source = unname(calibration_source),
+  stringsAsFactors = FALSE
+)
+
+kable(calibration_input_table, caption = "Calibration values used for scenario comparison")
+```
+
+## Internal Configuration
+
+This chunk converts the user settings into the backend trial configuration.
+
+```{r config}
+#| echo: false
+comparison_trial_config <- list(
+  dose_levels = comparison_settings$dose_levels,
+  n_stages = comparison_settings$n_stages,
+  cohort_size = comparison_settings$cohort_size,
+  phi_T = comparison_settings$phi_T,
+  c_T = comparison_settings$c_T,
+  phi_E = comparison_settings$phi_E,
+  c_E = comparison_settings$c_E,
+  phi_I = comparison_settings$phi_I,
+  c_I = comparison_settings$c_I,
+  c_poc = comparison_settings$c_poc,
+  delta_poc = comparison_settings$delta_poc,
+  enable_early_termination = TRUE,
+  log_early_termination = FALSE,
+  verbose_logging = FALSE
+)
+
+utility_table <- array(0, dim = c(2, 2, 2), dimnames = list(
+  E = c(0, 1),
+  T = c(0, 1),
+  I = c(0, 1)
+))
+
+utility_table[1, 1, 1] <- 0
+utility_table[2, 1, 1] <- 80
+utility_table[1, 2, 1] <- 0
+utility_table[2, 2, 1] <- 30
+
+utility_table[1, 1, 2] <- 10
+utility_table[2, 1, 2] <- 100
+utility_table[1, 2, 2] <- 0
+utility_table[2, 2, 2] <- 40
+
+comparison_trial_config$utility_table <- utility_table
+```
+
+## Scenario Check
+
+This chunk checks that every scenario has valid probability inputs.
+
+```{r scenario_check}
+#| echo: false
+format_prob_vector <- function(values) {
+  paste(sprintf("%.2f", values), collapse = ", ")
+}
+
+calculate_marginal <- function(prob_given_i, p_i) {
+  prob_given_i[, 1] * (1 - p_i) + prob_given_i[, 2] * p_i
+}
+
+calculate_true_utilities <- function(scenario, dose_levels, utility_table) {
+  vapply(seq_along(dose_levels), function(dose_index) {
+    calculate_utility_from_true_probs(
+      dose_idx = dose_index,
+      p_YI = scenario$p_YI,
+      p_YT_given_I = scenario$p_YT_given_I,
+      p_YE_given_I = scenario$p_YE_given_I,
+      utility_table = utility_table
+    )
+  }, numeric(1))
+}
+
+validate_scenario <- function(scenario, scenario_index, dose_levels) {
+  required_names <- c("name", "p_YI", "p_YT_given_I", "p_YE_given_I", "rho0", "rho1")
+  missing_names <- setdiff(required_names, names(scenario))
+  if (length(missing_names) > 0) {
+    stop("Scenario ", scenario_index, " is missing: ", paste(missing_names, collapse = ", "))
+  }
+
+  n_doses <- length(dose_levels)
+  if (length(scenario$p_YI) != n_doses) {
+    stop("Scenario ", scenario$name, " has p_YI length ", length(scenario$p_YI), "; expected ", n_doses, ".")
+  }
+  if (!all(dim(scenario$p_YT_given_I) == c(n_doses, 2))) {
+    stop("Scenario ", scenario$name, " must have p_YT_given_I dimension ", n_doses, " x 2.")
+  }
+  if (!all(dim(scenario$p_YE_given_I) == c(n_doses, 2))) {
+    stop("Scenario ", scenario$name, " must have p_YE_given_I dimension ", n_doses, " x 2.")
+  }
+
+  probability_values <- c(scenario$p_YI, scenario$p_YT_given_I, scenario$p_YE_given_I)
+  if (any(is.na(probability_values)) || any(probability_values < 0) || any(probability_values > 1)) {
+    stop("Scenario ", scenario$name, " has probabilities outside [0, 1].")
+  }
+
+  invisible(TRUE)
+}
+
+for (scenario_index in seq_along(scenarios)) {
+  validate_scenario(scenarios[[scenario_index]], scenario_index, comparison_settings$dose_levels)
+}
+
+scenario_true_utility_table <- bind_rows(lapply(seq_along(scenarios), function(scenario_index) {
+  scenario <- scenarios[[scenario_index]]
+  true_utilities <- calculate_true_utilities(
+    scenario,
+    comparison_settings$dose_levels,
+    utility_table
+  )
+  max_utility <- max(true_utilities)
+
+  data.frame(
+    scenario = scenario$name,
+    dose = paste("Dose", comparison_settings$dose_levels),
+    dose_level = comparison_settings$dose_levels,
+    true_utility = true_utilities,
+    is_true_optimal = abs(true_utilities - max_utility) < 1e-10,
+    stringsAsFactors = FALSE
+  )
+}))
+
+scenario_optimal_table <- scenario_true_utility_table %>%
+  filter(is_true_optimal) %>%
+  group_by(scenario) %>%
+  summarise(
+    true_optimal_dose = paste(dose, collapse = ", "),
+    true_optimal_utility = first(true_utility),
+    .groups = "drop"
+  )
+
+scenario_true_utility_wide <- scenario_true_utility_table %>%
+  mutate(utility_label = paste0("true_utility_Dose_", dose_level)) %>%
+  select(scenario, utility_label, true_utility) %>%
+  tidyr::pivot_wider(
+    names_from = utility_label,
+    values_from = true_utility
+  )
+
+scenario_truth_table <- bind_rows(lapply(seq_along(scenarios), function(scenario_index) {
+  scenario <- scenarios[[scenario_index]]
+  marginal_toxicity <- calculate_marginal(scenario$p_YT_given_I, scenario$p_YI)
+  marginal_efficacy <- calculate_marginal(scenario$p_YE_given_I, scenario$p_YI)
+
+  data.frame(
+    scenario = scenario$name,
+    p_YI = format_prob_vector(scenario$p_YI),
+    marginal_p_T = format_prob_vector(marginal_toxicity),
+    marginal_p_E = format_prob_vector(marginal_efficacy),
+    rho0 = scenario$rho0,
+    rho1 = scenario$rho1,
+    stringsAsFactors = FALSE
+  )
+})) %>%
+  left_join(scenario_optimal_table, by = "scenario") %>%
+  left_join(scenario_true_utility_wide, by = "scenario")
+
+scenario_truth_display <- scenario_truth_table
+utility_columns <- grep("^true_utility_Dose_", names(scenario_truth_display), value = TRUE)
+scenario_truth_display[utility_columns] <- lapply(
+  scenario_truth_display[utility_columns],
+  function(values) round(values, 1)
+)
+scenario_truth_display$true_optimal_utility <- round(scenario_truth_display$true_optimal_utility, 1)
+
+kable(scenario_truth_display, caption = "Scenario truth values and true optimal dose")
+```
+
+## Run Scenario Simulations
+
+This chunk runs the backend simulations automatically.
+
+```{r run_scenarios}
+#| echo: false
+n_simulations <- comparison_settings$n_simulations
+progress_every <- if (quick_mode) 1 else max(1, floor(n_simulations / 20))
+scenario_seed_stride <- max(100000, n_simulations + 1)
+
+get_result_scalar <- function(result, name, default) {
+  value <- result[[name]]
+  if (is.null(value) || length(value) == 0) {
+    return(default)
+  }
+  value[[1]]
+}
+
+run_one_scenario <- function(scenario, scenario_index) {
+  cat("\nRunning scenario ", scenario_index, "/", length(scenarios), ": ", scenario$name, "\n", sep = "")
+  scenario_start_time <- Sys.time()
+  scenario_seed <- comparison_settings$seed + (scenario_index - 1) * scenario_seed_stride
+
+  scenario_results <- lapply(seq_len(n_simulations), function(sim_id) {
+    if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {
+      cat("  Simulation ", sim_id, " of ", n_simulations, "\n", sep = "")
+    }
+    run_trial_simulation(
+      comparison_trial_config,
+      scenario$p_YI,
+      scenario$p_YT_given_I,
+      scenario$p_YE_given_I,
+      scenario$rho0,
+      scenario$rho1,
+      seed = scenario_seed + sim_id - 1
+    )
+  })
+
+  scenario_duration <- difftime(Sys.time(), scenario_start_time, units = "mins")
+  cat("Completed scenario ", scenario$name, " in ", round(scenario_duration, 2), " minutes.\n", sep = "")
+
+  scenario_metrics <- data.frame(
+    scenario = scenario$name,
+    simulation = seq_along(scenario_results),
+    terminated_early = vapply(scenario_results, function(result) {
+      isTRUE(get_result_scalar(result, "terminated_early", FALSE))
+    }, logical(1)),
+    termination_stage = vapply(scenario_results, function(result) {
+      as.integer(get_result_scalar(result, "termination_stage", NA_integer_))
+    }, integer(1)),
+    final_od = vapply(scenario_results, function(result) {
+      as.integer(get_result_scalar(result, "final_od", NA_integer_))
+    }, integer(1)),
+    poc_validated = vapply(scenario_results, function(result) {
+      isTRUE(get_result_scalar(result, "poc_validated", FALSE))
+    }, logical(1)),
+    poc_probability = vapply(scenario_results, function(result) {
+      as.numeric(get_result_scalar(result, "poc_probability", NA_real_))
+    }, numeric(1)),
+    final_utility = vapply(scenario_results, function(result) {
+      as.numeric(get_result_scalar(result, "final_utility", NA_real_))
+    }, numeric(1)),
+    n_participants = vapply(scenario_results, function(result) {
+      nrow(result$all_data)
+    }, integer(1)),
+    stringsAsFactors = FALSE
+  )
+
+  scenario_metrics$selection <- ifelse(
+    is.na(scenario_metrics$final_od),
+    "No OD",
+    paste("Dose", scenario_metrics$final_od)
+  )
+
+  scenario_metrics
+}
+
+scenario_metrics <- bind_rows(lapply(seq_along(scenarios), function(scenario_index) {
+  run_one_scenario(scenarios[[scenario_index]], scenario_index)
+}))
+```
+
+## Results
+
+This chunk organizes the scenario outputs into final tables.
+
+```{r results}
+#| echo: false
+scenario_output_dir <- file.path(project_root_abs, "results", "scenario_comparison")
+scenario_output_path <- function(filename) file.path(scenario_output_dir, filename)
+
+dir.create(scenario_output_dir, recursive = TRUE, showWarnings = FALSE)
+
+selection_levels <- c(paste("Dose", comparison_settings$dose_levels), "No OD")
+
+scenario_selection_table <- scenario_metrics %>%
+  mutate(selection = factor(selection, levels = selection_levels)) %>%
+  count(scenario, selection, name = "n") %>%
+  tidyr::complete(scenario, selection, fill = list(n = 0)) %>%
+  group_by(scenario) %>%
+  mutate(selection_rate = n / sum(n)) %>%
+  ungroup() %>%
+  mutate(
+    selection_label = ifelse(
+      as.character(selection) == "No OD",
+      "selection_rate_No_OD",
+      paste0("selection_rate_Dose_", sub("^Dose ", "", as.character(selection)))
+    )
+  )
+
+scenario_selection_wide <- scenario_selection_table %>%
+  select(scenario, selection_label, selection_rate) %>%
+  tidyr::pivot_wider(
+    names_from = selection_label,
+    values_from = selection_rate,
+    values_fill = 0
+  )
+
+true_optimal_selection_table <- scenario_selection_table %>%
+  mutate(selection = as.character(selection)) %>%
+  inner_join(
+    scenario_true_utility_table %>%
+      filter(is_true_optimal) %>%
+      select(scenario, selection = dose),
+    by = c("scenario", "selection")
+  ) %>%
+  group_by(scenario) %>%
+  summarise(
+    selection_rate_true_optimal = sum(selection_rate),
+    .groups = "drop"
+  )
+
+scenario_summary_table <- scenario_metrics %>%
+  group_by(scenario) %>%
+  summarise(
+    n_simulations = n(),
+    mean_participants = mean(n_participants),
+    early_stop_rate = mean(terminated_early),
+    poc_validation_rate = mean(poc_validated),
+    no_od_rate = mean(is.na(final_od)),
+    mean_poc_probability = mean(poc_probability, na.rm = TRUE),
+    mean_final_utility = mean(final_utility, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(scenario_optimal_table, by = "scenario") %>%
+  left_join(true_optimal_selection_table, by = "scenario") %>%
+  left_join(scenario_selection_wide, by = "scenario") %>%
+  relocate(true_optimal_dose, true_optimal_utility, selection_rate_true_optimal, .after = scenario) %>%
+  arrange(scenario)
+
+display_rate_columns <- grep("rate", names(scenario_summary_table), value = TRUE)
+scenario_summary_display <- scenario_summary_table
+scenario_summary_display[display_rate_columns] <- lapply(
+  scenario_summary_display[display_rate_columns],
+  function(values) sprintf("%.1f%%", 100 * values)
+)
+scenario_summary_display$mean_participants <- round(scenario_summary_display$mean_participants, 1)
+scenario_summary_display$mean_poc_probability <- round(scenario_summary_display$mean_poc_probability, 3)
+scenario_summary_display$mean_final_utility <- round(scenario_summary_display$mean_final_utility, 1)
+scenario_summary_display$true_optimal_utility <- round(scenario_summary_display$true_optimal_utility, 1)
+
+kable(scenario_summary_display, caption = "Scenario comparison summary with true optimal dose")
+
+write.csv(scenario_truth_table, scenario_output_path("scenario_truth_table.csv"), row.names = FALSE)
+write.csv(scenario_true_utility_table, scenario_output_path("scenario_true_utility_table.csv"), row.names = FALSE)
+write.csv(scenario_metrics, scenario_output_path("scenario_metrics.csv"), row.names = FALSE)
+write.csv(scenario_selection_table, scenario_output_path("scenario_selection_table.csv"), row.names = FALSE)
+write.csv(scenario_summary_table, scenario_output_path("scenario_summary_table.csv"), row.names = FALSE)
+
+cat("\nSaved scenario truth table to ", scenario_output_path("scenario_truth_table.csv"), "\n", sep = "")
+cat("Saved true utility table to ", scenario_output_path("scenario_true_utility_table.csv"), "\n", sep = "")
+cat("Saved simulation-level metrics to ", scenario_output_path("scenario_metrics.csv"), "\n", sep = "")
+cat("Saved selection table to ", scenario_output_path("scenario_selection_table.csv"), "\n", sep = "")
+cat("Saved final summary table to ", scenario_output_path("scenario_summary_table.csv"), "\n", sep = "")
+```
+
+## Summary
+
+This notebook is for comparing scenario-level operating characteristics. For one detailed scenario with plots, use `simulation_notebook.qmd`. For calibration, use `threshold_calibration_notebook.qmd` and `poc_calibration_notebook.qmd`.
