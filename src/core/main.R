@@ -72,6 +72,12 @@ name_values_by_dose_label <- function(values, dose_labels) {
 }
 
 run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I, rho0, rho1, seed = NULL) {
+  # Keep saved calibrations reproducible until the randomized design is recalibrated.
+  allocation_method <- trial_config$adaptive_allocation_method
+  if (is.null(allocation_method)) allocation_method <- "largest_remainder"
+  if (!allocation_method %in% c("largest_remainder", "multinomial")) {
+    stop("adaptive_allocation_method must be largest_remainder or multinomial.")
+  }
   all_data <- data.frame()
   all_alloc_probs <- data.frame()
   stage_seeds <- generate_trial_stage_seeds(seed, trial_config$n_stages)
@@ -110,6 +116,11 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       if (remainder > 0) {
         n_next_stage[1:remainder] <- n_next_stage[1:remainder] + 1
       }
+    } else if (allocation_method == "multinomial") {
+      # Counts from independent patient assignments with probabilities gamma.
+      # Continue the previous stage's RNG stream; outcome generation below uses
+      # its existing stage seed, preserving the legacy first-stage trajectory.
+      n_next_stage <- as.integer(rmultinom(1, trial_config$cohort_size, alloc_probs))
     } else {
       # Adaptive allocation: ensure sum equals cohort_size exactly
       # Use floor + distribute remainder to avoid rounding errors
@@ -196,7 +207,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       cat("Workflow: Step 4 - Early Termination Check
 ")
     }
-    if (check_early_termination(admissible_set, trial_config)) {
+    # An empty set at the final analysis is a completed trial with no OD.
+    if (stage < trial_config$n_stages && check_early_termination(admissible_set, trial_config)) {
       termination_info <- handle_trial_termination(admissible_set, stage, trial_config)
       
       # INVARIANT VALIDATION: Check sample size at termination

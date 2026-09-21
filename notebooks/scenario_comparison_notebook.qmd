@@ -29,6 +29,7 @@ comparison_settings <- list(
   n_stages = if (quick_mode) 3 else 5,
   n_simulations = if (quick_mode) 5 else 2000,
   cohort_size = 15,
+  adaptive_allocation_method = "largest_remainder",
   phi_T = 0.30,
   c_T = 0.35,
   phi_E = 0.25,
@@ -232,6 +233,7 @@ comparison_trial_config <- list(
   dose_levels = comparison_settings$dose_levels,
   n_stages = comparison_settings$n_stages,
   cohort_size = comparison_settings$cohort_size,
+  adaptive_allocation_method = comparison_settings$adaptive_allocation_method,
   phi_T = comparison_settings$phi_T,
   c_T = comparison_settings$c_T,
   phi_E = comparison_settings$phi_E,
@@ -408,7 +410,7 @@ run_one_scenario <- function(scenario, scenario_index) {
   scenario_start_time <- Sys.time()
   scenario_seed <- comparison_settings$seed + (scenario_index - 1) * scenario_seed_stride
 
-  scenario_results <- lapply(seq_len(n_simulations), function(sim_id) {
+  scenario_results <- map_independent_trials(seq_len(n_simulations), function(sim_id) {
     if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {
       cat("  Simulation ", sim_id, " of ", n_simulations, "\n", sep = "")
     }
@@ -564,3 +566,8 @@ cat("Saved final summary table to ", scenario_output_path("scenario_summary_tabl
 ## Summary
 
 This notebook is for comparing scenario-level operating characteristics. For one detailed scenario with plots, use `simulation_notebook.qmd`. For calibration, use `threshold_calibration_notebook.qmd` and `poc_calibration_notebook.qmd`.
+
+`selection_rate_true_optimal` refers to maximum true utility across all doses; it
+does not establish clinical admissibility or PoC. In the flat null scenario all
+doses tie on utility: its selection rate is a false PoC rate, not power. The
+expected decision under that null is no OD, reported by `no_od_rate`.

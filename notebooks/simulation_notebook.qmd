@@ -29,6 +29,7 @@ simulation_settings <- list(
   n_stages = if (quick_mode) 3 else 5,
   n_simulations = if (quick_mode) 5 else 2000,
   cohort_size = 15,
+  adaptive_allocation_method = "largest_remainder",
   phi_T = 0.30,
   c_T = 0.35,
   phi_E = 0.25,
@@ -201,6 +202,7 @@ trial_config <- list(
   dose_levels = simulation_settings$dose_levels,
   n_stages = simulation_settings$n_stages,
   cohort_size = simulation_settings$cohort_size,
+  adaptive_allocation_method = simulation_settings$adaptive_allocation_method,
   phi_T = simulation_settings$phi_T,
   c_T = simulation_settings$c_T,
   phi_E = simulation_settings$phi_E,
@@ -257,7 +259,7 @@ progress_every <- if (quick_mode) 1 else max(1, floor(n_simulations / 20))
 cat("Running", n_simulations, "trial simulations...\n")
 simulation_start_time <- Sys.time()
 
-simulation_results <- lapply(seq_len(n_simulations), function(sim_id) {
+simulation_results <- map_independent_trials(seq_len(n_simulations), function(sim_id) {
   if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {
     cat("  Simulation", sim_id, "of", n_simulations, "\n")
   }

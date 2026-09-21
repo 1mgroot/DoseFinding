@@ -84,14 +84,14 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
     # Extract key metrics
     metrics <- list(
       terminated_early = results$terminated_early,
-      termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
+      termination_stage = if (results$terminated_early) as.integer(results$termination_stage) else NA_integer_,
       final_od = ifelse(results$terminated_early, NA, results$final_od),
-      final_od_index = ifelse(results$terminated_early, NA, results$final_od_index),
+      final_od_index = if (results$terminated_early) NA_integer_ else as.integer(results$final_od_index),
       poc_validated = ifelse(results$terminated_early, FALSE, results$poc_validated),
       poc_probability = ifelse(results$terminated_early, 0, results$poc_probability),
       total_participants = nrow(results$all_data),
-      true_optimal_selected = if (!results$terminated_early && !is.na(true_optimal_dose)) {
-        results$final_od == true_optimal_dose
+      true_optimal_selected = if (!is.na(true_optimal_dose)) {
+        isTRUE(results$final_od == true_optimal_dose)
       } else {
         NA
       }
@@ -116,7 +116,7 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
       success = TRUE,
       debug_info = list(
         terminated_early = results$terminated_early,
-        termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
+        termination_stage = if (results$terminated_early) as.integer(results$termination_stage) else NA_integer_,
         termination_reason = ifelse(results$terminated_early, results$termination_reason, NA),
         posterior_summaries = results$posterior_summaries,
         all_data = results$all_data
@@ -173,7 +173,8 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
         poc_validated = FALSE,
         poc_probability = 0,
         total_participants = total_participants,
-        true_optimal_selected = NA
+        true_optimal_selected = if (is.null(scenario_params$true_optimal_dose) ||
+                                   is.na(scenario_params$true_optimal_dose)) NA else FALSE
       ),
       allocation_summary = base_result$allocation_summary,
       stage_allocation = base_result$stage_allocation,
@@ -210,8 +211,8 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
       poc_validated = poc_validated,
       poc_probability = poc_results$poc_probability,
       total_participants = total_participants,
-      true_optimal_selected = if (!is.na(true_optimal_dose) && !is.na(final_od)) {
-        final_od == true_optimal_dose
+      true_optimal_selected = if (!is.na(true_optimal_dose)) {
+        isTRUE(final_od == true_optimal_dose)
       } else {
         NA
       }
@@ -231,6 +232,10 @@ summarise_poc_candidate_results <- function(
   calibration_seed,
   store_simulation_results
 ) {
+  if (length(simulation_results) != n_simulations ||
+      any(!vapply(simulation_results, function(x) isTRUE(x$success), logical(1)))) {
+    stop("PoC calibration contains failed or missing simulations; rates cannot be estimated.")
+  }
   poc_detection_count <- sum(vapply(
     simulation_results,
     function(result) !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated),
@@ -591,8 +596,12 @@ calibrate_c_poc <- function(
 
     base_results <- vector("list", n_simulations)
     debug_count <- 0
-    for (sim in seq_len(n_simulations)) {
-      base_results[[sim]] <- run_base_simulation(sim)
+    for (batch_start in seq.int(1L, n_simulations, by = 100L)) {
+      batch_indices <- seq.int(batch_start, min(n_simulations, batch_start + 99L))
+      batch_results <- map_independent_trials(batch_indices, run_base_simulation)
+      for (batch_index in seq_along(batch_indices)) {
+      sim <- batch_indices[[batch_index]]
+      base_results[[sim]] <- batch_results[[batch_index]]
 
       if (
         isTRUE(base_results[[sim]]$metrics$terminated_early) &&
@@ -619,6 +628,7 @@ calibrate_c_poc <- function(
           enabled = TRUE
         )
         next_progress_at <- now + progress_interval_seconds
+      }
       }
     }
 
@@ -801,6 +811,8 @@ calibrate_c_poc <- function(
 
   return(list(
     calibration_results = calibration_results,
+    base_config = base_config,
+    null_scenario = null_scenario,
     optimal_c_poc = optimal_c_poc,
     target_rate = target_rate,
     achieved_rate = poc_rates[optimal_idx],
@@ -931,6 +943,9 @@ validate_calibration <- function(
       n_validation_simulations != floor(n_validation_simulations)) {
     stop("n_validation_simulations must be a positive integer.")
   }
+  # Validate the design and null scenario that were actually calibrated.
+  if (is.null(base_config)) base_config <- calibration_results$base_config
+  if (is.null(null_scenario)) null_scenario <- calibration_results$null_scenario
   if (is.null(null_scenario)) {
     null_scenario <- create_default_null_scenario(base_config)
   }
@@ -985,6 +1000,9 @@ validate_calibration <- function(
 
   detections <- vapply(seq_len(n_validation_simulations), function(i) {
     result <- run_single_calibration_simulation(config, null_scenario, seed = validation_seed + i)
+    if (!isTRUE(result$success)) {
+      stop("PoC validation simulation failed; rates cannot be estimated.")
+    }
     !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated)
   }, logical(1))
 
@@ -1051,7 +1069,7 @@ poc_config_markdown_lines <- function(base_config, null_scenario) {
   config_fields <- c(
     "dose_levels", "n_stages", "cohort_size",
     "phi_T", "c_T", "phi_E", "c_E", "phi_I", "c_I",
-    "delta_poc", "enable_early_termination"
+    "delta_poc", "enable_early_termination", "adaptive_allocation_method"
   )
 
   config_lines <- c("Trial/config parameters:")
@@ -1489,9 +1507,9 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
               eff_prob <- mean(ps$eff_marginal$samples[[dose]] > base_config$phi_E)
               imm_prob <- mean(ps$imm$samples_pava[[dose]] > base_config$phi_I)
 
-              admissible <- (tox_prob >= base_config$c_T) &&
-                           (eff_prob >= base_config$c_E) &&
-                           (imm_prob >= base_config$c_I)
+              admissible <- exceeds_probability_cutoff(tox_prob, base_config$c_T) &&
+                           exceeds_probability_cutoff(eff_prob, base_config$c_E) &&
+                           exceeds_probability_cutoff(imm_prob, base_config$c_I)
 
               status_mark <- if (admissible) "✓" else "✗"
               cat(sprintf("        Dose %d %s: P(Tox<%.2f)=%.2f, P(Eff>%.2f)=%.2f, P(Imm>%.2f)=%.2f\n",

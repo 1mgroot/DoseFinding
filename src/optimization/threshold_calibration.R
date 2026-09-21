@@ -104,6 +104,7 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     dose_levels = c(1, 2, 3, 4, 5),
     n_stages = 5,
     cohort_size = 15,
+    adaptive_allocation_method = "largest_remainder",
     phi_T = 0.30,
     phi_E = 0.25,
     phi_I = 0.20,
@@ -274,6 +275,8 @@ create_threshold_trial_config <- function(settings, c_T, c_E, c_I) {
     enable_early_termination = TRUE,
     log_early_termination = FALSE,
     verbose_logging = FALSE,
+    adaptive_allocation_method = if (is.null(settings$adaptive_allocation_method))
+      "largest_remainder" else settings$adaptive_allocation_method,
     utility_table = make_default_utility_table()
   )
   config
@@ -363,9 +366,9 @@ endpoint_admissibility_table <- function(posterior_summaries, config) {
       tox_prob_safe = tox_prob_safe,
       eff_prob_good = eff_prob_good,
       imm_prob_good = imm_prob_good,
-      tox_pass = tox_prob_safe > config$c_T,
-      eff_pass = eff_prob_good > config$c_E,
-      imm_pass = imm_prob_good > config$c_I,
+      tox_pass = exceeds_probability_cutoff(tox_prob_safe, config$c_T),
+      eff_pass = exceeds_probability_cutoff(eff_prob_good, config$c_E),
+      imm_pass = exceeds_probability_cutoff(imm_prob_good, config$c_I),
       stringsAsFactors = FALSE
     )
   })
@@ -632,21 +635,24 @@ calibrate_single_threshold <- function(
       c_I = params$c_I
     )
     simulation_results <- vector("list", n_simulations)
-    for (sim_index in seq_len(n_simulations)) {
-      simulation_results[[sim_index]] <- run_threshold_calibration_simulation(
+    for (batch_start in seq.int(1L, n_simulations, by = 100L)) {
+      batch_indices <- seq.int(batch_start, min(n_simulations, batch_start + 99L))
+      simulation_results[batch_indices] <- map_independent_trials(batch_indices, function(sim_index) {
+        run_threshold_calibration_simulation(
         config = config,
         scenario = scenario,
         seed = threshold_candidate_seed(base_seed, i, sim_index, n_simulations)
       )
+      })
       if (!is.null(progress_state)) {
-        progress_state$completed_work <- progress_state$completed_work + 1L
+        progress_state$completed_work <- progress_state$completed_work + length(batch_indices)
         maybe_log_threshold_progress(
           progress_state = progress_state,
           param_name = param_name,
           candidate = candidates[[i]],
           candidate_index = i,
           n_candidates = length(candidates),
-          simulation_index = sim_index,
+          simulation_index = max(batch_indices),
           n_simulations = n_simulations
         )
       }

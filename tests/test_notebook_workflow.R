@@ -174,7 +174,7 @@ test_that("simulation notebook runs repeated trial simulations and aggregate plo
   results_chunk <- extract_qmd_chunk(workflow_notebooks[["simulation"]], "results")
 
   expect_true(grepl("n_simulations <- simulation_settings$n_simulations", simulation_chunk, fixed = TRUE))
-  expect_true(grepl("lapply(seq_len(n_simulations)", simulation_chunk, fixed = TRUE))
+  expect_true(grepl("map_independent_trials(seq_len(n_simulations)", simulation_chunk, fixed = TRUE))
   expect_true(grepl("seed = simulation_settings$seed + sim_id - 1", simulation_chunk, fixed = TRUE))
   expect_false(grepl("simulation_results[[1]]", simulation_chunk, fixed = TRUE))
   expect_false(grepl("Example Trial", results_chunk, fixed = TRUE))

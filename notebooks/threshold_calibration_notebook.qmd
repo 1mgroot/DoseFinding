@@ -43,6 +43,7 @@ threshold_settings <- list(
   dose_levels = c(1, 2, 3, 4, 5),
   n_stages = 5,
   cohort_size = 15,
+  adaptive_allocation_method = "largest_remainder",
 
   phi_T = 0.30,
   phi_E = 0.25,

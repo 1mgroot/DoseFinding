@@ -493,3 +493,19 @@ create_comprehensive_evaluation_plots <- function(
   
   return(plots)
 }
+
+map_independent_trials <- function(indices, fun) {
+  # Callers must give every trial an explicit seed. Execution order then has
+  # no effect on the statistical result, and returned order matches indices.
+  workers <- suppressWarnings(as.integer(Sys.getenv("DOSEFINDING_WORKERS", "1")))
+  if (length(workers) != 1L || is.na(workers) || workers < 1L) {
+    stop("DOSEFINDING_WORKERS must be a positive integer.")
+  }
+  if (workers == 1L || .Platform$OS.type == "windows" || length(indices) < 2L) {
+    return(lapply(indices, fun))
+  }
+  result <- parallel::mclapply(indices, fun, mc.cores = min(workers, length(indices)),
+                               mc.set.seed = FALSE)
+  if (any(vapply(result, inherits, FALSE, "try-error"))) stop("An independent trial worker failed.")
+  result
+}
