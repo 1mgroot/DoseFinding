@@ -84,14 +84,14 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
     # Extract key metrics
     metrics <- list(
       terminated_early = results$terminated_early,
-      termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
+      termination_stage = if (results$terminated_early) as.integer(results$termination_stage) else NA_integer_,
       final_od = ifelse(results$terminated_early, NA, results$final_od),
-      final_od_index = ifelse(results$terminated_early, NA, results$final_od_index),
+      final_od_index = if (results$terminated_early) NA_integer_ else as.integer(results$final_od_index),
       poc_validated = ifelse(results$terminated_early, FALSE, results$poc_validated),
       poc_probability = ifelse(results$terminated_early, 0, results$poc_probability),
       total_participants = nrow(results$all_data),
-      true_optimal_selected = if (!results$terminated_early && !is.na(true_optimal_dose)) {
-        results$final_od == true_optimal_dose
+      true_optimal_selected = if (!is.na(true_optimal_dose)) {
+        isTRUE(results$final_od == true_optimal_dose)
       } else {
         NA
       }
@@ -116,7 +116,7 @@ run_single_calibration_simulation <- function(config, scenario_params, seed = NU
       success = TRUE,
       debug_info = list(
         terminated_early = results$terminated_early,
-        termination_stage = ifelse(results$terminated_early, results$termination_stage, NA),
+        termination_stage = if (results$terminated_early) as.integer(results$termination_stage) else NA_integer_,
         termination_reason = ifelse(results$terminated_early, results$termination_reason, NA),
         posterior_summaries = results$posterior_summaries,
         all_data = results$all_data
@@ -173,7 +173,8 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
         poc_validated = FALSE,
         poc_probability = 0,
         total_participants = total_participants,
-        true_optimal_selected = NA
+        true_optimal_selected = if (is.null(scenario_params$true_optimal_dose) ||
+                                   is.na(scenario_params$true_optimal_dose)) NA else FALSE
       ),
       allocation_summary = base_result$allocation_summary,
       stage_allocation = base_result$stage_allocation,
@@ -210,8 +211,8 @@ evaluate_poc_candidate_from_base_result <- function(base_result, config, c_poc, 
       poc_validated = poc_validated,
       poc_probability = poc_results$poc_probability,
       total_participants = total_participants,
-      true_optimal_selected = if (!is.na(true_optimal_dose) && !is.na(final_od)) {
-        final_od == true_optimal_dose
+      true_optimal_selected = if (!is.na(true_optimal_dose)) {
+        isTRUE(final_od == true_optimal_dose)
       } else {
         NA
       }

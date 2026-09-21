@@ -196,7 +196,8 @@ run_trial_simulation <- function(trial_config, p_YI, p_YT_given_I, p_YE_given_I,
       cat("Workflow: Step 4 - Early Termination Check
 ")
     }
-    if (check_early_termination(admissible_set, trial_config)) {
+    # An empty set at the final analysis is a completed trial with no OD.
+    if (stage < trial_config$n_stages && check_early_termination(admissible_set, trial_config)) {
       termination_info <- handle_trial_termination(admissible_set, stage, trial_config)
       
       # INVARIANT VALIDATION: Check sample size at termination

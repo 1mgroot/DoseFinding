@@ -43,3 +43,24 @@ test_that("PoC uses the same strict cutoff at an exact posterior probability bou
   expect_equal(unname(result$pairwise_probs), .45)
   expect_length(result$P_final, 0)
 })
+
+test_that("empty final admissible set means completed without OD rather than early stop", {
+  config <- within(trial_config, {
+    n_stages <- 1
+    c_T <- 1
+    verbose_logging <- FALSE
+    log_early_termination <- FALSE
+  })
+  result <- run_trial_simulation(config,p_YI,p_YT_given_I,p_YE_given_I,0,0,11118)
+  expect_false(result$terminated_early)
+  expect_true(is.na(result$termination_stage))
+  expect_equal(nrow(result$all_data), config$cohort_size)
+  expect_length(result$final_admissible_set, 0)
+  expect_false(result$poc_validated)
+  expect_true(is.na(result$final_od))
+  config$n_stages <- 2
+  early <- run_trial_simulation(config,p_YI,p_YT_given_I,p_YE_given_I,0,0,11118)
+  expect_true(early$terminated_early)
+  expect_equal(early$termination_stage,1)
+  expect_equal(nrow(early$all_data), config$cohort_size)
+})

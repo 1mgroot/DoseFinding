@@ -499,11 +499,14 @@ select_final_od_with_poc <- function(admissible_set, posterior_summaries, config
   #   list: Selection results including PoC validation
   if (length(admissible_set) == 0) {
     return(list(
-      optimal_dose = NA,
-      optimal_utility = NA,
+      optimal_dose = NA_integer_,
+      optimal_utility = NA_real_,
       poc_validated = FALSE,
       poc_probability = 0,
       P_final = integer(0),
+      pairwise_probs = numeric(0),
+      admissible_doses = integer(0),
+      utilities = numeric(0),
       reason = "No admissible doses"
     ))
   }

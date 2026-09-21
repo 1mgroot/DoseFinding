@@ -375,3 +375,42 @@ test_that("PoC calibration history log appends readable run summaries", {
   expect_true(any(grepl("| c_poc | PoC detection |", log_lines, fixed = TRUE)))
   expect_true(any(grepl("test run 2", log_lines, fixed = TRUE)))
 })
+
+test_that("rescoring c_poc matches complete reruns on real trial streams", {
+  config <- trial_config
+  config$n_stages <- 2
+  config$c_T <- config$c_I <- config$c_E <- 0
+  config$c_poc <- 0.8
+  scenario <- list(p_YI = p_YI, p_YT_given_I = p_YT_given_I,
+                   p_YE_given_I = p_YE_given_I, rho0 = 0, rho1 = 0)
+  for (seed in c(1234, 1235)) {
+    base <- run_single_calibration_simulation(config, scenario, seed)
+    expect_true(base$success)
+    expect_false(base$metrics$terminated_early)
+    for (cutoff in c(0.5, 0.95)) {
+      updated <- config
+      updated$c_poc <- cutoff
+      direct <- run_single_calibration_simulation(updated, scenario, seed)
+      rescored <- evaluate_poc_candidate_from_base_result(base, config, cutoff, scenario)
+      expect_equal(direct$debug_info$all_data, base$debug_info$all_data)
+      expect_equal(direct$metrics, rescored$metrics)
+    }
+  }
+})
+
+test_that("known true-optimal selection counts no OD as failure, including rescores", {
+  config <- trial_config
+  config$n_stages <- 2
+  config$c_T <- 1
+  scenario <- create_null_flat_scenario(length(config$dose_levels))
+  scenario$true_optimal_dose <- config$dose_levels[1]
+  result <- run_single_calibration_simulation(config, scenario, seed = 42)
+  expect_true(result$success)
+  expect_false(result$metrics$true_optimal_selected)
+  rescored <- evaluate_poc_candidate_from_base_result(result, config, .8, scenario)
+  expect_false(rescored$metrics$true_optimal_selected)
+  config$n_stages <- 1
+  completed <- run_single_calibration_simulation(config, scenario, seed = 42)
+  expect_false(completed$metrics$terminated_early)
+  expect_false(completed$metrics$true_optimal_selected)
+})
