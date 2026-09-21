@@ -1,3 +1,10 @@
+exceeds_probability_cutoff <- function(probability, cutoff) {
+  # Calibration grids can store 0.45 as 0.44999999999999996. Treat
+  # machine-precision equality as equality, preserving the design's strict >.
+  tolerance <- 8 * .Machine$double.eps * pmax(1, abs(probability), abs(cutoff))
+  probability - cutoff > tolerance
+}
+
 calculate_utility_from_probabilities <- function(
   pi_I,
   pi_T_given_I0,
@@ -226,7 +233,9 @@ get_admissible_set <- function(posterior_summaries, config, verbose = TRUE) {
                 "(Threshold: ", config$c_I, ")\n"))
     }
 
-    if (tox_prob_safe > config$c_T && eff_prob_good > config$c_E && imm_prob_good > config$c_I) {
+    if (exceeds_probability_cutoff(tox_prob_safe, config$c_T) &&
+        exceeds_probability_cutoff(eff_prob_good, config$c_E) &&
+        exceeds_probability_cutoff(imm_prob_good, config$c_I)) {
       admissible_doses <- c(admissible_doses, i)
     }
   }
@@ -423,7 +432,7 @@ calculate_poc_probability <- function(admissible_set, posterior_summaries, confi
     )
   }
 
-  P_final <- admissible_set[poc_probs > config$c_poc]
+  P_final <- admissible_set[exceeds_probability_cutoff(poc_probs, config$c_poc)]
   poc_prob <- if (length(poc_probs) > 0) max(poc_probs) else 0
 
   utilities <- sapply(admissible_set, get_expected_utility, posterior_summaries, config)

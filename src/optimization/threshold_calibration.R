@@ -363,9 +363,9 @@ endpoint_admissibility_table <- function(posterior_summaries, config) {
       tox_prob_safe = tox_prob_safe,
       eff_prob_good = eff_prob_good,
       imm_prob_good = imm_prob_good,
-      tox_pass = tox_prob_safe > config$c_T,
-      eff_pass = eff_prob_good > config$c_E,
-      imm_pass = imm_prob_good > config$c_I,
+      tox_pass = exceeds_probability_cutoff(tox_prob_safe, config$c_T),
+      eff_pass = exceeds_probability_cutoff(eff_prob_good, config$c_E),
+      imm_pass = exceeds_probability_cutoff(imm_prob_good, config$c_I),
       stringsAsFactors = FALSE
     )
   })

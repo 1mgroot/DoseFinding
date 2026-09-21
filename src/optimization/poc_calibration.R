@@ -1489,9 +1489,9 @@ generate_calibration_report <- function(calibration_results, null_scenario, base
               eff_prob <- mean(ps$eff_marginal$samples[[dose]] > base_config$phi_E)
               imm_prob <- mean(ps$imm$samples_pava[[dose]] > base_config$phi_I)
 
-              admissible <- (tox_prob >= base_config$c_T) &&
-                           (eff_prob >= base_config$c_E) &&
-                           (imm_prob >= base_config$c_I)
+              admissible <- exceeds_probability_cutoff(tox_prob, base_config$c_T) &&
+                           exceeds_probability_cutoff(eff_prob, base_config$c_E) &&
+                           exceeds_probability_cutoff(imm_prob, base_config$c_I)
 
               status_mark <- if (admissible) "✓" else "✗"
               cat(sprintf("        Dose %d %s: P(Tox<%.2f)=%.2f, P(Eff>%.2f)=%.2f, P(Imm>%.2f)=%.2f\n",
