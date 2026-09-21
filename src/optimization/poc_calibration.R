@@ -232,6 +232,10 @@ summarise_poc_candidate_results <- function(
   calibration_seed,
   store_simulation_results
 ) {
+  if (length(simulation_results) != n_simulations ||
+      any(!vapply(simulation_results, function(x) isTRUE(x$success), logical(1)))) {
+    stop("PoC calibration contains failed or missing simulations; rates cannot be estimated.")
+  }
   poc_detection_count <- sum(vapply(
     simulation_results,
     function(result) !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated),
@@ -802,6 +806,8 @@ calibrate_c_poc <- function(
 
   return(list(
     calibration_results = calibration_results,
+    base_config = base_config,
+    null_scenario = null_scenario,
     optimal_c_poc = optimal_c_poc,
     target_rate = target_rate,
     achieved_rate = poc_rates[optimal_idx],
@@ -932,6 +938,9 @@ validate_calibration <- function(
       n_validation_simulations != floor(n_validation_simulations)) {
     stop("n_validation_simulations must be a positive integer.")
   }
+  # Validate the design and null scenario that were actually calibrated.
+  if (is.null(base_config)) base_config <- calibration_results$base_config
+  if (is.null(null_scenario)) null_scenario <- calibration_results$null_scenario
   if (is.null(null_scenario)) {
     null_scenario <- create_default_null_scenario(base_config)
   }
@@ -986,6 +995,9 @@ validate_calibration <- function(
 
   detections <- vapply(seq_len(n_validation_simulations), function(i) {
     result <- run_single_calibration_simulation(config, null_scenario, seed = validation_seed + i)
+    if (!isTRUE(result$success)) {
+      stop("PoC validation simulation failed; rates cannot be estimated.")
+    }
     !result$metrics$terminated_early && isTRUE(result$metrics$poc_validated)
   }, logical(1))
 

@@ -376,6 +376,23 @@ test_that("PoC calibration history log appends readable run summaries", {
   expect_true(any(grepl("test run 2", log_lines, fixed = TRUE)))
 })
 
+
+test_that("failed simulations cannot masquerade as null non-detections", {
+  failed <- list(success = FALSE, metrics = list(terminated_early = TRUE, poc_validated = FALSE))
+  expect_error(
+    summarise_poc_candidate_results(0.9, list(failed), 1, TRUE, 123, FALSE),
+    "failed or missing simulations"
+  )
+  original <- run_single_calibration_simulation
+  assign("run_single_calibration_simulation", function(...) failed, envir = .GlobalEnv)
+  on.exit(assign("run_single_calibration_simulation", original, envir = .GlobalEnv))
+  expect_error(
+    validate_calibration(list(optimal_c_poc = 0.9, target_rate = 0.1), n_validation_simulations = 1),
+    "validation simulation failed"
+  )
+})
+
+
 test_that("rescoring c_poc matches complete reruns on real trial streams", {
   config <- trial_config
   config$n_stages <- 2
@@ -398,6 +415,26 @@ test_that("rescoring c_poc matches complete reruns on real trial streams", {
   }
 })
 
+
+test_that("validation reuses the calibrated design and null scenario", {
+  config <- trial_config
+  config$c_T <- 0.67
+  scenario <- create_default_null_scenario(config)
+  captured <- new.env()
+  original <- run_single_calibration_simulation
+  assign("run_single_calibration_simulation", function(config, scenario_params, seed) {
+    captured$config <- config
+    captured$scenario <- scenario_params
+    list(success = TRUE, metrics = list(terminated_early = FALSE, poc_validated = FALSE))
+  }, envir = .GlobalEnv)
+  on.exit(assign("run_single_calibration_simulation", original, envir = .GlobalEnv))
+  result <- validate_calibration(list(optimal_c_poc = 0.92, target_rate = 0.1,
+                                     base_config = config, null_scenario = scenario),
+                                 n_validation_simulations = 1)
+  expect_equal(captured$config$c_T, 0.67)
+  expect_equal(captured$config$c_poc, 0.92)
+  expect_equal(captured$scenario, scenario)
+})
 test_that("known true-optimal selection counts no OD as failure, including rescores", {
   config <- trial_config
   config$n_stages <- 2
