@@ -51,6 +51,10 @@ test_that("get_expected_utility averages utility over posterior draws", {
     trial_config$utility_table
   )
 
+  expect_equal(
+    get_expected_utility_detailed(1, posterior_summaries, trial_config)$total_utility,
+    mean(draw_utilities)
+  )
   expect_equal(get_expected_utility_draws(1, posterior_summaries, trial_config), draw_utilities)
   expect_equal(get_expected_utility(1, posterior_summaries, trial_config), mean(draw_utilities))
   expect_gt(abs(get_expected_utility(1, posterior_summaries, trial_config) - plugin_utility), 0.01)

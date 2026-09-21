@@ -160,30 +160,40 @@ calculate_utility_from_true_probs <- function(dose_idx, p_YI, p_YT_given_I, p_YE
 }
 
 get_expected_utility_detailed <- function(dose_idx, posterior_summaries, config) {
-  # Get posterior probabilities for the given dose
-  pi_T_given_I0 <- posterior_summaries$tox$pava_mean[2 * dose_idx - 1]
-  pi_T_given_I1 <- posterior_summaries$tox$pava_mean[2 * dose_idx]
-  pi_E_given_I0 <- posterior_summaries$eff$pava_mean[2 * dose_idx - 1]
-  pi_E_given_I1 <- posterior_summaries$eff$pava_mean[2 * dose_idx]
-  pi_I <- posterior_summaries$imm$pava_mean[dose_idx]
-
-  # Probabilities of T=0 and T=1 given I
+  tox <- order_endpoint_summary(posterior_summaries$tox)
+  eff <- order_endpoint_summary(posterior_summaries$eff)
+  imm <- order_immune_summary(posterior_summaries$imm)
+  draws <- list(
+    i = posterior_samples_or_mean(imm, dose_idx),
+    t0 = posterior_samples_or_mean(tox, 2 * dose_idx - 1),
+    t1 = posterior_samples_or_mean(tox, 2 * dose_idx),
+    e0 = posterior_samples_or_mean(eff, 2 * dose_idx - 1),
+    e1 = posterior_samples_or_mean(eff, 2 * dose_idx)
+  )
+  n_draws <- min(lengths(draws))
+  draws <- lapply(draws, function(x) x[seq_len(n_draws)])
+  u0 <- vapply(seq_len(n_draws), function(s) {
+    calculate_utility_from_probabilities(0, draws$t0[s], draws$t1[s],
+                                       draws$e0[s], draws$e1[s], config$utility_table)
+  }, numeric(1))
+  u1 <- vapply(seq_len(n_draws), function(s) {
+    calculate_utility_from_probabilities(1, draws$t0[s], draws$t1[s],
+                                       draws$e0[s], draws$e1[s], config$utility_table)
+  }, numeric(1))
+  pi_I <- mean(draws$i)
+  pi_T_given_I0 <- mean(draws$t0)
+  pi_T_given_I1 <- mean(draws$t1)
+  pi_E_given_I0 <- mean(draws$e0)
+  pi_E_given_I1 <- mean(draws$e1)
   p_T_given_I0 <- c(1 - pi_T_given_I0, pi_T_given_I0)
   p_T_given_I1 <- c(1 - pi_T_given_I1, pi_T_given_I1)
-
-  # Probabilities of E=0 and E=1 given I
   p_E_given_I0 <- c(1 - pi_E_given_I0, pi_E_given_I0)
   p_E_given_I1 <- c(1 - pi_E_given_I1, pi_E_given_I1)
+  utility_I0 <- mean(u0)
+  utility_I1 <- mean(u1)
+  # Average the mixture within each draw, as in the actual decision rule.
+  total_utility <- mean((1 - draws$i) * u0 + draws$i * u1)
 
-  # Expected utility for I=0
-  utility_I0 <- sum(config$utility_table[,,1] * (p_E_given_I0 %o% p_T_given_I0))
-
-  # Expected utility for I=1
-  utility_I1 <- sum(config$utility_table[,,2] * (p_E_given_I1 %o% p_T_given_I1))
-
-  # Total expected utility
-  total_utility <- (1 - pi_I) * utility_I0 + pi_I * utility_I1
-  
   # Return detailed breakdown
   return(list(
     dose_idx = dose_idx,
