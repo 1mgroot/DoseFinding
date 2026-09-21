@@ -1052,7 +1052,7 @@ poc_config_markdown_lines <- function(base_config, null_scenario) {
   config_fields <- c(
     "dose_levels", "n_stages", "cohort_size",
     "phi_T", "c_T", "phi_E", "c_E", "phi_I", "c_I",
-    "delta_poc", "enable_early_termination"
+    "delta_poc", "enable_early_termination", "adaptive_allocation_method"
   )
 
   config_lines <- c("Trial/config parameters:")

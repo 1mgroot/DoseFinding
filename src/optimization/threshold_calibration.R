@@ -104,6 +104,7 @@ default_separate_threshold_settings <- function(quick_mode = TRUE) {
     dose_levels = c(1, 2, 3, 4, 5),
     n_stages = 5,
     cohort_size = 15,
+    adaptive_allocation_method = "largest_remainder",
     phi_T = 0.30,
     phi_E = 0.25,
     phi_I = 0.20,
@@ -274,6 +275,8 @@ create_threshold_trial_config <- function(settings, c_T, c_E, c_I) {
     enable_early_termination = TRUE,
     log_early_termination = FALSE,
     verbose_logging = FALSE,
+    adaptive_allocation_method = if (is.null(settings$adaptive_allocation_method))
+      "largest_remainder" else settings$adaptive_allocation_method,
     utility_table = make_default_utility_table()
   )
   config
