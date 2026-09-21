@@ -635,21 +635,24 @@ calibrate_single_threshold <- function(
       c_I = params$c_I
     )
     simulation_results <- vector("list", n_simulations)
-    for (sim_index in seq_len(n_simulations)) {
-      simulation_results[[sim_index]] <- run_threshold_calibration_simulation(
+    for (batch_start in seq.int(1L, n_simulations, by = 100L)) {
+      batch_indices <- seq.int(batch_start, min(n_simulations, batch_start + 99L))
+      simulation_results[batch_indices] <- map_independent_trials(batch_indices, function(sim_index) {
+        run_threshold_calibration_simulation(
         config = config,
         scenario = scenario,
         seed = threshold_candidate_seed(base_seed, i, sim_index, n_simulations)
       )
+      })
       if (!is.null(progress_state)) {
-        progress_state$completed_work <- progress_state$completed_work + 1L
+        progress_state$completed_work <- progress_state$completed_work + length(batch_indices)
         maybe_log_threshold_progress(
           progress_state = progress_state,
           param_name = param_name,
           candidate = candidates[[i]],
           candidate_index = i,
           n_candidates = length(candidates),
-          simulation_index = sim_index,
+          simulation_index = max(batch_indices),
           n_simulations = n_simulations
         )
       }

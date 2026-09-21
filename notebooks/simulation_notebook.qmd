@@ -259,7 +259,7 @@ progress_every <- if (quick_mode) 1 else max(1, floor(n_simulations / 20))
 cat("Running", n_simulations, "trial simulations...\n")
 simulation_start_time <- Sys.time()
 
-simulation_results <- lapply(seq_len(n_simulations), function(sim_id) {
+simulation_results <- map_independent_trials(seq_len(n_simulations), function(sim_id) {
   if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {
     cat("  Simulation", sim_id, "of", n_simulations, "\n")
   }

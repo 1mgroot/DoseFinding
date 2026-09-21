@@ -596,8 +596,12 @@ calibrate_c_poc <- function(
 
     base_results <- vector("list", n_simulations)
     debug_count <- 0
-    for (sim in seq_len(n_simulations)) {
-      base_results[[sim]] <- run_base_simulation(sim)
+    for (batch_start in seq.int(1L, n_simulations, by = 100L)) {
+      batch_indices <- seq.int(batch_start, min(n_simulations, batch_start + 99L))
+      batch_results <- map_independent_trials(batch_indices, run_base_simulation)
+      for (batch_index in seq_along(batch_indices)) {
+      sim <- batch_indices[[batch_index]]
+      base_results[[sim]] <- batch_results[[batch_index]]
 
       if (
         isTRUE(base_results[[sim]]$metrics$terminated_early) &&
@@ -624,6 +628,7 @@ calibrate_c_poc <- function(
           enabled = TRUE
         )
         next_progress_at <- now + progress_interval_seconds
+      }
       }
     }
 

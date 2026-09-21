@@ -410,7 +410,7 @@ run_one_scenario <- function(scenario, scenario_index) {
   scenario_start_time <- Sys.time()
   scenario_seed <- comparison_settings$seed + (scenario_index - 1) * scenario_seed_stride
 
-  scenario_results <- lapply(seq_len(n_simulations), function(sim_id) {
+  scenario_results <- map_independent_trials(seq_len(n_simulations), function(sim_id) {
     if (sim_id == 1 || sim_id %% progress_every == 0 || sim_id == n_simulations) {
       cat("  Simulation ", sim_id, " of ", n_simulations, "\n", sep = "")
     }
