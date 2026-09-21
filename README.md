@@ -10,7 +10,7 @@ dose-finding trials with three binary endpoints:
 The project simulates a multi-stage clinical trial, updates Bayesian posterior
 estimates as patient outcomes accumulate, removes unacceptable doses, adaptively
 allocates later patients toward better doses, stops early when no dose remains
-acceptable, and applies a final Probability of Correct Selection (PoC) gate
+acceptable, and applies a final Proof of Concept (PoC) gate
 before recommending an optimal dose (OD).
 
 In plain terms: this project lets you repeatedly test a dose-finding design
@@ -235,8 +235,15 @@ source of truth.
 ## Implementation Scope
 
 - The current R code implements a no-control-arm adaptive simulation workflow.
-- `Design2.tex` includes a control-arm / `gamma_j` allocation idea, but that
-  extension is not implemented in the current code.
+- `Design2.tex` includes control-arm admissibility and control allocation
+  extensions, which are not implemented. Posterior optimality probabilities
+  (`gamma_j`) for experimental doses are implemented.
+- Stage sizes currently share one `cohort_size`; allocation counts use
+  deterministic largest-remainder rounding by default, retaining the allocation method used in saved calibrations.
+  Set `trial_config$adaptive_allocation_method = "multinomial"` for genuine
+  random assignment in stages 2 onward. Stage 1 remains balanced; stage-specific
+  sizes are not implemented. Changing allocation requires fresh calibration
+  before using the resulting design as a calibrated production configuration.
 - The notebooks use `target_rate = 0.10` for null/flat PoC detection calibration
   by default. Protocol-specific applications should use the target required by
   the study design.

@@ -667,7 +667,7 @@ $$
 
 where $A$ is the current admissible set and $U_k^{(s)}$ is the draw-level utility for dose $k$. Ties are split equally within each posterior draw.
 
-**Control arm handling** (OUT-OF-SCOPE): The design specifies special handling for control arms to avoid over-allocation (equations 11-12). This is not implemented.
+**Control arm handling** (OUT-OF-SCOPE): The design specifies special handling for control arms to avoid over-allocation (equations 13-14). This is not implemented.
 
 ### Implementation
 
@@ -876,7 +876,10 @@ if (toxic_trial$terminated_early) {
 
 ### From Design2.tex:
 1. **Section 1.3**: Control arm criteria (equations 6-8) ❌
-2. **Notes**: Control arm allocation logic (equations 11-12) ❌
+2. **Notes**: Control arm allocation logic (equations 13-14) ❌
+3. **Section 2**: Stage-specific sample sizes ❌; stage 2+ patient randomization is
+   available as an opt-in method, pending recalibration; Stage 1 remains balanced
+4. **Notes**: 0.05 familywise Type I error target and 80%-90% power are not established by the current 0.10 calibration workflow.
 
 ## 🎯 Key Features Demonstrated
 

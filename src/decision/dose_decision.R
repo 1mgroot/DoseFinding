@@ -409,7 +409,7 @@ handle_trial_termination <- function(admissible_set, stage, config) {
   return(termination_info)
 }
 
-# Probability of Correct Selection (PoC) Functions
+# Proof of Concept (PoC) Functions
 
 calculate_poc_probability <- function(admissible_set, posterior_summaries, config) {
   # Design2 PoC set:
